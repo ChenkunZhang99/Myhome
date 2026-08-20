@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { once } from "../_shared/once";
+import { ensureSchema } from "../_shared/schema";
 import {
   applyConsumption,
   findInventoryMatch,
@@ -7,7 +7,6 @@ import {
   stockPortions,
   type StockPortion,
 } from "../../inventoryUsage";
-import { ensureInventorySchema } from "../_shared/inventory";
 
 const mealTypes = ["", "早餐", "午餐", "晚餐"];
 const requestStatuses = ["candidate", "scheduled", "completed"];
@@ -101,7 +100,7 @@ async function consumeInventory(value: unknown): Promise<ConsumptionSnapshot[]> 
     );
   if (!entries.length) return [];
 
-  await ensureInventorySchema();
+  await ensureSchema();
 
   // 一次性把要动的库存全查出来，再一次性写回。
   // 逐条 SELECT + 逐条 UPDATE 的话，一顿饭 5 样食材就是 10 次网络往返。
@@ -154,7 +153,7 @@ async function consumeInventory(value: unknown): Promise<ConsumptionSnapshot[]> 
 async function restoreInventory(value: string) {
   const snapshots = safeJson<ConsumptionSnapshot[]>(value, []);
   if (!Array.isArray(snapshots) || !snapshots.length) return { restored: 0, skipped: 0 };
-  await ensureInventorySchema();
+  await ensureSchema();
 
   const usable = snapshots.filter(
     (snapshot) => cleanText(snapshot?.inventoryId, "", 100) && snapshot?.before && snapshot?.after,
@@ -231,97 +230,6 @@ function cleanRecipe(input: RecipeInput) {
     isCustom: Boolean(input.isCustom),
   };
 }
-
-const ensureSchema = once(async () => {
-  const db = database();
-  await db.batch([
-    db.prepare(`CREATE TABLE IF NOT EXISTS recipe_catalog (
-      id TEXT PRIMARY KEY, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', reason TEXT NOT NULL DEFAULT '',
-      origin TEXT NOT NULL DEFAULT '家庭自建', icon TEXT NOT NULL DEFAULT '🍲', cook_time TEXT NOT NULL DEFAULT '30 分钟',
-      difficulty TEXT NOT NULL DEFAULT '简单', servings INTEGER NOT NULL DEFAULT 2, ingredients_json TEXT NOT NULL DEFAULT '[]',
-      steps_json TEXT NOT NULL DEFAULT '[]', tags_json TEXT NOT NULL DEFAULT '[]', meal_types_json TEXT NOT NULL DEFAULT '[]',
-      is_favorite INTEGER NOT NULL DEFAULT 0, is_custom INTEGER NOT NULL DEFAULT 0, cooked_count INTEGER NOT NULL DEFAULT 0,
-      last_cooked_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS household_members (
-      id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT NOT NULL DEFAULT '🙂',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS meal_requests (
-      id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, member_id TEXT NOT NULL, desired_from TEXT, desired_to TEXT,
-      meal_type TEXT NOT NULL DEFAULT '', priority TEXT NOT NULL DEFAULT '想吃', servings INTEGER NOT NULL DEFAULT 2,
-      notes TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'candidate', scheduled_date TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS recipe_cook_history (
-      id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, request_id TEXT, cooked_date TEXT NOT NULL, meal_type TEXT NOT NULL DEFAULT '',
-      servings INTEGER NOT NULL DEFAULT 2, cook_member_id TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
-      consumption_json TEXT NOT NULL DEFAULT '[]',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS recipe_ratings (
-      id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, member_id TEXT NOT NULL, rating INTEGER NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS recipe_activity_log (
-      id TEXT PRIMARY KEY, recipe_id TEXT, member_id TEXT, action TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS recipe_preferences (
-      id INTEGER PRIMARY KEY, allergies TEXT NOT NULL DEFAULT '', avoid_foods TEXT NOT NULL DEFAULT '',
-      dislikes TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS recipe_attachments (
-      id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, object_key TEXT NOT NULL, file_name TEXT NOT NULL,
-      content_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_recipe_catalog_updated_at ON recipe_catalog(updated_at)"),
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_meal_requests_status_date ON meal_requests(status, scheduled_date)",
-    ),
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_recipe_cook_history_recipe_date ON recipe_cook_history(recipe_id, cooked_date)",
-    ),
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_recipe_ratings_recipe_id ON recipe_ratings(recipe_id)"),
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_recipe_activity_log_created_at ON recipe_activity_log(created_at)",
-    ),
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_recipe_attachments_recipe_id ON recipe_attachments(recipe_id)",
-    ),
-    db.prepare("INSERT OR IGNORE INTO household_members (id, name, avatar) VALUES ('member-me', '我', '🙂')"),
-    db.prepare(
-      "INSERT OR IGNORE INTO household_members (id, name, avatar) VALUES ('member-family', '家庭成员', '😊')",
-    ),
-    db.prepare("INSERT OR IGNORE INTO recipe_preferences (id) VALUES (1)"),
-    db.prepare(
-      "DELETE FROM recipe_favorites WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
-    ),
-    db.prepare(
-      "DELETE FROM recipe_suggestions WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
-    ),
-    db.prepare(
-      "DELETE FROM recipe_catalog WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
-    ),
-    db.prepare(`INSERT OR IGNORE INTO recipe_catalog
-      (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json, tags_json, meal_types_json, is_favorite, is_custom)
-      SELECT id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json,
-      '["已收藏"]', '[]', 1, 0 FROM recipe_favorites`),
-    db.prepare(`INSERT OR IGNORE INTO recipe_catalog
-      (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json, tags_json, meal_types_json, is_favorite, is_custom)
-      SELECT id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json,
-      '["智能推荐"]', '[]', 0, 0 FROM recipe_suggestions`),
-    db.prepare("PRAGMA optimize"),
-  ]);
-
-  // 扣库存的快照是后加的，老库里没有这一列。
-  const columns = await db.prepare("PRAGMA table_info(recipe_cook_history)").all<{ name: string }>();
-  if (!columns.results.some((column) => column.name === "consumption_json")) {
-    await db
-      .prepare("ALTER TABLE recipe_cook_history ADD COLUMN consumption_json TEXT NOT NULL DEFAULT '[]'")
-      .run();
-  }
-});
 
 async function logActivity(
   action: string,
@@ -786,7 +694,7 @@ export async function POST(request: Request) {
         .bind(from, to)
         .all<{ ingredientsJson: string }>();
       // 用量要拆成数量和单位分开存，否则「300克」会被当成单位，勾选入库时污染库存。
-      await ensureInventorySchema();
+      await ensureSchema();
       const stock = await env.DB.prepare("SELECT id, name, category, unit FROM inventory_items").all<{
         id: string;
         name: string;

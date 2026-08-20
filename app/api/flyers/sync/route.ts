@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { ensureSchema } from "../../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig, type OpenAIConfig } from "../../_shared/openai";
 import { demoDeals, isDemoMode } from "../../_shared/demo";
 import { fetchPriceSmartDeals } from "./pricesmart";
@@ -269,17 +270,7 @@ export async function POST(request: Request) {
   try {
     // 定时任务没有浏览器可问，只会拿到环境变量里的密钥；这里两者都覆盖。
     const openAI = getOpenAIConfig(request);
-    const inventoryColumns = await env.DB.prepare("PRAGMA table_info(inventory_items)").all<{
-      name: string;
-    }>();
-    if (!inventoryColumns.results.some((column) => column.name === "remaining_percent")) {
-      await env.DB.prepare(
-        "ALTER TABLE inventory_items ADD COLUMN remaining_percent INTEGER NOT NULL DEFAULT 100",
-      ).run();
-      await env.DB.prepare(
-        "UPDATE inventory_items SET remaining_percent = 0 WHERE quantity <= 0 OR level = '已用完'",
-      ).run();
-    }
+    await ensureSchema();
     const scheduled = new URL(request.url).searchParams.get("scheduled") === "1";
     const stores = await env.DB.prepare(
       `SELECT id, name, address, source_key AS sourceKey, flyer_url AS flyerUrl

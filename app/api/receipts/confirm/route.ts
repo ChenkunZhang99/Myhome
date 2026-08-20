@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
-import { defaultLocation, ensureInventorySchema } from "../../_shared/inventory";
+import { ensureSchema } from "../../_shared/schema";
+import { defaultLocation } from "../../_shared/inventory";
 
 const categories = [
   "蔬菜水果",
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
     };
     const items = Array.isArray(payload.items) ? payload.items.slice(0, 80) : [];
     if (!items.length) return Response.json({ error: "没有需要加入库存的商品" }, { status: 400 });
-    await ensureInventorySchema();
+    await ensureSchema();
     const store = text(payload.store, "未知商店");
     const purchaseDate = /^\d{4}-\d{2}-\d{2}$/.test(text(payload.purchaseDate))
       ? text(payload.purchaseDate)

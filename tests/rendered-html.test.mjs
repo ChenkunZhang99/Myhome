@@ -36,6 +36,7 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
     workspaceRoute,
     recipeFiles,
     skill,
+    schema,
   ] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/_shared/openai.ts", import.meta.url), "utf8"),
@@ -47,6 +48,7 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
     readFile(new URL("../app/api/recipe-workspace/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/recipe-files/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/flyer-recommendation-rules.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/_shared/schema.ts", import.meta.url), "utf8"),
   ]);
   assert.match(page, /编辑全部资料/);
   assert.match(page, /const unitGroups/);
@@ -90,16 +92,16 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
   assert.match(workspace, /菜谱照片（最多 2 张）/);
   assert.match(workspace, /catalog-recipe-photo/);
   assert.match(workspace, /完成并评分/);
-  assert.match(workspaceRoute, /recipe_catalog/);
-  assert.match(workspaceRoute, /household_members/);
-  assert.match(workspaceRoute, /meal_requests/);
-  assert.match(workspaceRoute, /recipe_cook_history/);
+  assert.match(schema, /recipe_catalog/);
+  assert.match(schema, /household_members/);
+  assert.match(schema, /meal_requests/);
+  assert.match(schema, /recipe_cook_history/);
   assert.match(workspaceRoute, /generateShopping/);
-  assert.match(workspaceRoute, /DELETE FROM recipe_suggestions/);
-  assert.match(workspaceRoute, /DELETE FROM recipe_favorites/);
-  assert.match(workspaceRoute, /action = '删除菜谱'/);
+  assert.match(schema, /DELETE FROM recipe_suggestions/);
+  assert.match(schema, /DELETE FROM recipe_favorites/);
+  assert.match(schema, /action = '删除菜谱'/);
   assert.match(workspaceRoute, /savePreferences/);
-  assert.match(workspaceRoute, /recipe_attachments/);
+  assert.match(schema, /recipe_attachments/);
   assert.match(recipeFiles, /MAX_FILES_PER_RECIPE = 2/);
   assert.match(recipeFiles, /env\.UPLOADS\.put/);
   assert.match(recipe, /家庭过敏食材（绝对禁止）/);
@@ -110,7 +112,7 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
   assert.match(recipe, /当前库存/);
   assert.match(recipe, /当前有效 Flyer 优惠/);
   assert.match(recipe, /source/);
-  assert.match(recipe, /recipe_favorites/);
+  assert.match(schema, /recipe_favorites/);
   assert.match(recipe, /export async function PATCH/);
   assert.match(skill, /targeted match/);
   assert.match(skill, /category match/);

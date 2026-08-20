@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { ensureInventorySchema } from "../_shared/inventory";
+import { ensureSchema } from "../_shared/schema";
 import { seedDemoData } from "../_shared/demo";
 
 type InventoryPayload = {
@@ -42,7 +42,7 @@ function clampPercent(value: unknown, fallback = 100) {
 
 export async function GET() {
   try {
-    await ensureInventorySchema();
+    await ensureSchema();
     // 全新克隆时灌一套演示数据，让界面不是空的（仅演示模式且库存为空时执行）。
     await seedDemoData();
     const result = await env.DB.prepare(
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "请填写物品名称" }, { status: 400 });
     }
 
-    await ensureInventorySchema();
+    await ensureSchema();
     const quantity = Number.isFinite(payload.quantity) ? Math.max(0, Number(payload.quantity)) : 1;
     const remainingPercent = clampPercent(payload.remainingPercent);
     const item = {
@@ -138,7 +138,7 @@ export async function PATCH(request: Request) {
     const id = cleanText(payload.id);
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
 
-    await ensureInventorySchema();
+    await ensureSchema();
     const existing = await env.DB.prepare(
       `SELECT id, name, category, location, precision, quantity, unit,
       remaining_percent AS remainingPercent, level,
@@ -235,7 +235,7 @@ export async function DELETE(request: Request) {
   try {
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
-    await ensureInventorySchema();
+    await ensureSchema();
     await env.DB.prepare("DELETE FROM inventory_items WHERE id = ?").bind(id).run();
     return Response.json({ ok: true });
   } catch (error) {

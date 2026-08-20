@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
+import { ensureSchema } from "./schema";
 import { getOpenAIConfig } from "./openai";
-import { ensureInventorySchema } from "./inventory";
 
 /**
  * 演示模式：没有配置 OPENAI_API_KEY 时，需要模型的功能改用内置样例数据，
@@ -274,7 +274,7 @@ const demoInventory = [
  */
 export async function seedDemoData() {
   if (!isDemoMode()) return false;
-  await ensureInventorySchema();
+  await ensureSchema();
   const existing = await env.DB.prepare("SELECT COUNT(*) AS count FROM inventory_items").first<{
     count: number;
   }>();

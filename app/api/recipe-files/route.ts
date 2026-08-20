@@ -1,24 +1,12 @@
 import { env } from "cloudflare:workers";
-import { once } from "../_shared/once";
+import { ensureSchema } from "../_shared/schema";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_FILES_PER_RECIPE = 2;
 
-const ensureRecipeAttachmentSchema = once(async () => {
-  await env.DB.batch([
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_attachments (
-      id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, object_key TEXT NOT NULL, file_name TEXT NOT NULL,
-      content_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_recipe_attachments_recipe_id ON recipe_attachments(recipe_id)",
-    ),
-  ]);
-});
-
 export async function GET(request: Request) {
   try {
-    await ensureRecipeAttachmentSchema();
+    await ensureSchema();
     const url = new URL(request.url);
     const fileId = url.searchParams.get("fileId")?.trim();
     if (fileId) {
@@ -60,7 +48,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureRecipeAttachmentSchema();
+    await ensureSchema();
     const form = await request.formData();
     const recipeId = String(form.get("recipeId") ?? "").trim();
     const files = form
@@ -119,7 +107,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await ensureRecipeAttachmentSchema();
+    await ensureSchema();
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return Response.json({ error: "缺少照片编号" }, { status: 400 });
     const attachment = await env.DB.prepare(

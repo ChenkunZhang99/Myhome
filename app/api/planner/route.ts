@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
-import { once } from "../_shared/once";
+import { ensureSchema } from "../_shared/schema";
 import { normalizeFlyerName } from "../../flyerRecommendations";
-import { defaultLocation, ensureInventorySchema } from "../_shared/inventory";
+import { defaultLocation } from "../_shared/inventory";
 import { seedDemoPlanner } from "../_shared/demo";
 
 const lougheedStores = {
@@ -51,141 +51,11 @@ function todayDate() {
   }).format(new Date());
 }
 
-const ensurePlannerSchema = once(async () => {
-  const statements = [
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS household_settings (
-      id INTEGER PRIMARY KEY DEFAULT 1,
-      city TEXT NOT NULL DEFAULT '',
-      postal_code TEXT NOT NULL DEFAULT '',
-      food_budget REAL NOT NULL DEFAULT 0,
-      household_budget REAL NOT NULL DEFAULT 0,
-      max_stores INTEGER NOT NULL DEFAULT 2,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS stores (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      address TEXT NOT NULL DEFAULT '',
-      source_key TEXT,
-      flyer_url TEXT NOT NULL DEFAULT '',
-      flyer_format TEXT NOT NULL DEFAULT 'manual',
-      last_synced_at TEXT,
-      is_favorite INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS flyer_deals (
-      id TEXT PRIMARY KEY,
-      store_id TEXT NOT NULL,
-      item_name TEXT NOT NULL,
-      category TEXT NOT NULL DEFAULT '其他',
-      price REAL NOT NULL,
-      regular_price REAL,
-      unit TEXT NOT NULL DEFAULT '件',
-      valid_from TEXT NOT NULL,
-      valid_to TEXT NOT NULL,
-      source TEXT NOT NULL DEFAULT 'manual',
-      source_url TEXT NOT NULL DEFAULT '',
-      source_fingerprint TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS flyer_sync_settings (
-      id INTEGER PRIMARY KEY DEFAULT 1,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      interval_hours INTEGER NOT NULL DEFAULT 24,
-      next_sync_at TEXT,
-      last_started_at TEXT,
-      last_completed_at TEXT,
-      last_status TEXT NOT NULL DEFAULT 'never',
-      last_message TEXT NOT NULL DEFAULT '尚未自动同步',
-      deals_imported INTEGER NOT NULL DEFAULT 0,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS flyer_deal_metadata (
-      deal_id TEXT PRIMARY KEY,
-      item_key TEXT NOT NULL DEFAULT '',
-      package_quantity REAL,
-      package_unit TEXT NOT NULL DEFAULT '',
-      confidence TEXT NOT NULL DEFAULT 'medium',
-      verified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      is_saved INTEGER NOT NULL DEFAULT 0,
-      hidden INTEGER NOT NULL DEFAULT 0,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS flyer_price_history (
-      id TEXT PRIMARY KEY,
-      deal_id TEXT NOT NULL,
-      store_id TEXT NOT NULL,
-      item_key TEXT NOT NULL,
-      item_name TEXT NOT NULL,
-      price REAL NOT NULL,
-      regular_price REAL,
-      unit TEXT NOT NULL DEFAULT '件',
-      package_quantity REAL,
-      package_unit TEXT NOT NULL DEFAULT '',
-      valid_from TEXT NOT NULL,
-      valid_to TEXT NOT NULL,
-      observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS flyer_match_rules (
-      id TEXT PRIMARY KEY,
-      inventory_name TEXT NOT NULL,
-      deal_pattern TEXT NOT NULL,
-      category TEXT NOT NULL DEFAULT '',
-      match_kind TEXT NOT NULL DEFAULT 'substitute',
-      active INTEGER NOT NULL DEFAULT 1,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS flyer_recommendation_feedback (
-      id TEXT PRIMARY KEY,
-      deal_id TEXT,
-      item_pattern TEXT NOT NULL DEFAULT '',
-      store_id TEXT,
-      action TEXT NOT NULL,
-      note TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS shopping_items (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      quantity REAL NOT NULL DEFAULT 1,
-      unit TEXT NOT NULL DEFAULT '件',
-      category TEXT NOT NULL DEFAULT '其他',
-      checked INTEGER NOT NULL DEFAULT 0,
-      stocked INTEGER NOT NULL DEFAULT 0,
-      source TEXT NOT NULL DEFAULT 'manual',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_flyer_deals_valid_to ON flyer_deals(valid_to)"),
-    env.DB.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_flyer_deals_store_source ON flyer_deals(store_id, source)",
-    ),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_stores_source_key ON stores(source_key)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_shopping_items_checked ON shopping_items(checked)"),
-    env.DB.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_item_store ON flyer_price_history(item_key, store_id, observed_at)",
-    ),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_flyer_price_history_deal ON flyer_price_history(deal_id)"),
-    env.DB.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_flyer_match_rules_pattern ON flyer_match_rules(deal_pattern, active)",
-    ),
-    env.DB.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_flyer_feedback_action_pattern ON flyer_recommendation_feedback(action, item_pattern)",
-    ),
-  ];
-  await env.DB.batch(statements);
-
-  // 「已买」和「已入库」是两回事，stocked 是后加的列。
-  const columns = await env.DB.prepare("PRAGMA table_info(shopping_items)").all<{ name: string }>();
-  if (!columns.results.some((column) => column.name === "stocked")) {
-    await env.DB.prepare("ALTER TABLE shopping_items ADD COLUMN stocked INTEGER NOT NULL DEFAULT 0").run();
-  }
-});
-
 export async function GET() {
   try {
-    await ensurePlannerSchema();
+    await ensureSchema();
     // 预算对账要读 purchase_records，那张表归库存 schema 管。
-    await ensureInventorySchema();
+    await ensureSchema();
     // 演示模式下预置两家收藏门店和一份预算，让推荐和采购方案有数据可算。
     await seedDemoPlanner();
     const settings = await env.DB.prepare(
@@ -302,7 +172,7 @@ export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as Record<string, unknown>;
     const type = cleanText(payload.type);
-    await ensurePlannerSchema();
+    await ensureSchema();
 
     if (type === "settings") {
       const city = cleanText(payload.city);
@@ -553,7 +423,7 @@ export async function POST(request: Request) {
         ? (payload.items.slice(0, 80) as Array<Record<string, unknown>>)
         : [];
       if (!rows.length) return Response.json({ error: "没有需要入库的物品" }, { status: 400 });
-      await ensureInventorySchema();
+      await ensureSchema();
       const purchaseDate = cleanDate(payload.purchaseDate) ?? todayDate();
       const today = todayDate();
       // 勾选 20 件商品时，原来最坏要跑 80 次往返（逐条查清单、查合并目标、写库存、回写状态）。
@@ -670,7 +540,7 @@ export async function PATCH(request: Request) {
     const payload = (await request.json()) as { type?: string; id?: string; checked?: boolean };
     if (payload.type !== "shopping" || !payload.id)
       return Response.json({ error: "无效操作" }, { status: 400 });
-    await ensurePlannerSchema();
+    await ensureSchema();
     await env.DB.prepare("UPDATE shopping_items SET checked = ? WHERE id = ?")
       .bind(payload.checked ? 1 : 0, payload.id)
       .run();
@@ -690,7 +560,7 @@ export async function DELETE(request: Request) {
     const id = url.searchParams.get("id")?.trim();
     if (!id || !["store", "deal", "shopping"].includes(type ?? ""))
       return Response.json({ error: "无效操作" }, { status: 400 });
-    await ensurePlannerSchema();
+    await ensureSchema();
     if (type === "store") {
       await env.DB.batch([
         env.DB.prepare("DELETE FROM flyer_deals WHERE store_id = ?").bind(id),

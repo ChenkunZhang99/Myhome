@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { once } from "../_shared/once";
+import { ensureSchema } from "../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig } from "../_shared/openai";
 import { demoRecipes, isDemoMode } from "../_shared/demo";
 
@@ -22,48 +22,6 @@ type GeneratedRecipe = {
 };
 
 type StoredRecipe = GeneratedRecipe & { id: string; generatedAt?: string; favoritedAt?: string };
-
-const ensureRecipeSchema = once(async () => {
-  await env.DB.batch([
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_suggestions (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      summary TEXT NOT NULL DEFAULT '',
-      reason TEXT NOT NULL DEFAULT '',
-      origin TEXT NOT NULL DEFAULT '库存优先',
-      icon TEXT NOT NULL DEFAULT '🍲',
-      cook_time TEXT NOT NULL DEFAULT '30 分钟',
-      difficulty TEXT NOT NULL DEFAULT '简单',
-      servings INTEGER NOT NULL DEFAULT 2,
-      ingredients_json TEXT NOT NULL DEFAULT '[]',
-      steps_json TEXT NOT NULL DEFAULT '[]',
-      generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_favorites (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      summary TEXT NOT NULL DEFAULT '',
-      reason TEXT NOT NULL DEFAULT '',
-      origin TEXT NOT NULL DEFAULT '库存优先',
-      icon TEXT NOT NULL DEFAULT '🍲',
-      cook_time TEXT NOT NULL DEFAULT '30 分钟',
-      difficulty TEXT NOT NULL DEFAULT '简单',
-      servings INTEGER NOT NULL DEFAULT 2,
-      ingredients_json TEXT NOT NULL DEFAULT '[]',
-      steps_json TEXT NOT NULL DEFAULT '[]',
-      favorited_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS recipe_preferences (
-      id INTEGER PRIMARY KEY, allergies TEXT NOT NULL DEFAULT '', avoid_foods TEXT NOT NULL DEFAULT '',
-      dislikes TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`),
-    env.DB.prepare("INSERT OR IGNORE INTO recipe_preferences (id) VALUES (1)"),
-    env.DB.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_recipe_favorites_favorited_at ON recipe_favorites(favorited_at)",
-    ),
-    env.DB.prepare("PRAGMA optimize"),
-  ]);
-});
 
 function outputText(response: Record<string, unknown>) {
   const output = Array.isArray(response.output)
@@ -147,7 +105,7 @@ function containsRestrictedFood(recipe: ReturnType<typeof cleanRecipe>, terms: s
 }
 
 async function readRecipes() {
-  await ensureRecipeSchema();
+  await ensureSchema();
   const rows = await env.DB.prepare(
     `SELECT id, title, summary, reason, origin, icon, cook_time AS cookTime,
     difficulty, servings, ingredients_json AS ingredientsJson, steps_json AS stepsJson, generated_at AS generatedAt
@@ -176,7 +134,7 @@ async function readRecipes() {
 }
 
 async function readFavorites() {
-  await ensureRecipeSchema();
+  await ensureSchema();
   const rows = await env.DB.prepare(
     `SELECT id, title, summary, reason, origin, icon, cook_time AS cookTime,
     difficulty, servings, ingredients_json AS ingredientsJson, steps_json AS stepsJson, favorited_at AS favoritedAt
@@ -217,7 +175,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    await ensureRecipeSchema();
+    await ensureSchema();
     const payload = (await request.json()) as { favorite?: boolean; recipe?: StoredRecipe };
     const recipe = payload.recipe;
     const id = String(recipe?.id ?? "")
@@ -268,7 +226,7 @@ export async function POST(request: Request) {
     const openAI = getOpenAIConfig(request);
     if (isDemoMode(request)) {
       // 演示模式不调用模型，返回一组固定的示例菜谱，走和真实结果相同的清洗与入库流程。
-      await ensureRecipeSchema();
+      await ensureSchema();
       const sample = demoRecipes().map(cleanRecipe);
       await env.DB.batch([
         env.DB.prepare("DELETE FROM recipe_suggestions"),
@@ -295,7 +253,7 @@ export async function POST(request: Request) {
       return Response.json({ recipes: await readRecipes(), favorites: await readFavorites(), demo: true });
     }
     if (!openAI.apiKey) return Response.json({ error: "OpenAI API 私钥尚未配置到网站" }, { status: 503 });
-    await ensureRecipeSchema();
+    await ensureSchema();
     const today = localDate();
     const inventory = await env.DB.prepare(
       `SELECT name, category, quantity, unit, level, expiry_date AS expiryDate

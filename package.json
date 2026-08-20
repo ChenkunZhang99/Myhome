@@ -9,16 +9,14 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "pnpm run build && node --test tests/rendered-html.test.mjs tests/inventory-usage.test.mjs tests/flyer-recommendations.test.mjs tests/pricesmart-flyer.test.mjs tests/image-compression.test.mjs tests/no-stray-zero.test.mjs tests/stored-values-translated.test.mjs",
+    "test": "pnpm run build && node --test \"tests/**/*.test.mjs\"",
     "types": "wrangler types",
     "typecheck": "wrangler types && tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "db:generate": "drizzle-kit generate"
+    "format:check": "prettier --check ."
   },
   "dependencies": {
-    "drizzle-orm": "0.45.2",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
@@ -32,7 +30,6 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
-    "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react": "7.37.5",

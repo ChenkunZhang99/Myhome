@@ -67,6 +67,16 @@ The third case shaped the overall design. Grains and condiments are left untouch
 
 Every deduction saves a before and after snapshot. Undo restores from that snapshot, and skips any item that was edited in the meantime so the user's own changes are not overwritten.
 
+### One file holds the schema
+
+The definitions for all 22 tables, along with their indexes, added columns and backfills, live in [`app/api/_shared/schema.ts`](app/api/_shared/schema.ts). Every route calls the same `ensureSchema()` before handling a request.
+
+The earlier arrangement had each route maintain the tables it happened to use. That caused two failures. In one, the planner route queried `purchase_records` while the statement creating that table sat in another route's initialiser, and the endpoint returned a 500. The second was quieter: the recipe workspace initialiser ran `DELETE FROM recipe_favorites`, a table only the recipes route created, so on a fresh database the page a visitor opened first determined whether anything broke.
+
+SQL lives in strings, so neither the type checker nor the build can see problems of this kind. [`schema-single-source.test.mjs`](tests/schema-single-source.test.mjs) scans every SQL statement under `app/api`, extracts the tables being read and written, and compares them against the declared table names. A table with no creating statement fails the test and names the file and the table. The same test rejects any new `CREATE TABLE` written outside `schema.ts`.
+
+`ensureSchema()` is wrapped in [`once()`](app/api/_shared/once.ts) so it runs once per isolate. Tables and indexes go out as a single `batch()`. Added columns run outside that batch, because their backfill statements need to see the column that was just added.
+
 ### Bilingual support
 
 The dictionary and formatters live in [`app/i18n.ts`](app/i18n.ts) and currently hold 543 entries.
@@ -114,9 +124,10 @@ app/
   i18n.ts                  Chinese and English dictionary with localised formatters
   Modal.tsx                Shared dialog handling Esc, focus management and accessible labelling
   api/                     Server routes
+  api/_shared/schema.ts    All 22 table definitions, the single source
 worker/index.ts            Worker entry point and scheduled job
 docs/                      Restocking rules specification
-tests/                     38 tests
+tests/                     48 tests
 ```
 
 ## Commands
@@ -150,12 +161,10 @@ Note that none of the endpoints currently check identity, so any visitor can rea
 
 ## Known tradeoffs
 
-There are two schema paths. Tables are created at runtime through `CREATE TABLE IF NOT EXISTS` along with `PRAGMA`-guarded column additions, while `db/schema.ts` and `drizzle/` currently describe the structure without participating in queries. Consolidating onto migrations remains outstanding.
+Tables are created at runtime, with no versioned migration history. A structural change shows up only as a diff to `app/api/_shared/schema.ts`, and rolling back to an earlier version means writing the reverse statements by hand. Once several environments need to advance their structure independently, this approach stops being enough.
 
 There is no identity system. `household_members` are records in a table, and attribution for cooking and ratings is entered by the user.
 
 vinext is at a beta stage (1.0.0-beta.2), so its API may change.
 
 Only PriceSmart has a structured scraper. Other stores fall back to model-driven web search, which is noticeably less reliable.
-
-The estimated days remaining is still a fixed value chosen by urgency tier (0, 3, 10, 30). Deducting stock when cooking is logged has provided real consumption data, but that calculation has not been implemented yet.

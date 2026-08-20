@@ -67,6 +67,16 @@ pnpm dev
 
 每次扣减都会保存改动前后的快照，撤销时按快照还原；如果某件物品在此期间被手动修改过，还原会跳过它，避免覆盖用户的操作。
 
+### 建表集中在一个文件
+
+22 张表的建表语句、索引、补列和回填都在 [`app/api/_shared/schema.ts`](app/api/_shared/schema.ts)，每个路由在处理请求前调用同一个 `ensureSchema()`。
+
+早期的做法是每个路由维护自己用到的那几张表。这样做出过两次问题。一次是 planner 路由要查 `purchase_records`，而建这张表的语句在另一个路由的初始化函数里，接口直接返回 500。另一次更隐蔽：菜谱工作台的初始化里有一句 `DELETE FROM recipe_favorites`，那张表只有菜谱路由才会建，于是在一个全新数据库上，先访问哪个页面决定了会不会报错。
+
+SQL 以字符串形式存在，类型检查和构建都看不见这类问题。[`schema-single-source.test.mjs`](tests/schema-single-source.test.mjs) 扫描 `app/api` 下所有 SQL，取出被读写的表名，与建表语句声明的表名比对，出现没有建表语句的表就失败，并指出是哪个文件引用了哪张表。同一个测试还会拦住在 `schema.ts` 之外新写的建表语句。
+
+`ensureSchema()` 用 [`once()`](app/api/_shared/once.ts) 包住，每个 isolate 只执行一次。建表和索引合并成一次 `batch()`，补列因为要让回填语句看到刚加上的列，单独在 batch 之外执行。
+
 ### 双语实现
 
 字典和格式化函数在 [`app/i18n.ts`](app/i18n.ts)，目前有 543 条词条。
@@ -114,9 +124,10 @@ app/
   i18n.ts                  中英字典与本地化格式化
   Modal.tsx                共享对话框，处理 Esc 关闭、焦点管理与无障碍标注
   api/                     服务端路由
+  api/_shared/schema.ts    全部 22 张表的建表语句，唯一来源
 worker/index.ts            Worker 入口与定时任务
 docs/                      补货规则规格
-tests/                     38 个测试
+tests/                     48 个测试
 ```
 
 ## 命令
@@ -150,12 +161,10 @@ Cloudflare Images 是可选的。不配置 `IMAGES` 绑定时，图片优化端�
 
 ## 已知取舍
 
-建表存在两套路径。运行时通过 `CREATE TABLE IF NOT EXISTS` 以及 `PRAGMA` 守卫的补列语句建表，而 `db/schema.ts` 和 `drizzle/` 目前只描述表结构，不参与实际查询。统一到迁移方案是待办项。
+建表在运行时完成，没有版本化的迁移历史。表结构的变更只体现在 `app/api/_shared/schema.ts` 的 diff 里，回滚到某个历史版本需要手写反向语句。等到有多个环境需要各自推进结构变更时，这套方式就不够用了。
 
 没有身份体系。`household_members` 只是数据表中的记录，做饭和评分的归属由用户自行填写。
 
 vinext 处于 beta 阶段（1.0.0-beta.2），API 可能发生变动。
 
 只有 PriceSmart 实现了结构化抓取，其余门店依赖模型的网页搜索降级方案，可靠性明显更低。
-
-「预计还可使用 N 天」目前仍是按紧急度取的固定值（0、3、10、30）。做饭扣减库存的功能上线后已经具备真实的消耗数据，但这部分计算尚未实现。

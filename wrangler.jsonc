@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "home-stock-planner",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS"
+  },
+
+  // 本地开发用 Miniflare 模拟，不需要真实的 Cloudflare 账号。
+  // 部署前先跑 `npx wrangler d1 create home-stock-planner`，把返回的
+  // database_id 填到下面，再跑 `npx wrangler r2 bucket create home-stock-uploads`。
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "home-stock-planner",
+      "database_id": "00000000-0000-4000-8000-000000000000"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "home-stock-uploads"
+    }
+  ],
+
+  // 每 6 小时检查一次是否到了 flyer 自动同步时间。
+  "triggers": {
+    "crons": ["0 */6 * * *"]
+  }
+
+  // 可选：开通 Cloudflare Images 后取消注释，图片会走尺寸优化；
+  // 不配置时应用会直接返回原图，功能不受影响。
+  // "images": { "binding": "IMAGES" }
+}

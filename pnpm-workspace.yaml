@@ -1,0 +1,12 @@
+# 单包仓库，根目录就是唯一的包。
+packages:
+  - .
+
+# 这几个依赖需要在安装时下载或链接原生二进制，必须放行：
+#   workerd  —— Cloudflare Workers 运行时本体，不放行 `pnpm dev` 起不来
+#   esbuild  —— 打包器的原生二进制
+#   sharp    —— 图片处理
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true

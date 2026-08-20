@@ -1,0 +1,10 @@
+dist/
+.next/
+.vinext/
+.wrangler/
+node_modules/
+drizzle/
+pnpm-lock.yaml
+worker-configuration.d.ts
+tsconfig.json
+wrangler.jsonc

@@ -1,5 +1,7 @@
 # Home Stock Planner
 
+[![CI](https://github.com/ChenkunZhang99/Myhome/actions/workflows/ci.yml/badge.svg)](https://github.com/ChenkunZhang99/Myhome/actions/workflows/ci.yml)
+
 English | [中文](README.zh-CN.md)
 
 Home Stock Planner is a bilingual household inventory application for Chinese-speaking families in Metro Vancouver, covering shopping, stocking, daily consumption, restocking suggestions and family meal planning.
@@ -140,6 +142,8 @@ pnpm lint
 ```
 
 `pnpm typecheck` regenerates the Cloudflare binding types from `wrangler.jsonc` before running the type check. `pnpm test` builds first, then runs a render smoke test and unit tests over the pure logic. Lint currently reports no errors; three `react-hooks/set-state-in-effect` exemptions carry comments explaining why a separate data layer is not worth introducing at this size.
+
+All four run on every push and pull request through [`.github/workflows/ci.yml`](.github/workflows/ci.yml), on a clean Ubuntu machine with the same pnpm and Node versions pinned. Running them there catches the case where a dependency is installed locally but missing from the lockfile.
 
 ## Deploying to your own Cloudflare account
 

@@ -165,7 +165,11 @@ test("an unopened item keeps the date printed on the package", () => {
 
 test("opening milk shortens its usable life well before the printed date", () => {
   // 牛奶开封后按分类默认 5 天，比包装上的 9 月 1 日早得多。
-  const result = effectiveExpiry({ category: "乳品蛋类", expiryDate: "2026-09-01", openedDate: "2026-08-20" });
+  const result = effectiveExpiry({
+    category: "乳品蛋类",
+    expiryDate: "2026-09-01",
+    openedDate: "2026-08-20",
+  });
   assert.deepEqual(result, { date: "2026-08-25", fromOpening: true });
 });
 
@@ -185,7 +189,11 @@ test("a per-item shelf life overrides the category default", () => {
 });
 
 test("categories without a known opened shelf life are left alone", () => {
-  const result = effectiveExpiry({ category: "清洁用品", expiryDate: "2026-09-01", openedDate: "2026-08-20" });
+  const result = effectiveExpiry({
+    category: "清洁用品",
+    expiryDate: "2026-09-01",
+    openedDate: "2026-08-20",
+  });
   assert.deepEqual(result, { date: "2026-09-01", fromOpening: false });
 });
 

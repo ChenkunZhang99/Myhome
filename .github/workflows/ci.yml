@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一分支上连续推送时，取消还在跑的旧任务，只保留最新一次。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, test, lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 版本写死，保证 CI 和本机跑的是同一套工具链。
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # typecheck 会先跑 wrangler types，从 wrangler.jsonc 生成 Cloudflare 绑定类型。
+      # 这一步只读本地配置，不需要 Cloudflare 账号。
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      # test 脚本自己会先 build，所以构建失败也会在这里暴露。
+      - name: Test
+        run: pnpm test
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Format
+        run: pnpm run format:check

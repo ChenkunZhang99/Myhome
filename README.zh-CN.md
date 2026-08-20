@@ -1,5 +1,7 @@
 # 家庭库存与采购规划
 
+[![CI](https://github.com/ChenkunZhang99/Myhome/actions/workflows/ci.yml/badge.svg)](https://github.com/ChenkunZhang99/Myhome/actions/workflows/ci.yml)
+
 [English](README.md) | 中文
 
 Home Stock Planner 是一个面向大温地区华人家庭的中英双语库存管理应用，覆盖采购、入库、日常消耗、补货建议和家庭排餐。
@@ -140,6 +142,8 @@ pnpm lint
 ```
 
 `pnpm typecheck` 会先从 `wrangler.jsonc` 重新生成 Cloudflare 绑定类型，然后执行类型检查。`pnpm test` 先构建，再运行渲染冒烟测试和纯逻辑单元测试。Lint 当前没有错误，其中三处 `react-hooks/set-state-in-effect` 豁免都附有注释，说明在当前规模下引入独立数据层并不划算。
+
+这四条命令在每次 push 和 pull request 时由 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 自动执行，环境是一台干净的 Ubuntu 机器，pnpm 和 Node 版本都固定。放在那里跑能发现本机装了依赖但锁文件里没有这类问题。
 
 ## 部署到自己的 Cloudflare 账号
 

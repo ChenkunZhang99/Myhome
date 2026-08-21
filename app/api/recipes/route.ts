@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
 import { dayIn } from "../../dateTime";
@@ -34,8 +35,8 @@ function outputText(response: Record<string, unknown>) {
   return typeof response.output_text === "string" ? response.output_text : "";
 }
 
-async function localDate() {
-  return dayIn(await householdTimeZone());
+async function localDate(householdId: string) {
+  return dayIn(await householdTimeZone(householdId));
 }
 
 function cleanRecipe(recipe: GeneratedRecipe) {
@@ -102,6 +103,7 @@ function containsRestrictedFood(recipe: ReturnType<typeof cleanRecipe>, terms: s
 
 export const POST = withRoute("recipes", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     let focusDealId = "";
     try {
       focusDealId = String(((await request.json()) as { focusDealId?: string }).focusDealId ?? "").trim();
@@ -116,7 +118,7 @@ export const POST = withRoute("recipes", async (request: Request) => {
     }
     if (!openAI.apiKey) return Response.json({ error: "OpenAI API 私钥尚未配置到网站" }, { status: 503 });
     await ensureSchema();
-    const today = await localDate();
+    const today = await localDate(household);
     const inventory = await env.DB.prepare(
       `SELECT name, category, quantity, unit, level, expiry_date AS expiryDate
       FROM inventory_items WHERE quantity > 0 AND level != '已用完' ORDER BY
@@ -132,8 +134,10 @@ export const POST = withRoute("recipes", async (request: Request) => {
       .bind(today, today, focusDealId)
       .all();
     const preferences = await env.DB.prepare(
-      "SELECT allergies, avoid_foods AS avoidFoods, dislikes, notes FROM recipe_preferences WHERE id = 1",
-    ).first<{ allergies: string; avoidFoods: string; dislikes: string; notes: string }>();
+      "SELECT allergies, avoid_foods AS avoidFoods, dislikes, notes FROM recipe_preferences WHERE household_id = ?",
+    )
+      .bind(household)
+      .first<{ allergies: string; avoidFoods: string; dislikes: string; notes: string }>();
     const usableInventory = inventory.results.filter((item) =>
       foodCategories.includes(String((item as { category?: string }).category)),
     );

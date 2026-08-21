@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { resolveTimeZone } from "../../dateTime";
 import { UserFacingError } from "./observability";
+import { DEFAULT_HOUSEHOLD_ID } from "./householdId";
 import { ensureSchema } from "./schema";
 
 /**
@@ -13,7 +14,7 @@ import { ensureSchema } from "./schema";
  * 见 docs/multi-household-design.md。
  */
 
-export const DEFAULT_HOUSEHOLD_ID = "household-default";
+export { DEFAULT_HOUSEHOLD_ID } from "./householdId";
 
 const HEADER = "x-household-id";
 const COOKIE = "hsp_household";
@@ -67,10 +68,34 @@ export function resolveHousehold(request?: Request) {
  *
  * 定时任务没有浏览器可问，这也是唯一能让它算对日期的来源。
  */
-export async function householdTimeZone() {
+export async function householdTimeZone(householdId: string = DEFAULT_HOUSEHOLD_ID) {
   await ensureSchema();
-  const row = await env.DB.prepare("SELECT timezone FROM household_settings WHERE id = 1").first<{
-    timezone: string | null;
-  }>();
+  const row = await env.DB.prepare("SELECT timezone FROM household_settings WHERE household_id = ?")
+    .bind(householdId)
+    .first<{ timezone: string | null }>();
   return resolveTimeZone(row?.timezone);
+}
+
+/**
+ * 新住户第一次使用时补上两位默认成员。
+ *
+ * 这两行原本是建表时的全局种子，id 写死为 member-me / member-family。
+ * 多住户之后种子必须按户播，而建表每个 isolate 只跑一次，所以改成懒播种。
+ * 已有住户的成员行保持原 id 不动——它们被点菜、评分、制作记录三张表引用着。
+ */
+export async function ensureHouseholdMembers(householdId: string) {
+  const existing = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM household_members WHERE household_id = ?",
+  )
+    .bind(householdId)
+    .first<{ count: number }>();
+  if (Number(existing?.count ?? 0) > 0) return;
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO household_members (id, household_id, name, avatar) VALUES (?, ?, '我', '🙂')",
+    ).bind(crypto.randomUUID(), householdId),
+    env.DB.prepare(
+      "INSERT INTO household_members (id, household_id, name, avatar) VALUES (?, ?, '家庭成员', '😊')",
+    ).bind(crypto.randomUUID(), householdId),
+  ]);
 }

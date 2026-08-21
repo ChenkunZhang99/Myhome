@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { DEFAULT_TIME_ZONE } from "../../dateTime";
+import { DEFAULT_HOUSEHOLD_ID } from "./householdId";
 import { once } from "./once";
 
 /**
@@ -65,6 +66,7 @@ const TABLES = [
     household_budget REAL NOT NULL DEFAULT 0,
     max_stores INTEGER NOT NULL DEFAULT 2,
     timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS stores (
@@ -202,10 +204,13 @@ const TABLES = [
   )`,
   `CREATE TABLE IF NOT EXISTS recipe_preferences (
     id INTEGER PRIMARY KEY, allergies TEXT NOT NULL DEFAULT '', avoid_foods TEXT NOT NULL DEFAULT '',
-    dislikes TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    dislikes TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS household_members (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT NOT NULL DEFAULT '🙂',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS meal_requests (
@@ -252,6 +257,18 @@ const INDEXES = [
 ];
 
 /**
+ * 建在补列之上的索引。
+ *
+ * 不能和建表放在同一个 batch 里：老库上那些列要等下面的 ALTER 执行完才存在，
+ * 索引会先一步失败，整个建表流程随之中断，每个请求都报 no such column。
+ */
+const INDEXES_ON_ADDED_COLUMNS = [
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_settings_household ON household_settings(household_id)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_recipe_preferences_household ON recipe_preferences(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id)",
+];
+
+/**
  * 后来才加的列。上面的 CREATE TABLE 里已经写了同样的定义，新库不会走到这里，
  * 只有在这些列出现之前就建好的库才需要补。
  */
@@ -283,6 +300,12 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     column: "timezone",
     ddl: `ALTER TABLE household_settings ADD COLUMN timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}'`,
   },
+  ...["household_settings", "recipe_preferences", "household_members"].map((table) => ({
+    // 多住户改造：已有数据全部归到默认住户，带默认值的加列会一次填好。
+    table,
+    column: "household_id",
+    ddl: `ALTER TABLE ${table} ADD COLUMN household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}'`,
+  })),
   {
     // 「已买」和「已入库」是两回事，stocked 是后加的列。
     table: "shopping_items",
@@ -302,9 +325,6 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
  * 这些语句跨表读写，必须排在所有建表之后。
  */
 const SEEDS = [
-  "INSERT OR IGNORE INTO household_members (id, name, avatar) VALUES ('member-me', '我', '🙂')",
-  "INSERT OR IGNORE INTO household_members (id, name, avatar) VALUES ('member-family', '家庭成员', '😊')",
-  "INSERT OR IGNORE INTO recipe_preferences (id) VALUES (1)",
   "DELETE FROM recipe_favorites WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
   "DELETE FROM recipe_suggestions WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
   "DELETE FROM recipe_catalog WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
@@ -340,5 +360,6 @@ export const ensureSchema = once(async () => {
     if (entry.backfill) await env.DB.prepare(entry.backfill).run();
   }
 
+  await env.DB.batch(INDEXES_ON_ADDED_COLUMNS.map((ddl) => env.DB.prepare(ddl)));
   await env.DB.batch(SEEDS.map((sql) => env.DB.prepare(sql)));
 });

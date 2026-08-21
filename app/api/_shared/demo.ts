@@ -337,7 +337,7 @@ export async function seedDemoPlanner() {
       ).bind(id, name, address, sourceKey, flyerUrl, flyerFormat),
     ),
     env.DB
-      .prepare(`INSERT INTO household_settings (id, city, postal_code, food_budget, household_budget, max_stores)
+      .prepare(`INSERT INTO household_settings (household_id, city, postal_code, food_budget, household_budget, max_stores)
       VALUES (1, 'Burnaby', 'V3J 1N4', 120, 40, 2)
       ON CONFLICT(id) DO NOTHING`),
   ]);

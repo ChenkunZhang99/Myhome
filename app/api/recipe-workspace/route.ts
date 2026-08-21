@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { ensureHouseholdMembers, resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
 import { dayIn } from "../../dateTime";
@@ -65,8 +66,8 @@ function safeJson<T>(value: string, fallback: T): T {
     return fallback;
   }
 }
-async function today() {
-  return dayIn(await householdTimeZone());
+async function today(householdId: string) {
+  return dayIn(await householdTimeZone(householdId));
 }
 
 type ConsumptionSnapshot = {
@@ -243,7 +244,7 @@ async function logActivity(
     .run();
 }
 
-async function readWorkspace() {
+async function readWorkspace(household: string) {
   await ensureSchema();
   const db = database();
   const [recipes, members, requests, history, ratings, activity, preferences, attachments] =
@@ -258,8 +259,9 @@ async function readWorkspace() {
         .all(),
       db
         .prepare(
-          "SELECT id, name, avatar, created_at AS createdAt, updated_at AS updatedAt FROM household_members ORDER BY created_at ASC",
+          "SELECT id, name, avatar, created_at AS createdAt, updated_at AS updatedAt FROM household_members WHERE household_id = ? ORDER BY created_at ASC",
         )
+        .bind(household)
         .all(),
       db
         .prepare(
@@ -287,8 +289,9 @@ async function readWorkspace() {
         .all(),
       db
         .prepare(
-          "SELECT allergies, avoid_foods AS avoidFoods, dislikes, notes, updated_at AS updatedAt FROM recipe_preferences WHERE id = 1",
+          "SELECT allergies, avoid_foods AS avoidFoods, dislikes, notes, updated_at AS updatedAt FROM recipe_preferences WHERE household_id = ?",
         )
+        .bind(household)
         .first(),
       db
         .prepare(
@@ -344,13 +347,15 @@ async function readWorkspace() {
       detailsJson: undefined,
     })),
     // 前端的日期默认值要和服务端算的「今天」一致，否则跨时区会差一天。
-    timeZone: await householdTimeZone(),
+    timeZone: await householdTimeZone(household),
   };
 }
 
-export const GET = withRoute("recipe.workspace", async () => {
+export const GET = withRoute("recipe.workspace", async (request: Request) => {
   try {
-    return Response.json(await readWorkspace());
+    const household = resolveHousehold(request);
+    await ensureHouseholdMembers(household);
+    return Response.json(await readWorkspace(household));
   } catch (error) {
     return failure("recipe.workspace", error, "菜谱工作区暂时无法读取", 500);
   }
@@ -358,6 +363,7 @@ export const GET = withRoute("recipe.workspace", async () => {
 
 export const POST = withRoute("recipe.workspace", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     await ensureSchema();
     const payload = (await request.json()) as Record<string, unknown>;
     const action = cleanText(payload.action, "", 40);
@@ -367,7 +373,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       const preferences = (payload.preferences ?? {}) as Record<string, unknown>;
       await db
         .prepare(
-          `INSERT INTO recipe_preferences (id, allergies, avoid_foods, dislikes, notes, updated_at)
+          `INSERT INTO recipe_preferences (household_id, allergies, avoid_foods, dislikes, notes, updated_at)
         VALUES (1, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET allergies = excluded.allergies,
         avoid_foods = excluded.avoid_foods, dislikes = excluded.dislikes, notes = excluded.notes, updated_at = CURRENT_TIMESTAMP`,
         )
@@ -483,16 +489,17 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       const avatar = cleanText(member.avatar, "🙂", 12) || "🙂";
       await db
         .prepare(
-          `INSERT INTO household_members (id, name, avatar, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          `INSERT INTO household_members (id, household_id, name, avatar, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET name = excluded.name, avatar = excluded.avatar, updated_at = CURRENT_TIMESTAMP`,
         )
-        .bind(id, name, avatar)
+        .bind(id, household, name, avatar)
         .run();
       await logActivity(member.id ? "编辑成员" : "添加成员", null, id, { name });
     } else if (action === "deleteMember") {
       const memberId = cleanId(payload.memberId);
       const count = await db
-        .prepare("SELECT COUNT(*) AS count FROM household_members")
+        .prepare("SELECT COUNT(*) AS count FROM household_members WHERE household_id = ?")
+        .bind(household)
         .first<{ count: number }>();
       const used = await db
         .prepare(
@@ -510,7 +517,10 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
           { error: "这位成员已有点菜、制作或评分记录，请修改姓名而不是删除" },
           { status: 400 },
         );
-      await db.prepare("DELETE FROM household_members WHERE id = ?").bind(memberId).run();
+      await db
+        .prepare("DELETE FROM household_members WHERE household_id = ? AND id = ?")
+        .bind(household, memberId)
+        .run();
     } else if (action === "saveRequest") {
       const item = (payload.request ?? {}) as Record<string, unknown>;
       const id = cleanId(item.id) || `request-${crypto.randomUUID()}`;
@@ -563,7 +573,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       const historyId = cleanId(item.id) || `history-${crypto.randomUUID()}`;
       const recipeId = cleanId(item.recipeId);
       const memberId = cleanId(item.cookMemberId);
-      const cookedDate = cleanDate(item.cookedDate) || (await today());
+      const cookedDate = cleanDate(item.cookedDate) || (await today(household));
       if (!recipeId || !memberId) return Response.json({ error: "请选择菜谱和制作成员" }, { status: 400 });
       const existing = item.id
         ? await db
@@ -636,7 +646,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         rating,
         consumed: consumption.length,
       });
-      return Response.json({ ...(await readWorkspace()), consumed: consumption.length });
+      return Response.json({ ...(await readWorkspace(household)), consumed: consumption.length });
     } else if (action === "undoHistory") {
       const historyId = cleanId(payload.historyId);
       const existing = await db
@@ -665,7 +675,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
           .bind(existing.recipeId, existing.recipeId, existing.recipeId)
           .run();
         await logActivity("撤销完成", existing.recipeId, null, { restored, skipped });
-        return Response.json({ ...(await readWorkspace()), restored, skipped });
+        return Response.json({ ...(await readWorkspace(household)), restored, skipped });
       }
     } else if (action === "rateRecipe") {
       const recipeId = cleanId(payload.recipeId);
@@ -680,7 +690,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         .run();
       await logActivity("修改评分", recipeId, memberId, { rating });
     } else if (action === "generateShopping") {
-      const from = cleanDate(payload.from) || (await today());
+      const from = cleanDate(payload.from) || (await today(household));
       const to = cleanDate(payload.to) || from;
       const planned = await db
         .prepare(
@@ -733,11 +743,11 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       if (inserts.length) await db.batch(inserts);
       const added = inserts.length;
       await logActivity("从菜单生成采购清单", null, null, { from, to, added });
-      return Response.json({ ...(await readWorkspace()), added });
+      return Response.json({ ...(await readWorkspace(household)), added });
     } else {
       return Response.json({ error: "不支持的菜谱操作" }, { status: 400 });
     }
-    return Response.json(await readWorkspace());
+    return Response.json(await readWorkspace(household));
   } catch (error) {
     return failure("recipe.workspace", error, "菜谱操作失败", 500);
   }

@@ -16,7 +16,7 @@ import test from "node:test";
  */
 
 /** 每完成一批就调低这个数字。它同时是进度指标和防回退的闸门。 */
-const REMAINING = 111;
+const REMAINING = 100;
 
 const TENANT_TABLES = [
   "inventory_items",
@@ -93,12 +93,13 @@ test("住户解析器只有一处实现", async () => {
   const owner = sources.find((file) => file.name === "_shared/household.ts");
   assert.ok(owner, "找不到 _shared/household.ts");
   assert.match(owner.code, /export function resolveHousehold/);
-  assert.match(owner.code, /DEFAULT_HOUSEHOLD_ID/);
 
-  // 住户 id 不能在别处凭空构造，否则「接鉴权只改一个函数」这个前提就不成立
+  // 住户 id 不能在别处凭空构造，否则「接鉴权只改一个函数」这个前提就不成立。
+  // 常量单独放在 householdId.ts：建表语句和解析器都要用它，而解析器依赖建表模块，
+  // 放在任何一边都会形成循环引用。
   const offenders = sources
-    .filter((file) => file.name !== "_shared/household.ts")
+    .filter((file) => file.name !== "_shared/householdId.ts")
     .filter((file) => /["'`]household-default["'`]/.test(file.code))
     .map((file) => file.name);
-  assert.deepEqual(offenders, [], `默认住户 id 只应出现在 _shared/household.ts：\n${offenders}`);
+  assert.deepEqual(offenders, [], `默认住户 id 只应出现在 _shared/householdId.ts：\n${offenders}`);
 });

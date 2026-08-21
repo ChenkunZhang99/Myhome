@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { householdTimeZone } from "../../_shared/household";
 import { createOpenAIResponse, getOpenAIConfig } from "../../_shared/openai";
 import { demoReceipt, isDemoMode } from "../../_shared/demo";
 
@@ -204,7 +205,7 @@ purchaseDate 使用 YYYY-MM-DD；看不清的字段使用空字符串或 null。
 
     if (demo) {
       // 演示模式不调用模型，直接用一份样例小票；下面的库存匹配逻辑照常跑。
-      extracted = demoReceipt();
+      extracted = demoReceipt(await householdTimeZone());
     } else {
       const openAIResponse = await createOpenAIResponse(
         {

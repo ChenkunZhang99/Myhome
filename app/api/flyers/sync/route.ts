@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import { householdTimeZone } from "../../_shared/household";
+import { dayIn } from "../../../dateTime";
 import { ensureSchema } from "../../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig, type OpenAIConfig } from "../../_shared/openai";
 import { demoDeals, isDemoMode } from "../../_shared/demo";
@@ -53,15 +55,6 @@ function outputText(response: Record<string, unknown>) {
     for (const content of item.content ?? [])
       if (content.type === "output_text" && content.text) return content.text;
   return typeof response.output_text === "string" ? response.output_text : "";
-}
-
-function vancouverDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Vancouver",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
 }
 
 function safeSourceUrl(value: string, fallback: string) {
@@ -303,7 +296,8 @@ export async function POST(request: Request) {
       remaining_percent AS remainingPercent FROM inventory_items
       WHERE quantity = 0 OR remaining_percent <= 50 OR level IN ('偏少', '即将用完', '已用完') ORDER BY updated_at DESC LIMIT 40`,
     ).all<InventoryRow>();
-    const today = vancouverDate();
+    const timeZone = await householdTimeZone();
+    const today = dayIn(timeZone);
     const foundByKey = new Map<string, ExtractedStore>();
     const fallbackStores: StoreRow[] = [];
 
@@ -316,7 +310,7 @@ export async function POST(request: Request) {
           sourceKey: store.sourceKey,
           status: "ok",
           message: "演示数据（未配置 OPENAI_API_KEY）",
-          deals: demoDeals(store.sourceKey).map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
+          deals: demoDeals(store.sourceKey, timeZone).map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
         });
         continue;
       }
@@ -325,7 +319,7 @@ export async function POST(request: Request) {
         continue;
       }
       try {
-        const directDeals = selectDeals(await fetchPriceSmartDeals(today), lowInventory.results);
+        const directDeals = selectDeals(await fetchPriceSmartDeals(today, timeZone), lowInventory.results);
         foundByKey.set(store.sourceKey, {
           sourceKey: store.sourceKey,
           status: directDeals.length ? "ok" : "unavailable",

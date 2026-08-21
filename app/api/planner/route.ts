@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import { householdTimeZone } from "../_shared/household";
+import { dayIn, resolveTimeZone } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
 import { normalizeFlyerName } from "../../flyerRecommendations";
 import { defaultLocation } from "../_shared/inventory";
@@ -42,13 +44,8 @@ function cleanDate(value: unknown) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
 }
 
-function todayDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Vancouver",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+async function todayDate() {
+  return dayIn(await householdTimeZone());
 }
 
 export async function GET() {
@@ -61,7 +58,7 @@ export async function GET() {
     const settings = await env.DB.prepare(
       `SELECT id, city, postal_code AS postalCode,
       food_budget AS foodBudget, household_budget AS householdBudget,
-      max_stores AS maxStores, updated_at AS updatedAt
+      max_stores AS maxStores, timezone, updated_at AS updatedAt
       FROM household_settings WHERE id = 1`,
     ).first();
     const stores = await env.DB.prepare(
@@ -180,15 +177,16 @@ export async function POST(request: Request) {
       const foodBudget = cleanNumber(payload.foodBudget);
       const householdBudget = cleanNumber(payload.householdBudget);
       const maxStores = Math.min(5, Math.max(1, Math.round(cleanNumber(payload.maxStores, 2))));
+      const timezone = resolveTimeZone(payload.timezone);
       await env.DB.prepare(
         `INSERT INTO household_settings
-        (id, city, postal_code, food_budget, household_budget, max_stores, updated_at)
-        VALUES (1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (id, city, postal_code, food_budget, household_budget, max_stores, timezone, updated_at)
+        VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET city = excluded.city, postal_code = excluded.postal_code,
         food_budget = excluded.food_budget, household_budget = excluded.household_budget,
-        max_stores = excluded.max_stores, updated_at = CURRENT_TIMESTAMP`,
+        max_stores = excluded.max_stores, timezone = excluded.timezone, updated_at = CURRENT_TIMESTAMP`,
       )
-        .bind(city, postalCode, foodBudget, householdBudget, maxStores)
+        .bind(city, postalCode, foodBudget, householdBudget, maxStores, timezone)
         .run();
       return Response.json({ ok: true });
     }
@@ -424,8 +422,8 @@ export async function POST(request: Request) {
         : [];
       if (!rows.length) return Response.json({ error: "没有需要入库的物品" }, { status: 400 });
       await ensureSchema();
-      const purchaseDate = cleanDate(payload.purchaseDate) ?? todayDate();
-      const today = todayDate();
+      const today = await todayDate();
+      const purchaseDate = cleanDate(payload.purchaseDate) ?? today;
       // 勾选 20 件商品时，原来最坏要跑 80 次往返（逐条查清单、查合并目标、写库存、回写状态）。
       // 这里先把两类记录各查一次，再把所有写操作合并成一个 batch。
       const ids = rows.map((row) => cleanText(row.id)).filter(Boolean);

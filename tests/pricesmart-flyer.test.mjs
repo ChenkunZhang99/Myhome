@@ -23,7 +23,7 @@ test("reads PriceSmart's official embedded promotion price and Vancouver dates",
     },
   };
   const html = `<script>window.__PRELOADED_STATE__=${JSON.stringify(state)};window.next=true;</script>`;
-  assert.deepEqual(parsePriceSmartDeals(html, "2026-08-14"), [
+  assert.deepEqual(parsePriceSmartDeals(html, "2026-08-14", "America/Vancouver"), [
     {
       itemName: "西兰花",
       category: "蔬菜水果",
@@ -65,5 +65,5 @@ test("drops inactive and expired PriceSmart promotions", () => {
     },
   };
   const html = `<script>window.__PRELOADED_STATE__=${JSON.stringify(state)};</script>`;
-  assert.deepEqual(parsePriceSmartDeals(html, "2026-08-14"), []);
+  assert.deepEqual(parsePriceSmartDeals(html, "2026-08-14", "America/Vancouver"), []);
 });

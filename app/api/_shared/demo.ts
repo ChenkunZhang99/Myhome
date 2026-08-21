@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import { householdTimeZone } from "./household";
+import { shiftDay } from "../../dateTime";
 import { ensureSchema } from "./schema";
 import { getOpenAIConfig } from "./openai";
 
@@ -14,22 +16,15 @@ export function isDemoMode(request?: Request) {
   return !getOpenAIConfig(request).apiKey;
 }
 
-function daysFromToday(offset: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + offset);
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Vancouver",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+function daysFromToday(offset: number, timeZone: string) {
+  return shiftDay(timeZone, offset);
 }
 
 /** 演示用的小票识别结果，字段和真实模型返回完全一致。 */
-export function demoReceipt() {
+export function demoReceipt(timeZone: string) {
   return {
     store: "PriceSmart Foods（演示数据）",
-    purchaseDate: daysFromToday(0),
+    purchaseDate: daysFromToday(0, timeZone),
     total: 27.43,
     items: [
       // 演示折扣：鸡蛋和鸡腿有会员价，原价一并读出来，用于「上次多少钱」的比较。
@@ -91,9 +86,9 @@ export function demoReceipt() {
  * 演示用的 flyer 优惠，覆盖精准匹配、替代补货和大类机会三种情况。
  * 包装规格写在商品名里（「鸡腿 2kg」），和真实 flyer 一样靠名称解析单位价格。
  */
-export function demoDeals(sourceKey = "") {
-  const validFrom = daysFromToday(-2);
-  const validTo = daysFromToday(4);
+export function demoDeals(sourceKey: string, timeZone: string) {
+  const validFrom = daysFromToday(-2, timeZone);
+  const validTo = daysFromToday(4, timeZone);
   const shared = [
     // 两家店都在特价的商品，价格不同 —— 用来演示跨店比价和去重。
     {
@@ -280,6 +275,7 @@ export async function seedDemoData() {
   }>();
   if (Number(existing?.count ?? 0) > 0) return false;
 
+  const timeZone = await householdTimeZone();
   const statements = demoInventory.map(
     ([name, category, location, precision, quantity, unit, percent, level, purchaseOffset, expiryOffset]) =>
       env.DB.prepare(
@@ -296,8 +292,8 @@ export async function seedDemoData() {
         unit,
         percent,
         level,
-        daysFromToday(purchaseOffset),
-        expiryOffset === null ? null : daysFromToday(expiryOffset),
+        daysFromToday(purchaseOffset, timeZone),
+        expiryOffset === null ? null : daysFromToday(expiryOffset, timeZone),
       ),
   );
 

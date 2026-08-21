@@ -338,6 +338,8 @@ const ui: Record<string, string> = {
   "♥ 只看收藏": "♥ Saved only",
   "⚠ 忌口设置": "⚠ Dietary limits",
   一次最多去几家超市: "Most stores per trip",
+  时区: "Time zone",
+  保质期倒计时和消费统计按这个时区计算: "Best-before countdowns and spending totals use this time zone",
   上传小票: "Upload a receipt",
   下一阶段: "Coming later",
   "下面的物品都带有“示例”标记，不会写入你的真实库存。":

@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import { householdTimeZone } from "../_shared/household";
+import { dayIn } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
 import {
   applyConsumption,
@@ -62,13 +64,8 @@ function safeJson<T>(value: string, fallback: T): T {
     return fallback;
   }
 }
-function today() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Vancouver",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+async function today() {
+  return dayIn(await householdTimeZone());
 }
 
 type ConsumptionSnapshot = {
@@ -345,6 +342,8 @@ async function readWorkspace() {
       details: safeJson(String(row.detailsJson), {}),
       detailsJson: undefined,
     })),
+    // 前端的日期默认值要和服务端算的「今天」一致，否则跨时区会差一天。
+    timeZone: await householdTimeZone(),
   };
 }
 
@@ -566,7 +565,7 @@ export async function POST(request: Request) {
       const historyId = cleanId(item.id) || `history-${crypto.randomUUID()}`;
       const recipeId = cleanId(item.recipeId);
       const memberId = cleanId(item.cookMemberId);
-      const cookedDate = cleanDate(item.cookedDate) || today();
+      const cookedDate = cleanDate(item.cookedDate) || (await today());
       if (!recipeId || !memberId) return Response.json({ error: "请选择菜谱和制作成员" }, { status: 400 });
       const existing = item.id
         ? await db
@@ -683,7 +682,7 @@ export async function POST(request: Request) {
         .run();
       await logActivity("修改评分", recipeId, memberId, { rating });
     } else if (action === "generateShopping") {
-      const from = cleanDate(payload.from) || today();
+      const from = cleanDate(payload.from) || (await today());
       const to = cleanDate(payload.to) || from;
       const planned = await db
         .prepare(

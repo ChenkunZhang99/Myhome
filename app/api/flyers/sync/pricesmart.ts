@@ -1,3 +1,5 @@
+import { dayIn } from "../../../dateTime.ts";
+
 export type PriceSmartDeal = {
   itemName: string;
   category: string;
@@ -53,15 +55,10 @@ function assignedJson(source: string, marker: string) {
   throw new Error("PriceSmart 优惠数据不完整");
 }
 
-function localDate(isoDate: string) {
+function localDate(isoDate: string, timeZone: string) {
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Vancouver",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+  return dayIn(timeZone, date);
 }
 
 function categoryFor(product: ProductCard) {
@@ -121,10 +118,10 @@ function numericPrice(value?: string) {
   return Number.isFinite(price) ? price : null;
 }
 
-function productToDeal(product: ProductCard, today: string): PriceSmartDeal | null {
+function productToDeal(product: ProductCard, today: string, timeZone: string): PriceSmartDeal | null {
   const promotion = product.tprPrice;
-  const validFrom = promotion?.effectiveFrom ? localDate(promotion.effectiveFrom) : "";
-  const validTo = promotion?.effectiveUntil ? localDate(promotion.effectiveUntil) : "";
+  const validFrom = promotion?.effectiveFrom ? localDate(promotion.effectiveFrom, timeZone) : "";
+  const validTo = promotion?.effectiveUntil ? localDate(promotion.effectiveUntil, timeZone) : "";
   const price = Number(promotion?.wholePrice);
   if (!promotion?.active || !product.name || !Number.isFinite(price) || price <= 0) return null;
   if (!validFrom || !validTo || validFrom > today || validTo < today) return null;
@@ -143,20 +140,20 @@ function productToDeal(product: ProductCard, today: string): PriceSmartDeal | nu
   };
 }
 
-export function parsePriceSmartDeals(html: string, today: string) {
+export function parsePriceSmartDeals(html: string, today: string, timeZone: string) {
   const json = assignedJson(html, "window.__PRELOADED_STATE__=");
   const state = JSON.parse(json) as { search?: { productCardDictionary?: Record<string, ProductCard> } };
   const products = Object.values(state.search?.productCardDictionary ?? {});
   if (!products.length) throw new Error("PriceSmart 当前优惠列表为空");
   const deals = products
-    .map((product) => productToDeal(product, today))
+    .map((product) => productToDeal(product, today, timeZone))
     .filter((deal): deal is PriceSmartDeal => Boolean(deal));
   return Array.from(
     new Map(deals.map((deal) => [`${deal.itemName}|${deal.price}|${deal.unit}`, deal])).values(),
   );
 }
 
-export async function fetchPriceSmartDeals(today: string) {
+export async function fetchPriceSmartDeals(today: string, timeZone: string) {
   const response = await fetch(weeklySpecialsUrl, {
     headers: {
       Accept: "text/html,application/xhtml+xml",
@@ -166,5 +163,5 @@ export async function fetchPriceSmartDeals(today: string) {
     redirect: "follow",
   });
   if (!response.ok) throw new Error(`PriceSmart 官方页面返回 ${response.status}`);
-  return parsePriceSmartDeals(await response.text(), today);
+  return parsePriceSmartDeals(await response.text(), today, timeZone);
 }

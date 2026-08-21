@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import { dayIn } from "../../dateTime";
+import { householdTimeZone } from "../_shared/household";
 import { ensureSchema } from "../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig } from "../_shared/openai";
 import { demoRecipes, isDemoMode } from "../_shared/demo";
@@ -33,13 +35,8 @@ function outputText(response: Record<string, unknown>) {
   return typeof response.output_text === "string" ? response.output_text : "";
 }
 
-function localDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Vancouver",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+async function localDate() {
+  return dayIn(await householdTimeZone());
 }
 
 function cleanRecipe(recipe: GeneratedRecipe) {
@@ -254,7 +251,7 @@ export async function POST(request: Request) {
     }
     if (!openAI.apiKey) return Response.json({ error: "OpenAI API 私钥尚未配置到网站" }, { status: 503 });
     await ensureSchema();
-    const today = localDate();
+    const today = await localDate();
     const inventory = await env.DB.prepare(
       `SELECT name, category, quantity, unit, level, expiry_date AS expiryDate
       FROM inventory_items WHERE quantity > 0 AND level != '已用完' ORDER BY

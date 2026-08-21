@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { DEFAULT_TIME_ZONE } from "../../dateTime";
 import { once } from "./once";
 
 /**
@@ -63,6 +64,7 @@ const TABLES = [
     food_budget REAL NOT NULL DEFAULT 0,
     household_budget REAL NOT NULL DEFAULT 0,
     max_stores INTEGER NOT NULL DEFAULT 2,
+    timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}',
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS stores (
@@ -274,6 +276,12 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     table: "inventory_items",
     column: "opened_shelf_life_days",
     ddl: "ALTER TABLE inventory_items ADD COLUMN opened_shelf_life_days INTEGER",
+  },
+  {
+    // 时区原先写死在代码里，改成按家庭设置，老库需要补上这一列。
+    table: "household_settings",
+    column: "timezone",
+    ddl: `ALTER TABLE household_settings ADD COLUMN timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}'`,
   },
   {
     // 「已买」和「已入库」是两回事，stocked 是后加的列。

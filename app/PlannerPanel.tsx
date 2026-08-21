@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { dayIn, detectTimeZone, resolveTimeZone, timeZoneChoices } from "./dateTime";
 import { buildFlyerPurchasePlan, recommendFlyerDeals } from "./flyerRecommendations";
 import { findInventoryMatch, rankInventoryMatches } from "./inventoryUsage";
 import { withAiHeaders } from "./aiSettings";
@@ -16,6 +17,7 @@ type Settings = {
   foodBudget: number;
   householdBudget: number;
   maxStores: number;
+  timezone: string;
 };
 type Store = {
   id: string;
@@ -190,13 +192,8 @@ function syncMessage(
   }
 }
 
-function todayString() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Vancouver",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+function todayString(timeZone: string) {
+  return dayIn(timeZone);
 }
 function shortDate(value: string, locale: Locale) {
   const [, month, day] = value.split("-");
@@ -206,10 +203,15 @@ function shortDate(value: string, locale: Locale) {
     ? value
     : new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric" }).format(parsed);
 }
-function syncTime(value: string | null | undefined, locale: Locale, t?: (text: string) => string) {
+function syncTime(
+  value: string | null | undefined,
+  locale: Locale,
+  timeZone: string,
+  t?: (text: string) => string,
+) {
   if (!value) return t ? t("尚未同步") : "";
   return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-CA", {
-    timeZone: "America/Vancouver",
+    timeZone: resolveTimeZone(timeZone),
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
@@ -271,7 +273,14 @@ export function PlannerPanel({
 }) {
   const { t, tv, tu, locale } = useAppSettings();
   const [data, setData] = useState<PlannerData>({
-    settings: { city: "", postalCode: "", foodBudget: 0, householdBudget: 0, maxStores: 2 },
+    settings: {
+      city: "",
+      postalCode: "",
+      foodBudget: 0,
+      householdBudget: 0,
+      maxStores: 2,
+      timezone: detectTimeZone(),
+    },
     stores: [],
     deals: [],
     shopping: [],
@@ -285,6 +294,7 @@ export function PlannerPanel({
     matchRules: [],
     spending: { since: "", food: 0, household: 0 },
   });
+  const timeZone = data.settings.timezone || detectTimeZone();
   const [modal, setModal] = useState<"settings" | "store" | "deal" | "shopping" | "match" | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [restockRows, setRestockRows] = useState<RestockRow[] | null>(null);
@@ -489,6 +499,7 @@ export function PlannerPanel({
         foodBudget: form.get("foodBudget"),
         householdBudget: form.get("householdBudget"),
         maxStores: form.get("maxStores"),
+        timezone: form.get("timezone"),
       },
       "家庭设置已保存",
     );
@@ -703,7 +714,7 @@ export function PlannerPanel({
               </strong>
               <small>
                 {syncMessage(data.syncSettings, t)} · 上次{" "}
-                {syncTime(data.syncSettings.lastCompletedAt, locale, t)}
+                {syncTime(data.syncSettings.lastCompletedAt, locale, timeZone, t)}
               </small>
             </p>
           </div>
@@ -907,7 +918,7 @@ export function PlannerPanel({
                       <span>{tv(confidenceLabels[deal.confidence ?? "low"] ?? t("需要确认"))}</span>
                       <span>
                         {deal.verifiedAt
-                          ? t("{time}核验", { time: syncTime(deal.verifiedAt, locale) })
+                          ? t("{time}核验", { time: syncTime(deal.verifiedAt, locale, timeZone) })
                           : t("待核验")}
                       </span>
                       {deal.sourceUrl && (
@@ -1166,6 +1177,17 @@ export function PlannerPanel({
                     ))}
                   </select>
                 </label>
+                <label className="field full">
+                  <span>{t("时区")}</span>
+                  <select name="timezone" defaultValue={timeZone}>
+                    {timeZoneChoices(timeZone).map((zone) => (
+                      <option key={zone} value={zone}>
+                        {zone}
+                      </option>
+                    ))}
+                  </select>
+                  <small>{t("保质期倒计时和消费统计按这个时区计算")}</small>
+                </label>
               </div>
               <div className="modal-actions">
                 <button type="button" className="secondary-button" onClick={() => setModal(null)}>
@@ -1353,7 +1375,7 @@ export function PlannerPanel({
           <form onSubmit={saveRestock}>
             <label className="field full restock-date">
               <span>{t("购买日期")}</span>
-              <input name="purchaseDate" type="date" defaultValue={todayString()} />
+              <input name="purchaseDate" type="date" defaultValue={todayString(timeZone)} />
             </label>
             <div className="restock-list">
               {restockRows.map((row) => {

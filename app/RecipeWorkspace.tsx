@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { dayIn, detectTimeZone } from "./dateTime";
 import {
   applyConsumption,
   coarsePortions,
@@ -83,6 +84,8 @@ type WorkspaceData = {
   ratings: Rating[];
   activity: unknown[];
   preferences: RecipePreferences;
+  /** 家庭时区，服务端算「今天」用的是它，前端默认值要保持一致。 */
+  timeZone: string;
 };
 type InventoryLite = {
   id: string;
@@ -101,6 +104,7 @@ type ConsumptionRow = {
 };
 
 const emptyData: WorkspaceData = {
+  timeZone: detectTimeZone(),
   recipes: [],
   members: [],
   requests: [],
@@ -111,18 +115,13 @@ const emptyData: WorkspaceData = {
 };
 const mealOptions = ["", "早餐", "午餐", "晚餐"];
 
-function dateString(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Vancouver",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+function dateString(timeZone: string, date = new Date()) {
+  return dayIn(timeZone, date);
 }
-function addDays(value: string, days: number) {
+function addDays(timeZone: string, value: string, days: number) {
   const date = new Date(`${value}T12:00:00`);
   date.setDate(date.getDate() + days);
-  return dateString(date);
+  return dateString(timeZone, date);
 }
 function shortDate(value: string | null | undefined, locale: Locale, t: (text: string) => string) {
   if (!value) return t("待安排");
@@ -175,6 +174,7 @@ export function RecipeWorkspace({
 }) {
   const { t, tv, tu, locale } = useAppSettings();
   const [data, setData] = useState<WorkspaceData>(emptyData);
+  const timeZone = data.timeZone || detectTimeZone();
   const [activeTab, setActiveTab] = useState<"library" | "requests" | "plan" | "history">("library");
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -188,8 +188,8 @@ export function RecipeWorkspace({
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [memberDraft, setMemberDraft] = useState<Partial<Member> | null>(null);
   const [planRange, setPlanRange] = useState<"3" | "7" | "custom">("7");
-  const [planFrom, setPlanFrom] = useState(dateString());
-  const [planTo, setPlanTo] = useState(addDays(dateString(), 6));
+  const [planFrom, setPlanFrom] = useState(dateString(detectTimeZone()));
+  const [planTo, setPlanTo] = useState(addDays(detectTimeZone(), dateString(detectTimeZone()), 6));
   // 只存用户手动改过的项；默认值渲染时算，这样库存刷新不会冲掉已做的选择。
   const [consumptionOverrides, setConsumptionOverrides] = useState<Record<string, StockPortion>>({});
 
@@ -298,7 +298,11 @@ export function RecipeWorkspace({
   const scheduled = data.requests.filter((item) => item.status === "scheduled");
   const rangeStart = planFrom;
   const rangeEnd =
-    planRange === "3" ? addDays(planFrom, 2) : planRange === "7" ? addDays(planFrom, 6) : planTo;
+    planRange === "3"
+      ? addDays(timeZone, planFrom, 2)
+      : planRange === "7"
+        ? addDays(timeZone, planFrom, 6)
+        : planTo;
   const plannedInRange = scheduled
     .filter(
       (item) => item.scheduledDate && item.scheduledDate >= rangeStart && item.scheduledDate <= rangeEnd,
@@ -358,8 +362,8 @@ export function RecipeWorkspace({
         priority: "想吃",
         mealType: "",
         status: "candidate",
-        desiredFrom: dateString(),
-        desiredTo: addDays(dateString(), 6),
+        desiredFrom: dateString(timeZone),
+        desiredTo: addDays(timeZone, dateString(timeZone), 6),
       },
     );
   }
@@ -807,7 +811,8 @@ export function RecipeWorkspace({
                           setRequestDraft({
                             ...request,
                             status: "scheduled",
-                            scheduledDate: request.scheduledDate || request.desiredFrom || dateString(),
+                            scheduledDate:
+                              request.scheduledDate || request.desiredFrom || dateString(timeZone),
                           })
                         }
                       >
@@ -925,7 +930,7 @@ export function RecipeWorkspace({
                           setHistoryDraft({
                             recipeId: recipe.id,
                             requestId: request.id,
-                            cookedDate: request.scheduledDate || dateString(),
+                            cookedDate: request.scheduledDate || dateString(timeZone),
                             mealType: request.mealType,
                             servings: request.servings,
                             cookMemberId: data.members[0]?.id,
@@ -1447,7 +1452,7 @@ export function RecipeWorkspace({
                 <input
                   name="desiredFrom"
                   type="date"
-                  defaultValue={requestDraft.desiredFrom ?? dateString()}
+                  defaultValue={requestDraft.desiredFrom ?? dateString(timeZone)}
                 />
               </label>
               <label className="field">
@@ -1455,7 +1460,7 @@ export function RecipeWorkspace({
                 <input
                   name="desiredTo"
                   type="date"
-                  defaultValue={requestDraft.desiredTo ?? addDays(dateString(), 6)}
+                  defaultValue={requestDraft.desiredTo ?? addDays(timeZone, dateString(timeZone), 6)}
                 />
               </label>
               <label className="field">
@@ -1546,7 +1551,7 @@ export function RecipeWorkspace({
                   name="cookedDate"
                   type="date"
                   required
-                  defaultValue={historyDraft.cookedDate ?? dateString()}
+                  defaultValue={historyDraft.cookedDate ?? dateString(timeZone)}
                 />
               </label>
               <label className="field">

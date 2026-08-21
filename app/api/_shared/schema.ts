@@ -395,7 +395,7 @@ async function missingColumns() {
 
 /** 预设门店目录入库。目录是全局的，目前只能通过改代码增加。 */
 const SOURCE_SEEDS = FLYER_SOURCES.map(
-  (source) =>
+  () =>
     `INSERT INTO flyer_sources (source_key, name, address, flyer_url, flyer_format, timezone)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(source_key) DO UPDATE SET name = excluded.name, address = excluded.address,

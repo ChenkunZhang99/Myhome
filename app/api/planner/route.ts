@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { FLYER_SOURCES, flyerSourceByKey, manualSourceKey } from "../_shared/flyerSources";
+import { flyerSourceByKey, manualSourceKey } from "../_shared/flyerSources";
 import { resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";

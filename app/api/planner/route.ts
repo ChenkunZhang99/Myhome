@@ -560,11 +560,25 @@ export async function DELETE(request: Request) {
       return Response.json({ error: "无效操作" }, { status: 400 });
     await ensureSchema();
     if (type === "store") {
+      // 顺序有讲究：元数据按 deal_id 关联，必须赶在优惠被删之前清掉。
       await env.DB.batch([
+        env.DB.prepare(
+          "DELETE FROM flyer_deal_metadata WHERE deal_id IN (SELECT id FROM flyer_deals WHERE store_id = ?)",
+        ).bind(id),
+        // 价格历史按 item_key + store_id 匹配，门店没了就再也匹配不上，留着只是死重量。
+        env.DB.prepare("DELETE FROM flyer_price_history WHERE store_id = ?").bind(id),
+        // 「不再推荐」是按商品名生效的，与门店无关，删门店不能把用户的这个选择一起抹掉。
+        env.DB.prepare("UPDATE flyer_recommendation_feedback SET store_id = NULL WHERE store_id = ?").bind(
+          id,
+        ),
         env.DB.prepare("DELETE FROM flyer_deals WHERE store_id = ?").bind(id),
         env.DB.prepare("DELETE FROM stores WHERE id = ?").bind(id),
       ]);
-    } else if (type === "deal") await env.DB.prepare("DELETE FROM flyer_deals WHERE id = ?").bind(id).run();
+    } else if (type === "deal")
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM flyer_deal_metadata WHERE deal_id = ?").bind(id),
+        env.DB.prepare("DELETE FROM flyer_deals WHERE id = ?").bind(id),
+      ]);
     else await env.DB.prepare("DELETE FROM shopping_items WHERE id = ?").bind(id).run();
     return Response.json({ ok: true });
   } catch (error) {

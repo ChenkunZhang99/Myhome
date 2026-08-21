@@ -236,7 +236,23 @@ export async function DELETE(request: Request) {
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
     await ensureSchema();
-    await env.DB.prepare("DELETE FROM inventory_items WHERE id = ?").bind(id).run();
+
+    // 图片的字节在 R2、元数据在库里，两边都要清。先删 R2：
+    // 万一失败，库里的记录还在，重试一次就能补上；反过来则会留下无人知晓的孤儿文件，
+    // 既一直计费又仍可通过 object key 访问。
+    const attachments = await env.DB.prepare(
+      "SELECT object_key AS objectKey FROM inventory_attachments WHERE item_id = ?",
+    )
+      .bind(id)
+      .all<{ objectKey: string }>();
+    if (attachments.results.length) await env.UPLOADS.delete(attachments.results.map((row) => row.objectKey));
+
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM inventory_attachments WHERE item_id = ?").bind(id),
+      // 采购记录是已经发生过的事实，物品删了也要留着，只断开引用。
+      env.DB.prepare("UPDATE purchase_records SET inventory_id = NULL WHERE inventory_id = ?").bind(id),
+      env.DB.prepare("DELETE FROM inventory_items WHERE id = ?").bind(id),
+    ]);
     return Response.json({ ok: true });
   } catch (error) {
     return Response.json(

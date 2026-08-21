@@ -430,6 +430,13 @@ export async function POST(request: Request) {
       });
     }
 
+    // 同步会删掉过期的和不再上架的优惠，它们的元数据必须跟着清掉，否则每轮定时任务都会留下一批。
+    // 放在全部导入完成之后统一做，而不是跟着每条 DELETE 走：优惠 id 是确定性的
+    // （auto-门店-指纹），重新同步会复用同一个 id，跟着删会把用户的「已收藏 / 已隐藏」一起抹掉。
+    await env.DB.prepare(
+      "DELETE FROM flyer_deal_metadata WHERE deal_id NOT IN (SELECT id FROM flyer_deals)",
+    ).run();
+
     const successfulStores = summaries.filter((summary) => summary.imported > 0).length;
     const status =
       imported > 0 ? (successfulStores === stores.results.length ? "success" : "partial") : "empty";

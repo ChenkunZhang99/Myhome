@@ -1,0 +1,104 @@
+import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
+import test from "node:test";
+
+/**
+ * 多住户改造的进度闸门。
+ *
+ * 目标是每一条读写租户表的 SQL 都带上 household_id——这是将来能把数据按住户
+ * 拆开的唯一前提，也是最容易在某次「临时查一下」时被破坏的约定。
+ *
+ * 改造要分批进行，所以这里不是「必须全部合规」，而是一个棘轮：
+ * 未作用域的语句数只能下降，不能回升。每完成一批就把下面的数字调低。
+ * 降到 0 之后，把这条测试换成严格断言，闸门就永久关上了。
+ *
+ * 见 docs/multi-household-design.md。
+ */
+
+/** 每完成一批就调低这个数字。它同时是进度指标和防回退的闸门。 */
+const REMAINING = 111;
+
+const TENANT_TABLES = [
+  "inventory_items",
+  "inventory_attachments",
+  "purchase_records",
+  "household_settings",
+  "household_members",
+  "recipe_preferences",
+  "recipe_catalog",
+  "recipe_attachments",
+  "recipe_cook_history",
+  "recipe_ratings",
+  "recipe_activity_log",
+  "meal_requests",
+  "shopping_items",
+  "flyer_match_rules",
+  "flyer_recommendation_feedback",
+  "stores",
+];
+
+const API_DIR = new URL("../app/api/", import.meta.url);
+
+async function collectSources(dir) {
+  const out = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const url = new URL(entry.name + (entry.isDirectory() ? "/" : ""), dir);
+    if (entry.isDirectory()) out.push(...(await collectSources(url)));
+    else if (entry.name.endsWith(".ts"))
+      out.push({ name: url.pathname.split("/api/")[1], code: await readFile(url, "utf8") });
+  }
+  return out;
+}
+
+/** 抽出 prepare() 里的 SQL 字面量，模板串和普通字符串都要。 */
+function statements(code) {
+  const found = [];
+  const pattern = /\.prepare\(\s*(`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*")/g;
+  for (const [, literal] of code.matchAll(pattern)) found.push(literal.slice(1, -1));
+  return found;
+}
+
+async function unscoped() {
+  const out = [];
+  for (const file of await collectSources(API_DIR)) {
+    // 建表模块负责定义结构与一次性迁移，本身不属于业务查询
+    if (file.name.startsWith("_shared/schema")) continue;
+    for (const sql of statements(file.code)) {
+      const tables = TENANT_TABLES.filter((table) => new RegExp(`\\b${table}\\b`).test(sql));
+      if (!tables.length || /household_id/.test(sql)) continue;
+      out.push(`${file.name}: ${tables.join(", ")} — ${sql.replace(/\s+/g, " ").trim().slice(0, 70)}`);
+    }
+  }
+  return out;
+}
+
+test("未作用域的租户查询只减不增", async () => {
+  const found = await unscoped();
+
+  assert.ok(
+    found.length <= REMAINING,
+    `未作用域的语句从 ${REMAINING} 涨到了 ${found.length}。新写的查询必须带 household_id：\n` +
+      found.slice(0, 20).join("\n"),
+  );
+
+  assert.equal(
+    found.length,
+    REMAINING,
+    `未作用域的语句已降到 ${found.length}，请把 tests/household-scoping.test.mjs 里的 REMAINING 改成这个数`,
+  );
+});
+
+test("住户解析器只有一处实现", async () => {
+  const sources = await collectSources(API_DIR);
+  const owner = sources.find((file) => file.name === "_shared/household.ts");
+  assert.ok(owner, "找不到 _shared/household.ts");
+  assert.match(owner.code, /export function resolveHousehold/);
+  assert.match(owner.code, /DEFAULT_HOUSEHOLD_ID/);
+
+  // 住户 id 不能在别处凭空构造，否则「接鉴权只改一个函数」这个前提就不成立
+  const offenders = sources
+    .filter((file) => file.name !== "_shared/household.ts")
+    .filter((file) => /["'`]household-default["'`]/.test(file.code))
+    .map((file) => file.name);
+  assert.deepEqual(offenders, [], `默认住户 id 只应出现在 _shared/household.ts：\n${offenders}`);
+});

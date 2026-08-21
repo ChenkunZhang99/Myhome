@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
-import { dayIn } from "../../dateTime";
 import { householdTimeZone } from "../_shared/household";
+import { dayIn } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig } from "../_shared/openai";
 import { demoRecipes, isDemoMode } from "../_shared/demo";
@@ -22,8 +22,6 @@ type GeneratedRecipe = {
   ingredients: GeneratedIngredient[];
   steps: string[];
 };
-
-type StoredRecipe = GeneratedRecipe & { id: string; generatedAt?: string; favoritedAt?: string };
 
 function outputText(response: Record<string, unknown>) {
   const output = Array.isArray(response.output)
@@ -101,117 +99,6 @@ function containsRestrictedFood(recipe: ReturnType<typeof cleanRecipe>, terms: s
   return terms.some((term) => text.includes(term));
 }
 
-async function readRecipes() {
-  await ensureSchema();
-  const rows = await env.DB.prepare(
-    `SELECT id, title, summary, reason, origin, icon, cook_time AS cookTime,
-    difficulty, servings, ingredients_json AS ingredientsJson, steps_json AS stepsJson, generated_at AS generatedAt
-    FROM recipe_suggestions ORDER BY generated_at DESC, rowid ASC`,
-  ).all<{
-    id: string;
-    title: string;
-    summary: string;
-    reason: string;
-    origin: string;
-    icon: string;
-    cookTime: string;
-    difficulty: string;
-    servings: number;
-    ingredientsJson: string;
-    stepsJson: string;
-    generatedAt: string;
-  }>();
-  return rows.results.map((row) => ({
-    ...row,
-    ingredients: JSON.parse(row.ingredientsJson),
-    steps: JSON.parse(row.stepsJson),
-    ingredientsJson: undefined,
-    stepsJson: undefined,
-  }));
-}
-
-async function readFavorites() {
-  await ensureSchema();
-  const rows = await env.DB.prepare(
-    `SELECT id, title, summary, reason, origin, icon, cook_time AS cookTime,
-    difficulty, servings, ingredients_json AS ingredientsJson, steps_json AS stepsJson, favorited_at AS favoritedAt
-    FROM recipe_favorites ORDER BY favorited_at DESC`,
-  ).all<{
-    id: string;
-    title: string;
-    summary: string;
-    reason: string;
-    origin: string;
-    icon: string;
-    cookTime: string;
-    difficulty: string;
-    servings: number;
-    ingredientsJson: string;
-    stepsJson: string;
-    favoritedAt: string;
-  }>();
-  return rows.results.map((row) => ({
-    ...row,
-    ingredients: JSON.parse(row.ingredientsJson),
-    steps: JSON.parse(row.stepsJson),
-    ingredientsJson: undefined,
-    stepsJson: undefined,
-  }));
-}
-
-export async function GET() {
-  try {
-    return Response.json({ recipes: await readRecipes(), favorites: await readFavorites() });
-  } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "菜谱灵感暂时无法读取" },
-      { status: 500 },
-    );
-  }
-}
-
-export async function PATCH(request: Request) {
-  try {
-    await ensureSchema();
-    const payload = (await request.json()) as { favorite?: boolean; recipe?: StoredRecipe };
-    const recipe = payload.recipe;
-    const id = String(recipe?.id ?? "")
-      .trim()
-      .slice(0, 80);
-    if (!id) return Response.json({ error: "缺少菜谱资料" }, { status: 400 });
-    if (!payload.favorite) {
-      await env.DB.prepare("DELETE FROM recipe_favorites WHERE id = ?").bind(id).run();
-      return Response.json({ favorites: await readFavorites() });
-    }
-    const cleaned = cleanRecipe(recipe as GeneratedRecipe);
-    await env.DB.prepare(
-      `INSERT INTO recipe_favorites
-      (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json, favorited_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(id) DO UPDATE SET title = excluded.title, summary = excluded.summary, reason = excluded.reason,
-      origin = excluded.origin, icon = excluded.icon, cook_time = excluded.cook_time, difficulty = excluded.difficulty,
-      servings = excluded.servings, ingredients_json = excluded.ingredients_json, steps_json = excluded.steps_json`,
-    )
-      .bind(
-        id,
-        cleaned.title,
-        cleaned.summary,
-        cleaned.reason,
-        cleaned.origin,
-        cleaned.icon,
-        cleaned.cookTime,
-        cleaned.difficulty,
-        cleaned.servings,
-        JSON.stringify(cleaned.ingredients),
-        JSON.stringify(cleaned.steps),
-      )
-      .run();
-    return Response.json({ favorites: await readFavorites() });
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "菜谱收藏失败" }, { status: 500 });
-  }
-}
-
 export async function POST(request: Request) {
   try {
     let focusDealId = "";
@@ -223,31 +110,8 @@ export async function POST(request: Request) {
     const openAI = getOpenAIConfig(request);
     if (isDemoMode(request)) {
       // 演示模式不调用模型，返回一组固定的示例菜谱，走和真实结果相同的清洗与入库流程。
-      await ensureSchema();
       const sample = demoRecipes().map(cleanRecipe);
-      await env.DB.batch([
-        env.DB.prepare("DELETE FROM recipe_suggestions"),
-        ...sample.map((recipe) =>
-          env.DB.prepare(
-            `INSERT INTO recipe_suggestions
-          (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          ).bind(
-            recipe.id,
-            recipe.title,
-            recipe.summary,
-            recipe.reason,
-            recipe.origin,
-            recipe.icon,
-            recipe.cookTime,
-            recipe.difficulty,
-            recipe.servings,
-            JSON.stringify(recipe.ingredients),
-            JSON.stringify(recipe.steps),
-          ),
-        ),
-      ]);
-      return Response.json({ recipes: await readRecipes(), favorites: await readFavorites(), demo: true });
+      return Response.json({ recipes: sample, demo: true });
     }
     if (!openAI.apiKey) return Response.json({ error: "OpenAI API 私钥尚未配置到网站" }, { status: 503 });
     await ensureSchema();
@@ -375,29 +239,7 @@ export async function POST(request: Request) {
           !containsRestrictedFood(recipe, restrictedTerms),
       );
     if (!recipes.length) return Response.json({ error: "没有生成可用的菜谱" }, { status: 422 });
-    const statements = [env.DB.prepare("DELETE FROM recipe_suggestions")];
-    for (const recipe of recipes)
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO recipe_suggestions
-      (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(
-          recipe.id,
-          recipe.title,
-          recipe.summary,
-          recipe.reason,
-          recipe.origin,
-          recipe.icon,
-          recipe.cookTime,
-          recipe.difficulty,
-          recipe.servings,
-          JSON.stringify(recipe.ingredients),
-          JSON.stringify(recipe.steps),
-        ),
-      );
-    await env.DB.batch(statements);
-    return Response.json({ recipes: await readRecipes(), favorites: await readFavorites() });
+    return Response.json({ recipes });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "菜谱生成失败" }, { status: 500 });
   }

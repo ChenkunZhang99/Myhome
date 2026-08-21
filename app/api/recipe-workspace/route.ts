@@ -107,7 +107,7 @@ async function consumeInventory(value: unknown): Promise<ConsumptionSnapshot[]> 
   const placeholders = ids.map(() => "?").join(", ");
   const stockRows = await env.DB.prepare(
     `SELECT id, name, quantity, unit, remaining_percent AS remainingPercent, level
-     FROM inventory_items WHERE id IN (${placeholders})`,
+     FROM inventory_items WHERE household_id = ? AND id IN (${placeholders})`,
   )
     .bind(...ids)
     .all<{
@@ -135,7 +135,7 @@ async function consumeInventory(value: unknown): Promise<ConsumptionSnapshot[]> 
     updates.push(
       env.DB.prepare(
         `UPDATE inventory_items SET quantity = ?, remaining_percent = ?, level = ?,
-        updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?`,
       ).bind(after.quantity, after.remainingPercent, after.level, stock.id),
     );
     snapshots.push({ inventoryId: stock.id, name: stock.name, before, after });
@@ -165,7 +165,7 @@ async function restoreInventory(value: string) {
   const placeholders = ids.map(() => "?").join(", ");
   const currentRows = await env.DB.prepare(
     `SELECT id, quantity, remaining_percent AS remainingPercent
-     FROM inventory_items WHERE id IN (${placeholders})`,
+     FROM inventory_items WHERE household_id = ? AND id IN (${placeholders})`,
   )
     .bind(...ids)
     .all<{ id: string; quantity: number; remainingPercent: number }>();
@@ -186,7 +186,7 @@ async function restoreInventory(value: string) {
     updates.push(
       env.DB.prepare(
         `UPDATE inventory_items SET quantity = ?, remaining_percent = ?, level = ?,
-        updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?`,
       ).bind(
         snapshot.before.quantity,
         snapshot.before.remainingPercent,
@@ -702,12 +702,16 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         .all<{ ingredientsJson: string }>();
       // 用量要拆成数量和单位分开存，否则「300克」会被当成单位，勾选入库时污染库存。
       await ensureSchema();
-      const stock = await env.DB.prepare("SELECT id, name, category, unit FROM inventory_items").all<{
-        id: string;
-        name: string;
-        category: string;
-        unit: string;
-      }>();
+      const stock = await env.DB.prepare(
+        "SELECT id, name, category, unit FROM inventory_items WHERE household_id = ?",
+      )
+        .bind(household)
+        .all<{
+          id: string;
+          name: string;
+          category: string;
+          unit: string;
+        }>();
       // 一周菜单可能有几十个食材。原来每个都要先查一次「是否已在清单里」再写一次，
       // 这里改成一次性把待买清单查回来做集合判断，写入合并成一个 batch。
       const pending = await db

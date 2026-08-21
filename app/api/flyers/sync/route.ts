@@ -23,14 +23,6 @@ const categories = [
 const allowedHosts = ["hmart.ca", "pricesmartfoods.com", "walmart.ca"];
 
 type StoreRow = { id: string; name: string; address: string; sourceKey: string; flyerUrl: string };
-type InventoryRow = {
-  name: string;
-  category: string;
-  level: string;
-  quantity: number;
-  unit: string;
-  remainingPercent: number;
-};
 type ExtractedDeal = {
   itemName: string;
   category: string;
@@ -108,20 +100,15 @@ function cleanDeal(deal: ExtractedDeal, today: string, flyerUrl: string) {
   };
 }
 
-function selectDeals(deals: ExtractedDeal[], lowInventory: InventoryRow[], limit = 18) {
-  const lowCategories = new Set(lowInventory.map((item) => item.category));
-  const lowNames = lowInventory.map((item) => item.name.toLowerCase());
+function selectDeals(deals: ExtractedDeal[], limit = 18) {
   return [...deals]
     .sort((left, right) => {
       const score = (deal: ExtractedDeal) => {
-        const name = deal.itemName.toLowerCase();
-        const exact = lowNames.some((lowName) => name.includes(lowName) || lowName.includes(name)) ? 100 : 0;
-        const category = lowCategories.has(deal.category) ? 50 : 0;
         const discount =
           deal.regularPrice && deal.regularPrice > deal.price
             ? Math.round((1 - deal.price / deal.regularPrice) * 20)
             : 0;
-        return exact + category + discount;
+        return discount;
       };
       return score(right) - score(left);
     })
@@ -143,12 +130,12 @@ async function markFailure(message: string) {
     .run();
 }
 
-async function searchFallback(
-  stores: StoreRow[],
-  lowInventory: InventoryRow[],
-  today: string,
-  openAI: OpenAIConfig,
-) {
+/**
+ * 同步是全局任务，一份 flyer 供所有住户共用，所以这里不能带上任何一户的库存：
+ * 那既会让一户人家的采购需求左右所有人看到的数据，也会把私人库存送进模型提示词。
+ * 「这户人家缺什么」的匹配放在推荐环节按住户各自计算。
+ */
+async function searchFallback(stores: StoreRow[], today: string, openAI: OpenAIConfig) {
   const results = new Map<string, ExtractedStore>();
   if (!stores.length) return results;
   if (!openAI.apiKey) {
@@ -169,8 +156,7 @@ async function searchFallback(
     officialFlyer: store.flyerUrl,
   }));
   const prompt = `今天是 ${today}（加拿大温哥华时间）。读取下列门店当前生效的 Flyer/Weekly Specials：\n${JSON.stringify(storeBrief)}\n
-家庭低库存：${JSON.stringify(lowInventory)}\n
-只能返回能从官方页面确认商品、优惠价、具体门店和有效期的优惠。每家最多 18 项，优先匹配低库存名称或品类。只返回 validFrom <= ${today} <= validTo 的数据；日期使用 YYYY-MM-DD。category 从给定中文枚举选择；itemName 用简洁中文；unit 保留官方计价单位。无法确认时 status=unavailable 且 deals 为空。`;
+只能返回能从官方页面确认商品、优惠价、具体门店和有效期的优惠。每家最多 18 项，优先折扣力度大的日常食品与家用品。只返回 validFrom <= ${today} <= validTo 的数据；日期使用 YYYY-MM-DD。category 从给定中文枚举选择；itemName 用简洁中文；unit 保留官方计价单位。无法确认时 status=unavailable 且 deals 为空。`;
   const dealSchema = {
     type: "object",
     additionalProperties: false,
@@ -295,11 +281,6 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
       .bind(intervalHours)
       .run();
 
-    const lowInventory = await env.DB.prepare(
-      `SELECT name, category, level, quantity, unit,
-      remaining_percent AS remainingPercent FROM inventory_items
-      WHERE quantity = 0 OR remaining_percent <= 50 OR level IN ('偏少', '即将用完', '已用完') ORDER BY updated_at DESC LIMIT 40`,
-    ).all<InventoryRow>();
     const timeZone = await householdTimeZone();
     const today = dayIn(timeZone);
     const foundByKey = new Map<string, ExtractedStore>();
@@ -323,7 +304,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
         continue;
       }
       try {
-        const directDeals = selectDeals(await fetchPriceSmartDeals(today, timeZone), lowInventory.results);
+        const directDeals = selectDeals(await fetchPriceSmartDeals(today, timeZone));
         foundByKey.set(store.sourceKey, {
           sourceKey: store.sourceKey,
           status: directDeals.length ? "ok" : "unavailable",
@@ -343,7 +324,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
       }
     }
 
-    const fallback = await searchFallback(fallbackStores, lowInventory.results, today, openAI);
+    const fallback = await searchFallback(fallbackStores, today, openAI);
     for (const [key, value] of fallback) foundByKey.set(key, value);
 
     await env.DB.prepare("DELETE FROM flyer_deals WHERE source = 'auto' AND valid_to < ?").bind(today).run();

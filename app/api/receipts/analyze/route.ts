@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { resolveHousehold } from "../../_shared/household";
 import { failure, withRoute } from "../../_shared/observability";
 import { householdTimeZone } from "../../_shared/household";
 import { createOpenAIResponse, getOpenAIConfig } from "../../_shared/openai";
@@ -136,6 +137,7 @@ function outputText(response: Record<string, unknown>) {
 
 export const POST = withRoute("receipts.analyze", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     const demo = isDemoMode(request);
     const openAI = getOpenAIConfig(request);
     if (!demo && !openAI.apiKey)
@@ -239,8 +241,10 @@ purchaseDate 使用 YYYY-MM-DD；看不清的字段使用空字符串或 null。
       extracted = JSON.parse(text) as Extracted;
     }
     const inventory = await env.DB.prepare(
-      "SELECT id, name, category, unit FROM inventory_items ORDER BY updated_at DESC",
-    ).all<InventoryCandidate>();
+      "SELECT id, name, category, unit FROM inventory_items WHERE household_id = ? ORDER BY updated_at DESC",
+    )
+      .bind(household)
+      .all<InventoryCandidate>();
     const items = extracted.items
       .filter((item) => item.name.trim())
       .map((item) => {

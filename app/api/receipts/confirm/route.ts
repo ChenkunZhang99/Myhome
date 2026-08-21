@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { resolveHousehold } from "../../_shared/household";
 import { failure, withRoute } from "../../_shared/observability";
 import { ensureSchema } from "../../_shared/schema";
 import { defaultLocation } from "../../_shared/inventory";
@@ -38,18 +39,19 @@ function text(value: unknown, fallback = "", max = 120) {
 }
 
 /** 当天累计花费，确认后直接回给前端做预算提示。 */
-async function sumSpent(date: string) {
+async function sumSpent(household: string, date: string) {
   if (!date) return 0;
   const row = await env.DB.prepare(
-    "SELECT COALESCE(SUM(line_total), 0) AS total FROM purchase_records WHERE purchase_date = ?",
+    "SELECT COALESCE(SUM(line_total), 0) AS total FROM purchase_records WHERE household_id = ? AND purchase_date = ?",
   )
-    .bind(date)
+    .bind(household, date)
     .first<{ total: number }>();
   return Number(row?.total ?? 0);
 }
 
 export const POST = withRoute("receipts.confirm", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     const payload = (await request.json()) as {
       store?: string;
       purchaseDate?: string;
@@ -72,9 +74,9 @@ export const POST = withRoute("receipts.confirm", async (request: Request) => {
     if (mergeIds.length) {
       const placeholders = mergeIds.map(() => "?").join(", ");
       const rows = await env.DB.prepare(
-        `SELECT id, quantity, level FROM inventory_items WHERE id IN (${placeholders})`,
+        `SELECT id, quantity, level FROM inventory_items WHERE household_id = ? AND id IN (${placeholders})`,
       )
-        .bind(...mergeIds)
+        .bind(household, ...mergeIds)
         .all<{ id: string; quantity: number; level: string }>();
       for (const row of rows.results) existingById.set(row.id, row);
     }
@@ -99,9 +101,10 @@ export const POST = withRoute("receipts.confirm", async (request: Request) => {
       purchases.push(
         env.DB.prepare(
           `INSERT INTO purchase_records
-          (id, inventory_id, name, category, quantity, unit, unit_price, regular_unit_price, line_total, store, purchase_date, source)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'receipt')`,
+          (household_id, id, inventory_id, name, category, quantity, unit, unit_price, regular_unit_price, line_total, store, purchase_date, source)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'receipt')`,
         ).bind(
+          household,
           crypto.randomUUID(),
           inventoryId,
           itemName,
@@ -135,8 +138,8 @@ export const POST = withRoute("receipts.confirm", async (request: Request) => {
             `UPDATE inventory_items SET quantity = ?, level = ?,
             remaining_percent = CASE WHEN remaining_percent <= 0 THEN 100 ELSE remaining_percent END,
             purchase_date = COALESCE(?, purchase_date),
-            updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-          ).bind(nextQuantity, nextLevel, purchaseDate, existing.id),
+            updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?`,
+          ).bind(nextQuantity, nextLevel, purchaseDate, household, existing.id),
         );
         // 同一张小票里有两行合并到同一物品时，第二行要接着第一行的数量继续加。
         existingById.set(existing.id, { ...existing, quantity: nextQuantity, level: nextLevel });
@@ -150,9 +153,10 @@ export const POST = withRoute("receipts.confirm", async (request: Request) => {
       writes.push(
         env.DB.prepare(
           `INSERT INTO inventory_items
-          (id, name, category, location, precision, quantity, unit, level, purchase_date, expiry_date, note, source)
-          VALUES (?, ?, ?, ?, 'quantity', ?, ?, '充足', ?, NULL, ?, 'receipt')`,
+          (household_id, id, name, category, location, precision, quantity, unit, level, purchase_date, expiry_date, note, source)
+          VALUES (?, ?, ?, ?, ?, 'quantity', ?, ?, '充足', ?, NULL, ?, 'receipt')`,
         ).bind(
+          household,
           newId,
           name,
           category,
@@ -168,7 +172,8 @@ export const POST = withRoute("receipts.confirm", async (request: Request) => {
 
     if (writes.length) await env.DB.batch(writes);
     if (purchases.length) await env.DB.batch(purchases);
-    const spent = Math.round(purchases.length ? (await sumSpent(purchaseDate ?? "")) * 100 : 0) / 100;
+    const spent =
+      Math.round(purchases.length ? (await sumSpent(household, purchaseDate ?? "")) * 100 : 0) / 100;
     return Response.json({ ok: true, added, merged, recorded: purchases.length, spent });
   } catch (error) {
     return failure("receipts.confirm", error, "小票商品暂时无法保存", 500);

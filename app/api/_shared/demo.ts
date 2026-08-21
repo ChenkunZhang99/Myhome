@@ -271,9 +271,13 @@ const demoInventory = [
 export async function seedDemoData() {
   if (!isDemoMode()) return false;
   await ensureSchema();
-  const existing = await env.DB.prepare("SELECT COUNT(*) AS count FROM inventory_items").first<{
-    count: number;
-  }>();
+  const existing = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM inventory_items WHERE household_id = ?",
+  )
+    .bind(DEFAULT_HOUSEHOLD_ID)
+    .first<{
+      count: number;
+    }>();
   if (Number(existing?.count ?? 0) > 0) return false;
 
   const timeZone = await householdTimeZone();
@@ -281,9 +285,10 @@ export async function seedDemoData() {
     ([name, category, location, precision, quantity, unit, percent, level, purchaseOffset, expiryOffset]) =>
       env.DB.prepare(
         `INSERT INTO inventory_items
-      (id, name, category, location, precision, quantity, unit, remaining_percent, level, purchase_date, expiry_date, note, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '演示数据', 'demo')`,
+      (household_id, id, name, category, location, precision, quantity, unit, remaining_percent, level, purchase_date, expiry_date, note, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '演示数据', 'demo')`,
       ).bind(
+        DEFAULT_HOUSEHOLD_ID,
         crypto.randomUUID(),
         name,
         category,

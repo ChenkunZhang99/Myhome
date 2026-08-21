@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
 import { ensureSchema } from "../_shared/schema";
 import { seedDemoData } from "../_shared/demo";
@@ -41,8 +42,9 @@ function clampPercent(value: unknown, fallback = 100) {
   return Number.isFinite(number) ? Math.round(Math.max(0, Math.min(100, number))) : fallback;
 }
 
-export const GET = withRoute("inventory", async () => {
+export const GET = withRoute("inventory", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     await ensureSchema();
     // 全新克隆时灌一套演示数据，让界面不是空的（仅演示模式且库存为空时执行）。
     await seedDemoData();
@@ -54,10 +56,12 @@ export const GET = withRoute("inventory", async () => {
              opened_date AS openedDate, opened_shelf_life_days AS openedShelfLifeDays,
              note, source, created_at AS createdAt,
              updated_at AS updatedAt
-      FROM inventory_items
+      FROM inventory_items WHERE household_id = ?
       ORDER BY updated_at DESC, created_at DESC
     `,
-    ).all();
+    )
+      .bind(household)
+      .all();
     return Response.json({ items: result.results });
   } catch (error) {
     return failure("inventory", error, "库存暂时无法读取", 500);
@@ -66,6 +70,7 @@ export const GET = withRoute("inventory", async () => {
 
 export const POST = withRoute("inventory", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     const payload = (await request.json()) as InventoryPayload;
     const name = cleanText(payload.name);
     if (!name) {
@@ -98,11 +103,12 @@ export const POST = withRoute("inventory", async (request: Request) => {
     await env.DB.prepare(
       `
       INSERT INTO inventory_items
-        (id, name, category, location, precision, quantity, unit, remaining_percent, level, purchase_date, expiry_date, opened_date, opened_shelf_life_days, note, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (household_id, id, name, category, location, precision, quantity, unit, remaining_percent, level, purchase_date, expiry_date, opened_date, opened_shelf_life_days, note, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
       .bind(
+        household,
         item.id,
         item.name,
         item.category,
@@ -129,6 +135,7 @@ export const POST = withRoute("inventory", async (request: Request) => {
 
 export const PATCH = withRoute("inventory", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     const payload = (await request.json()) as InventoryPayload & { id?: string };
     const id = cleanText(payload.id);
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
@@ -139,9 +146,9 @@ export const PATCH = withRoute("inventory", async (request: Request) => {
       remaining_percent AS remainingPercent, level,
       purchase_date AS purchaseDate, expiry_date AS expiryDate,
       opened_date AS openedDate, opened_shelf_life_days AS openedShelfLifeDays, note, source
-      FROM inventory_items WHERE id = ?`,
+      FROM inventory_items WHERE household_id = ? AND id = ?`,
     )
-      .bind(id)
+      .bind(household, id)
       .first<InventoryPayload & { id: string; quantity: number; remainingPercent: number; level: string }>();
     if (!existing) return Response.json({ error: "物品不存在" }, { status: 404 });
 
@@ -196,7 +203,7 @@ export const PATCH = withRoute("inventory", async (request: Request) => {
       SET name = ?, category = ?, location = ?, precision = ?, quantity = ?, unit = ?, remaining_percent = ?, level = ?,
           purchase_date = ?, expiry_date = ?, opened_date = ?, opened_shelf_life_days = ?, note = ?,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE household_id = ? AND id = ?
     `,
     )
       .bind(
@@ -213,6 +220,7 @@ export const PATCH = withRoute("inventory", async (request: Request) => {
         item.openedDate,
         item.openedShelfLifeDays,
         item.note,
+        household,
         id,
       )
       .run();
@@ -225,6 +233,7 @@ export const PATCH = withRoute("inventory", async (request: Request) => {
 
 export const DELETE = withRoute("inventory", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
     await ensureSchema();
@@ -233,17 +242,22 @@ export const DELETE = withRoute("inventory", async (request: Request) => {
     // 万一失败，库里的记录还在，重试一次就能补上；反过来则会留下无人知晓的孤儿文件，
     // 既一直计费又仍可通过 object key 访问。
     const attachments = await env.DB.prepare(
-      "SELECT object_key AS objectKey FROM inventory_attachments WHERE item_id = ?",
+      "SELECT object_key AS objectKey FROM inventory_attachments WHERE household_id = ? AND item_id = ?",
     )
-      .bind(id)
+      .bind(household, id)
       .all<{ objectKey: string }>();
     if (attachments.results.length) await env.UPLOADS.delete(attachments.results.map((row) => row.objectKey));
 
     await env.DB.batch([
-      env.DB.prepare("DELETE FROM inventory_attachments WHERE item_id = ?").bind(id),
+      env.DB.prepare("DELETE FROM inventory_attachments WHERE household_id = ? AND item_id = ?").bind(
+        household,
+        id,
+      ),
       // 采购记录是已经发生过的事实，物品删了也要留着，只断开引用。
-      env.DB.prepare("UPDATE purchase_records SET inventory_id = NULL WHERE inventory_id = ?").bind(id),
-      env.DB.prepare("DELETE FROM inventory_items WHERE id = ?").bind(id),
+      env.DB.prepare(
+        "UPDATE purchase_records SET inventory_id = NULL WHERE household_id = ? AND inventory_id = ?",
+      ).bind(household, id),
+      env.DB.prepare("DELETE FROM inventory_items WHERE household_id = ? AND id = ?").bind(household, id),
     ]);
     return Response.json({ ok: true });
   } catch (error) {

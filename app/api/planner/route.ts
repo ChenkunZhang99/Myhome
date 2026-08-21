@@ -96,9 +96,9 @@ export const GET = withRoute("planner", async (request: Request) => {
     const since = weekStart.toISOString().slice(0, 10);
     const spendRows = await env.DB.prepare(
       `SELECT category, COALESCE(SUM(line_total), 0) AS total
-       FROM purchase_records WHERE purchase_date >= ? GROUP BY category`,
+       FROM purchase_records WHERE household_id = ? AND purchase_date >= ? GROUP BY category`,
     )
-      .bind(since)
+      .bind(household, since)
       .all<{ category: string; total: number }>();
     const foodCategories = new Set([
       "蔬菜水果",
@@ -408,8 +408,10 @@ export const POST = withRoute("planner", async (request: Request) => {
     if (type === "generateShopping") {
       const low = await env.DB.prepare(
         `SELECT name, category, unit FROM inventory_items
-        WHERE level IN ('偏少', '即将用完', '已用完') OR quantity = 0`,
-      ).all<{ name: string; category: string; unit: string }>();
+        WHERE household_id = ? AND (level IN ('偏少', '即将用完', '已用完') OR quantity = 0)`,
+      )
+        .bind(household)
+        .all<{ name: string; category: string; unit: string }>();
       const existing = await env.DB.prepare(
         "SELECT lower(name) AS name FROM shopping_items WHERE checked = 0",
       ).all<{ name: string }>();
@@ -456,9 +458,9 @@ export const POST = withRoute("planner", async (request: Request) => {
       const mergeTargets = new Map<string, { id: string; quantity: number }>();
       if (mergeIds.length) {
         const existingRows = await env.DB.prepare(
-          `SELECT id, quantity FROM inventory_items WHERE id IN (${mergeIds.map(() => "?").join(", ")})`,
+          `SELECT id, quantity FROM inventory_items WHERE household_id = ? AND id IN (${mergeIds.map(() => "?").join(", ")})`,
         )
-          .bind(...mergeIds)
+          .bind(household, ...mergeIds)
           .all<{ id: string; quantity: number }>();
         for (const row of existingRows.results) mergeTargets.set(row.id, row);
       }
@@ -498,8 +500,8 @@ export const POST = withRoute("planner", async (request: Request) => {
               SET quantity = ?, remaining_percent = 100, level = '充足',
                 purchase_date = ?,
                 expiry_date = CASE WHEN expiry_date < ? THEN NULL ELSE expiry_date END,
-                updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-            ).bind(nextQuantity, purchaseDate, today, existing.id),
+                updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?`,
+            ).bind(nextQuantity, purchaseDate, today, household, existing.id),
           );
           // 同一批里两行并入同一物品时，第二行要接着累加。
           mergeTargets.set(existing.id, { ...existing, quantity: nextQuantity });
@@ -512,9 +514,10 @@ export const POST = withRoute("planner", async (request: Request) => {
           writes.push(
             env.DB.prepare(
               `INSERT INTO inventory_items
-              (id, name, category, location, precision, quantity, unit, remaining_percent, level, purchase_date, expiry_date, note, source)
-              VALUES (?, ?, ?, ?, 'quantity', ?, ?, 100, '充足', ?, NULL, ?, 'shopping')`,
+              (household_id, id, name, category, location, precision, quantity, unit, remaining_percent, level, purchase_date, expiry_date, note, source)
+              VALUES (?, ?, ?, ?, ?, 'quantity', ?, ?, 100, '充足', ?, NULL, ?, 'shopping')`,
             ).bind(
+              household,
               crypto.randomUUID(),
               name,
               category,

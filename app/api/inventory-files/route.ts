@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
 import { ensureSchema } from "../_shared/schema";
 
@@ -7,14 +8,15 @@ const MAX_FILES_PER_ITEM = 8;
 
 export const GET = withRoute("inventory.files", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     await ensureSchema();
     const url = new URL(request.url);
     const fileId = url.searchParams.get("fileId")?.trim();
     if (fileId) {
       const attachment = await env.DB.prepare(
-        "SELECT object_key AS objectKey, content_type AS contentType, file_name AS fileName FROM inventory_attachments WHERE id = ?",
+        "SELECT object_key AS objectKey, content_type AS contentType, file_name AS fileName FROM inventory_attachments WHERE household_id = ? AND id = ?",
       )
-        .bind(fileId)
+        .bind(household, fileId)
         .first<{ objectKey: string; contentType: string; fileName: string }>();
       if (!attachment) return Response.json({ error: "图片不存在" }, { status: 404 });
       const object = await env.UPLOADS.get(attachment.objectKey);
@@ -34,9 +36,9 @@ export const GET = withRoute("inventory.files", async (request: Request) => {
     const attachments = await env.DB.prepare(
       `SELECT id, item_id AS itemId, file_name AS fileName,
       content_type AS contentType, size, created_at AS createdAt
-      FROM inventory_attachments WHERE item_id = ? ORDER BY created_at DESC`,
+      FROM inventory_attachments WHERE household_id = ? AND item_id = ? ORDER BY created_at DESC`,
     )
-      .bind(itemId)
+      .bind(household, itemId)
       .all();
     return Response.json({ attachments: attachments.results });
   } catch (error) {
@@ -46,6 +48,7 @@ export const GET = withRoute("inventory.files", async (request: Request) => {
 
 export const POST = withRoute("inventory.files", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     await ensureSchema();
     const form = await request.formData();
     const itemId = String(form.get("itemId") ?? "").trim();
@@ -53,12 +56,14 @@ export const POST = withRoute("inventory.files", async (request: Request) => {
       .getAll("files")
       .filter((entry): entry is File => entry instanceof File && entry.size > 0);
     if (!itemId || files.length === 0) return Response.json({ error: "请选择要上传的图片" }, { status: 400 });
-    const item = await env.DB.prepare("SELECT id FROM inventory_items WHERE id = ?").bind(itemId).first();
+    const item = await env.DB.prepare("SELECT id FROM inventory_items WHERE household_id = ? AND id = ?")
+      .bind(household, itemId)
+      .first();
     if (!item) return Response.json({ error: "物品不存在" }, { status: 404 });
     const count = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM inventory_attachments WHERE item_id = ?",
+      "SELECT COUNT(*) AS count FROM inventory_attachments WHERE household_id = ? AND item_id = ?",
     )
-      .bind(itemId)
+      .bind(household, itemId)
       .first<{ count: number }>();
     if (Number(count?.count ?? 0) + files.length > MAX_FILES_PER_ITEM)
       return Response.json({ error: `每件物品最多保存 ${MAX_FILES_PER_ITEM} 张图片` }, { status: 400 });
@@ -88,9 +93,9 @@ export const POST = withRoute("inventory.files", async (request: Request) => {
       try {
         await env.DB.prepare(
           `INSERT INTO inventory_attachments
-          (id, item_id, object_key, file_name, content_type, size) VALUES (?, ?, ?, ?, ?, ?)`,
+          (household_id, id, item_id, object_key, file_name, content_type, size) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-          .bind(id, itemId, objectKey, file.name.slice(0, 180), file.type, file.size)
+          .bind(household, id, itemId, objectKey, file.name.slice(0, 180), file.type, file.size)
           .run();
       } catch (error) {
         await env.UPLOADS.delete(objectKey);
@@ -113,17 +118,20 @@ export const POST = withRoute("inventory.files", async (request: Request) => {
 
 export const DELETE = withRoute("inventory.files", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     await ensureSchema();
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return Response.json({ error: "缺少图片编号" }, { status: 400 });
     const attachment = await env.DB.prepare(
-      "SELECT object_key AS objectKey FROM inventory_attachments WHERE id = ?",
+      "SELECT object_key AS objectKey FROM inventory_attachments WHERE household_id = ? AND id = ?",
     )
-      .bind(id)
+      .bind(household, id)
       .first<{ objectKey: string }>();
     if (!attachment) return Response.json({ error: "图片不存在" }, { status: 404 });
     await env.UPLOADS.delete(attachment.objectKey);
-    await env.DB.prepare("DELETE FROM inventory_attachments WHERE id = ?").bind(id).run();
+    await env.DB.prepare("DELETE FROM inventory_attachments WHERE household_id = ? AND id = ?")
+      .bind(household, id)
+      .run();
     return Response.json({ ok: true });
   } catch (error) {
     return failure("inventory.files", error, "图片删除失败", 500);

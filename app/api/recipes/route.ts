@@ -121,9 +121,11 @@ export const POST = withRoute("recipes", async (request: Request) => {
     const today = await localDate(household);
     const inventory = await env.DB.prepare(
       `SELECT name, category, quantity, unit, level, expiry_date AS expiryDate
-      FROM inventory_items WHERE quantity > 0 AND level != '已用完' ORDER BY
+      FROM inventory_items WHERE household_id = ? AND quantity > 0 AND level != '已用完' ORDER BY
       CASE WHEN expiry_date IS NOT NULL THEN 0 ELSE 1 END, expiry_date ASC, updated_at DESC LIMIT 80`,
-    ).all();
+    )
+      .bind(household)
+      .all();
     const deals = await env.DB.prepare(
       `SELECT flyer_deals.id, flyer_deals.item_name AS itemName, flyer_deals.category,
       flyer_deals.price, flyer_deals.unit, flyer_deals.valid_to AS validTo, stores.name AS storeName

@@ -32,12 +32,14 @@ const TABLES = [
     opened_shelf_life_days INTEGER,
     note TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT 'manual',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS inventory_attachments (
     id TEXT PRIMARY KEY,
     item_id TEXT NOT NULL,
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     object_key TEXT NOT NULL,
     file_name TEXT NOT NULL,
     content_type TEXT NOT NULL,
@@ -57,6 +59,7 @@ const TABLES = [
     store TEXT NOT NULL DEFAULT '',
     purchase_date TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'receipt',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS household_settings (
@@ -285,6 +288,9 @@ const INDEXES = [
  * 索引会先一步失败，整个建表流程随之中断，每个请求都报 no such column。
  */
 const INDEXES_ON_ADDED_COLUMNS = [
+  "CREATE INDEX IF NOT EXISTS idx_inventory_items_household ON inventory_items(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_inventory_attachments_household ON inventory_attachments(household_id, item_id)",
+  "CREATE INDEX IF NOT EXISTS idx_purchase_records_household ON purchase_records(household_id, purchase_date)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_deals_source ON flyer_deals(source_key, valid_to)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_source ON flyer_price_history(item_key, source_key, observed_at)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_settings_household ON household_settings(household_id)",
@@ -324,6 +330,11 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     column: "timezone",
     ddl: `ALTER TABLE household_settings ADD COLUMN timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}'`,
   },
+  ...["inventory_items", "inventory_attachments", "purchase_records"].map((table) => ({
+    table,
+    column: "household_id",
+    ddl: `ALTER TABLE ${table} ADD COLUMN household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}'`,
+  })),
   ...["flyer_deals", "flyer_price_history", "flyer_recommendation_feedback"].map((table) => ({
     // flyer 数据改为挂在「来源」上而不是某一户的门店行上，同一份优惠所有人共享。
     table,

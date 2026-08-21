@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { failure, withRoute } from "../../_shared/observability";
 import { householdTimeZone } from "../../_shared/household";
 import { createOpenAIResponse, getOpenAIConfig } from "../../_shared/openai";
 import { demoReceipt, isDemoMode } from "../../_shared/demo";
@@ -133,7 +134,7 @@ function outputText(response: Record<string, unknown>) {
   return typeof response.output_text === "string" ? response.output_text : "";
 }
 
-export async function POST(request: Request) {
+export const POST = withRoute("receipts.analyze", async (request: Request) => {
   try {
     const demo = isDemoMode(request);
     const openAI = getOpenAIConfig(request);
@@ -271,6 +272,6 @@ purchaseDate 使用 YYYY-MM-DD；看不清的字段使用空字符串或 null。
       items,
     });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "小票识别失败" }, { status: 500 });
+    return failure("receipts.analyze", error, "小票识别失败", 500);
   }
-}
+});

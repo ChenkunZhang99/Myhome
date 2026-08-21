@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { failure, withRoute } from "../_shared/observability";
 import { ensureSchema } from "../_shared/schema";
 import { seedDemoData } from "../_shared/demo";
 
@@ -40,7 +41,7 @@ function clampPercent(value: unknown, fallback = 100) {
   return Number.isFinite(number) ? Math.round(Math.max(0, Math.min(100, number))) : fallback;
 }
 
-export async function GET() {
+export const GET = withRoute("inventory", async () => {
   try {
     await ensureSchema();
     // 全新克隆时灌一套演示数据，让界面不是空的（仅演示模式且库存为空时执行）。
@@ -59,14 +60,11 @@ export async function GET() {
     ).all();
     return Response.json({ items: result.results });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "库存暂时无法读取" },
-      { status: 500 },
-    );
+    return failure("inventory", error, "库存暂时无法读取", 500);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withRoute("inventory", async (request: Request) => {
   try {
     const payload = (await request.json()) as InventoryPayload;
     const name = cleanText(payload.name);
@@ -125,14 +123,11 @@ export async function POST(request: Request) {
 
     return Response.json({ item }, { status: 201 });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "物品暂时无法保存" },
-      { status: 500 },
-    );
+    return failure("inventory", error, "物品暂时无法保存", 500);
   }
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withRoute("inventory", async (request: Request) => {
   try {
     const payload = (await request.json()) as InventoryPayload & { id?: string };
     const id = cleanText(payload.id);
@@ -224,14 +219,11 @@ export async function PATCH(request: Request) {
 
     return Response.json({ ok: true, item });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "库存暂时无法更新" },
-      { status: 500 },
-    );
+    return failure("inventory", error, "库存暂时无法更新", 500);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withRoute("inventory", async (request: Request) => {
   try {
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
@@ -255,9 +247,6 @@ export async function DELETE(request: Request) {
     ]);
     return Response.json({ ok: true });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "物品暂时无法删除" },
-      { status: 500 },
-    );
+    return failure("inventory", error, "物品暂时无法删除", 500);
   }
-}
+});

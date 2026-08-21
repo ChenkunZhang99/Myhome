@@ -1,10 +1,11 @@
 import { env } from "cloudflare:workers";
+import { failure, withRoute } from "../_shared/observability";
 import { ensureSchema } from "../_shared/schema";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_FILES_PER_ITEM = 8;
 
-export async function GET(request: Request) {
+export const GET = withRoute("inventory.files", async (request: Request) => {
   try {
     await ensureSchema();
     const url = new URL(request.url);
@@ -39,14 +40,11 @@ export async function GET(request: Request) {
       .all();
     return Response.json({ attachments: attachments.results });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "暂时无法读取图片" },
-      { status: 500 },
-    );
+    return failure("inventory.files", error, "暂时无法读取图片", 500);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withRoute("inventory.files", async (request: Request) => {
   try {
     await ensureSchema();
     const form = await request.formData();
@@ -109,11 +107,11 @@ export async function POST(request: Request) {
     }
     return Response.json({ attachments: uploaded }, { status: 201 });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "图片上传失败" }, { status: 500 });
+    return failure("inventory.files", error, "图片上传失败", 500);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withRoute("inventory.files", async (request: Request) => {
   try {
     await ensureSchema();
     const id = new URL(request.url).searchParams.get("id")?.trim();
@@ -128,6 +126,6 @@ export async function DELETE(request: Request) {
     await env.DB.prepare("DELETE FROM inventory_attachments WHERE id = ?").bind(id).run();
     return Response.json({ ok: true });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "图片删除失败" }, { status: 500 });
+    return failure("inventory.files", error, "图片删除失败", 500);
   }
-}
+});

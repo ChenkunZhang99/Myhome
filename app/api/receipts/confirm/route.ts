@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { failure, withRoute } from "../../_shared/observability";
 import { ensureSchema } from "../../_shared/schema";
 import { defaultLocation } from "../../_shared/inventory";
 
@@ -47,7 +48,7 @@ async function sumSpent(date: string) {
   return Number(row?.total ?? 0);
 }
 
-export async function POST(request: Request) {
+export const POST = withRoute("receipts.confirm", async (request: Request) => {
   try {
     const payload = (await request.json()) as {
       store?: string;
@@ -170,9 +171,6 @@ export async function POST(request: Request) {
     const spent = Math.round(purchases.length ? (await sumSpent(purchaseDate ?? "")) * 100 : 0) / 100;
     return Response.json({ ok: true, added, merged, recorded: purchases.length, spent });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "小票商品暂时无法保存" },
-      { status: 500 },
-    );
+    return failure("receipts.confirm", error, "小票商品暂时无法保存", 500);
   }
-}
+});

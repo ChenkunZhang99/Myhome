@@ -1,4 +1,5 @@
 import { dayIn } from "../../../dateTime.ts";
+import { UserFacingError } from "../../_shared/observability.ts";
 
 export type PriceSmartDeal = {
   itemName: string;
@@ -32,7 +33,7 @@ const weeklySpecialsUrl = "https://www.pricesmartfoods.com/sm/pickup/rsid/2280/w
 
 function assignedJson(source: string, marker: string) {
   const markerIndex = source.indexOf(marker);
-  if (markerIndex < 0) throw new Error("PriceSmart 页面没有结构化优惠数据");
+  if (markerIndex < 0) throw new UserFacingError("PriceSmart 页面没有结构化优惠数据");
   const start = markerIndex + marker.length;
   let depth = 0;
   let inString = false;
@@ -52,7 +53,7 @@ function assignedJson(source: string, marker: string) {
       if (depth === 0) return source.slice(start, index + 1);
     }
   }
-  throw new Error("PriceSmart 优惠数据不完整");
+  throw new UserFacingError("PriceSmart 优惠数据不完整");
 }
 
 function localDate(isoDate: string, timeZone: string) {
@@ -144,7 +145,7 @@ export function parsePriceSmartDeals(html: string, today: string, timeZone: stri
   const json = assignedJson(html, "window.__PRELOADED_STATE__=");
   const state = JSON.parse(json) as { search?: { productCardDictionary?: Record<string, ProductCard> } };
   const products = Object.values(state.search?.productCardDictionary ?? {});
-  if (!products.length) throw new Error("PriceSmart 当前优惠列表为空");
+  if (!products.length) throw new UserFacingError("PriceSmart 当前优惠列表为空");
   const deals = products
     .map((product) => productToDeal(product, today, timeZone))
     .filter((deal): deal is PriceSmartDeal => Boolean(deal));
@@ -162,6 +163,6 @@ export async function fetchPriceSmartDeals(today: string, timeZone: string) {
     },
     redirect: "follow",
   });
-  if (!response.ok) throw new Error(`PriceSmart 官方页面返回 ${response.status}`);
+  if (!response.ok) throw new UserFacingError(`PriceSmart 官方页面返回 ${response.status}`);
   return parsePriceSmartDeals(await response.text(), today, timeZone);
 }

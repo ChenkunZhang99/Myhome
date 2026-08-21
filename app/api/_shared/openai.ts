@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { UserFacingError } from "./observability";
 
 /**
  * 密钥来源有两处，优先级从高到低：
@@ -43,7 +44,8 @@ export function getOpenAIConfig(request?: Request): OpenAIConfig {
 }
 
 export async function createOpenAIResponse(body: Record<string, unknown>, config: OpenAIConfig) {
-  if (!config.apiKey) throw new Error("OPENAI_API_KEY_MISSING");
+  // 没有密钥不是程序缺陷，而是使用者还没填，提示要能直接看懂。
+  if (!config.apiKey) throw new UserFacingError("尚未配置 OpenAI API 密钥，请在设置里填写后再试", 503);
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },

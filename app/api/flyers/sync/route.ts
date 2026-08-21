@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { safeMessage, UserFacingError, withRoute } from "../../_shared/observability";
 import { householdTimeZone } from "../../_shared/household";
 import { dayIn } from "../../../dateTime";
 import { ensureSchema } from "../../_shared/schema";
@@ -241,13 +242,15 @@ async function searchFallback(
     );
     const raw = (await response.json()) as Record<string, unknown>;
     if (!response.ok)
-      throw new Error((raw.error as { message?: string } | undefined)?.message || "网页搜索读取失败");
+      throw new UserFacingError(
+        (raw.error as { message?: string } | undefined)?.message || "网页搜索读取失败",
+      );
     const text = outputText(raw);
-    if (!text) throw new Error("网页搜索没有返回可用内容");
+    if (!text) throw new UserFacingError("网页搜索没有返回可用内容");
     const extracted = JSON.parse(text) as { stores: ExtractedStore[] };
     for (const store of extracted.stores) results.set(store.sourceKey, store);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "网页搜索读取失败";
+    const message = safeMessage("flyers.sync", error, "网页搜索读取失败");
     for (const store of stores)
       results.set(store.sourceKey, { sourceKey: store.sourceKey, status: "unavailable", message, deals: [] });
   }
@@ -259,7 +262,7 @@ function packageDetails(itemName: string, unit: string) {
   return { quantity: match ? Number(match[1]) : 1, unit: match ? match[2] : unit.replace(/^\//, "") };
 }
 
-export async function POST(request: Request) {
+export const POST = withRoute("flyers.sync", async (request: Request) => {
   try {
     // 定时任务没有浏览器可问，只会拿到环境变量里的密钥；这里两者都覆盖。
     const openAI = getOpenAIConfig(request);
@@ -333,7 +336,7 @@ export async function POST(request: Request) {
         foundByKey.set(store.sourceKey, {
           sourceKey: store.sourceKey,
           status: "unavailable",
-          message: error instanceof Error ? error.message : "PriceSmart 官方页面读取失败",
+          message: safeMessage("flyers.sync", error, "PriceSmart 官方页面读取失败"),
           deals: [],
         });
       }
@@ -456,7 +459,7 @@ export async function POST(request: Request) {
       .run();
     return Response.json({ ok: true, imported, status, message, stores: summaries });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Flyer 自动同步失败";
+    const message = safeMessage("flyers.sync", error, "Flyer 自动同步失败");
     try {
       await markFailure(message);
     } catch {
@@ -464,4 +467,4 @@ export async function POST(request: Request) {
     }
     return Response.json({ error: message }, { status: 500 });
   }
-}
+});

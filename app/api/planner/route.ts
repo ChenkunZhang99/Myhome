@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
 import { dayIn, resolveTimeZone } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
@@ -48,7 +49,7 @@ async function todayDate() {
   return dayIn(await householdTimeZone());
 }
 
-export async function GET() {
+export const GET = withRoute("planner", async () => {
   try {
     await ensureSchema();
     // 预算对账要读 purchase_records，那张表归库存 schema 管。
@@ -158,14 +159,11 @@ export async function GET() {
       },
     });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "采购计划暂时无法读取" },
-      { status: 500 },
-    );
+    return failure("planner", error, "采购计划暂时无法读取", 500);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withRoute("planner", async (request: Request) => {
   try {
     const payload = (await request.json()) as Record<string, unknown>;
     const type = cleanText(payload.type);
@@ -526,14 +524,11 @@ export async function POST(request: Request) {
 
     return Response.json({ error: "不支持的操作" }, { status: 400 });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "采购计划暂时无法保存" },
-      { status: 500 },
-    );
+    return failure("planner", error, "采购计划暂时无法保存", 500);
   }
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withRoute("planner", async (request: Request) => {
   try {
     const payload = (await request.json()) as { type?: string; id?: string; checked?: boolean };
     if (payload.type !== "shopping" || !payload.id)
@@ -544,14 +539,11 @@ export async function PATCH(request: Request) {
       .run();
     return Response.json({ ok: true });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "采购状态暂时无法更新" },
-      { status: 500 },
-    );
+    return failure("planner", error, "采购状态暂时无法更新", 500);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withRoute("planner", async (request: Request) => {
   try {
     const url = new URL(request.url);
     const type = url.searchParams.get("type");
@@ -582,9 +574,6 @@ export async function DELETE(request: Request) {
     else await env.DB.prepare("DELETE FROM shopping_items WHERE id = ?").bind(id).run();
     return Response.json({ ok: true });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "内容暂时无法删除" },
-      { status: 500 },
-    );
+    return failure("planner", error, "内容暂时无法删除", 500);
   }
-}
+});

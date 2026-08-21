@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
 import { dayIn } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
@@ -347,18 +348,15 @@ async function readWorkspace() {
   };
 }
 
-export async function GET() {
+export const GET = withRoute("recipe.workspace", async () => {
   try {
     return Response.json(await readWorkspace());
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "菜谱工作区暂时无法读取" },
-      { status: 500 },
-    );
+    return failure("recipe.workspace", error, "菜谱工作区暂时无法读取", 500);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withRoute("recipe.workspace", async (request: Request) => {
   try {
     await ensureSchema();
     const payload = (await request.json()) as Record<string, unknown>;
@@ -741,6 +739,6 @@ export async function POST(request: Request) {
     }
     return Response.json(await readWorkspace());
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "菜谱操作失败" }, { status: 500 });
+    return failure("recipe.workspace", error, "菜谱操作失败", 500);
   }
-}
+});

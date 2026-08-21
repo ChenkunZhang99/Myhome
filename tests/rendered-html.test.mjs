@@ -113,8 +113,8 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
   assert.match(recipe, /当前有效 Flyer 优惠/);
   assert.match(recipe, /source/);
   assert.match(schema, /recipe_favorites/);
-  assert.match(recipe, /export async function POST/);
-  assert.doesNotMatch(recipe, /export async function (GET|PATCH)/);
+  assert.match(recipe, /export const POST = withRoute/);
+  assert.doesNotMatch(recipe, /export const (GET|PATCH) =/);
   assert.match(skill, /targeted match/);
   assert.match(skill, /category match/);
 });

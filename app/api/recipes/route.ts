@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
 import { dayIn } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
@@ -99,7 +100,7 @@ function containsRestrictedFood(recipe: ReturnType<typeof cleanRecipe>, terms: s
   return terms.some((term) => text.includes(term));
 }
 
-export async function POST(request: Request) {
+export const POST = withRoute("recipes", async (request: Request) => {
   try {
     let focusDealId = "";
     try {
@@ -241,6 +242,6 @@ export async function POST(request: Request) {
     if (!recipes.length) return Response.json({ error: "没有生成可用的菜谱" }, { status: 422 });
     return Response.json({ recipes });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "菜谱生成失败" }, { status: 500 });
+    return failure("recipes", error, "菜谱生成失败", 500);
   }
-}
+});

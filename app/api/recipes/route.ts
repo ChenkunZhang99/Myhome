@@ -127,7 +127,10 @@ export const POST = withRoute("recipes", async (request: Request) => {
     const deals = await env.DB.prepare(
       `SELECT flyer_deals.id, flyer_deals.item_name AS itemName, flyer_deals.category,
       flyer_deals.price, flyer_deals.unit, flyer_deals.valid_to AS validTo, stores.name AS storeName
-      FROM flyer_deals LEFT JOIN stores ON stores.id = flyer_deals.store_id
+      FROM flyer_deals
+      JOIN household_stores ON household_stores.source_key = flyer_deals.source_key
+        AND household_stores.household_id = ?
+      LEFT JOIN flyer_sources ON flyer_sources.source_key = flyer_deals.source_key
       WHERE flyer_deals.valid_from <= ? AND flyer_deals.valid_to >= ?
       ORDER BY CASE WHEN flyer_deals.id = ? THEN 0 ELSE 1 END, flyer_deals.valid_to ASC LIMIT 50`,
     )

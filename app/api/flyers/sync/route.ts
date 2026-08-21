@@ -269,11 +269,12 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
     await ensureSchema();
     const scheduled = new URL(request.url).searchParams.get("scheduled") === "1";
     const stores = await env.DB.prepare(
-      `SELECT id, name, address, source_key AS sourceKey, flyer_url AS flyerUrl
-      FROM stores WHERE is_favorite = 1 AND source_key IS NOT NULL AND flyer_url != '' ORDER BY created_at ASC`,
+      // 目录是全局的：同一份 flyer 解析一次，所有订阅了这家店的住户共享。
+      `SELECT source_key AS id, name, address, source_key AS sourceKey, flyer_url AS flyerUrl
+      FROM flyer_sources WHERE flyer_format != 'manual' AND flyer_url != '' ORDER BY created_at ASC`,
     ).all<StoreRow>();
     if (!stores.results.length)
-      return Response.json({ error: "请先收藏至少一家支持自动读取的 Flyer 门店" }, { status: 400 });
+      return Response.json({ error: "门店目录里还没有可自动读取的来源" }, { status: 400 });
 
     const settings = await env.DB.prepare(
       "SELECT enabled, interval_hours AS intervalHours, next_sync_at AS nextSyncAt FROM flyer_sync_settings WHERE id = 1",
@@ -357,7 +358,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
       const unique = Array.from(new Map(deals.map((deal) => [fingerprint(store.id, deal), deal])).entries());
       if (unique.length) {
         const statements = [
-          env.DB.prepare("DELETE FROM flyer_deals WHERE store_id = ? AND source = 'auto'").bind(store.id),
+          env.DB.prepare("DELETE FROM flyer_deals WHERE source_key = ? AND source = 'auto'").bind(store.id),
         ];
         for (const [dealFingerprint, deal] of unique) {
           const dealId = `auto-${store.id}-${dealFingerprint}`;
@@ -372,7 +373,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
           statements.push(
             env.DB.prepare(
               `INSERT INTO flyer_deals
-            (id, store_id, item_name, category, price, regular_price, unit, valid_from, valid_to, source, source_url, source_fingerprint)
+            (id, source_key, item_name, category, price, regular_price, unit, valid_from, valid_to, source, source_url, source_fingerprint)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto', ?, ?)`,
             ).bind(
               dealId,
@@ -400,7 +401,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
           statements.push(
             env.DB.prepare(
               `INSERT OR IGNORE INTO flyer_price_history
-            (id, deal_id, store_id, item_key, item_name, price, regular_price, unit, package_quantity, package_unit, valid_from, valid_to)
+            (id, deal_id, source_key, item_key, item_name, price, regular_price, unit, package_quantity, package_unit, valid_from, valid_to)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             ).bind(
               `history-${store.id}-${dealFingerprint}`,
@@ -419,7 +420,9 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
           );
         }
         statements.push(
-          env.DB.prepare("UPDATE stores SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ?").bind(store.id),
+          env.DB.prepare(
+            "UPDATE flyer_sources SET last_synced_at = CURRENT_TIMESTAMP WHERE source_key = ?",
+          ).bind(store.sourceKey),
         );
         await env.DB.batch(statements);
       }

@@ -16,7 +16,7 @@ import test from "node:test";
  */
 
 /** 每完成一批就调低这个数字。它同时是进度指标和防回退的闸门。 */
-const REMAINING = 100;
+const REMAINING = 88;
 
 const TENANT_TABLES = [
   "inventory_items",
@@ -34,7 +34,7 @@ const TENANT_TABLES = [
   "shopping_items",
   "flyer_match_rules",
   "flyer_recommendation_feedback",
-  "stores",
+  "household_stores",
 ];
 
 const API_DIR = new URL("../app/api/", import.meta.url);

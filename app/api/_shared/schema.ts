@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { DEFAULT_TIME_ZONE } from "../../dateTime";
+import { FLYER_SOURCES } from "./flyerSources";
 import { DEFAULT_HOUSEHOLD_ID } from "./householdId";
 import { once } from "./once";
 
@@ -77,6 +78,25 @@ const TABLES = [
     flyer_url TEXT NOT NULL DEFAULT '',
     flyer_format TEXT NOT NULL DEFAULT 'manual',
     last_synced_at TEXT,
+    is_favorite INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS flyer_sources (
+    source_key TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    address TEXT NOT NULL DEFAULT '',
+    flyer_url TEXT NOT NULL DEFAULT '',
+    flyer_format TEXT NOT NULL DEFAULT 'manual',
+    timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}',
+    last_synced_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS household_stores (
+    id TEXT PRIMARY KEY,
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
+    source_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    address TEXT NOT NULL DEFAULT '',
     is_favorite INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
@@ -242,6 +262,8 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_flyer_deals_valid_to ON flyer_deals(valid_to)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_deals_store_source ON flyer_deals(store_id, source)",
   "CREATE INDEX IF NOT EXISTS idx_stores_source_key ON stores(source_key)",
+  "CREATE INDEX IF NOT EXISTS idx_household_stores_household ON household_stores(household_id)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_stores_subscription ON household_stores(household_id, source_key)",
   "CREATE INDEX IF NOT EXISTS idx_shopping_items_checked ON shopping_items(checked)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_item_store ON flyer_price_history(item_key, store_id, observed_at)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_deal ON flyer_price_history(deal_id)",
@@ -263,6 +285,8 @@ const INDEXES = [
  * 索引会先一步失败，整个建表流程随之中断，每个请求都报 no such column。
  */
 const INDEXES_ON_ADDED_COLUMNS = [
+  "CREATE INDEX IF NOT EXISTS idx_flyer_deals_source ON flyer_deals(source_key, valid_to)",
+  "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_source ON flyer_price_history(item_key, source_key, observed_at)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_settings_household ON household_settings(household_id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_recipe_preferences_household ON recipe_preferences(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id)",
@@ -300,6 +324,16 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     column: "timezone",
     ddl: `ALTER TABLE household_settings ADD COLUMN timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}'`,
   },
+  ...["flyer_deals", "flyer_price_history", "flyer_recommendation_feedback"].map((table) => ({
+    // flyer 数据改为挂在「来源」上而不是某一户的门店行上，同一份优惠所有人共享。
+    table,
+    column: "source_key",
+    ddl: `ALTER TABLE ${table} ADD COLUMN source_key TEXT NOT NULL DEFAULT ''`,
+    // 老库里这些行是按 store_id 记的，通过 stores 换成来源标识。
+    backfill: `UPDATE ${table} SET source_key = COALESCE(
+      (SELECT stores.source_key FROM stores WHERE stores.id = ${table}.store_id), '')
+      WHERE source_key = ''`,
+  })),
   ...["household_settings", "recipe_preferences", "household_members"].map((table) => ({
     // 多住户改造：已有数据全部归到默认住户，带默认值的加列会一次填好。
     table,
@@ -325,6 +359,14 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
  * 这些语句跨表读写，必须排在所有建表之后。
  */
 const SEEDS = [
+  // 门店订阅从旧的 stores 表搬过来。手工门店没有来源标识，就地补一个私有的。
+  `INSERT OR IGNORE INTO household_stores (id, household_id, source_key, name, address, is_favorite, created_at)
+    SELECT id, '${DEFAULT_HOUSEHOLD_ID}', COALESCE(NULLIF(source_key, ''), 'manual-' || id),
+      name, address, is_favorite, created_at FROM stores`,
+  // 手工门店的私有来源也要在目录里有一行，否则订阅指向空处。
+  `INSERT OR IGNORE INTO flyer_sources (source_key, name, address, flyer_url, flyer_format)
+    SELECT 'manual-' || id, name, address, '', 'manual' FROM stores
+    WHERE source_key IS NULL OR source_key = ''`,
   "DELETE FROM recipe_favorites WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
   "DELETE FROM recipe_suggestions WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
   "DELETE FROM recipe_catalog WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
@@ -351,6 +393,15 @@ async function missingColumns() {
   return ADDED_COLUMNS.filter((entry) => !present.get(entry.table)?.includes(entry.column));
 }
 
+/** 预设门店目录入库。目录是全局的，目前只能通过改代码增加。 */
+const SOURCE_SEEDS = FLYER_SOURCES.map(
+  (source) =>
+    `INSERT INTO flyer_sources (source_key, name, address, flyer_url, flyer_format, timezone)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(source_key) DO UPDATE SET name = excluded.name, address = excluded.address,
+       flyer_url = excluded.flyer_url, flyer_format = excluded.flyer_format`,
+);
+
 export const ensureSchema = once(async () => {
   await env.DB.batch([...TABLES, ...INDEXES].map((ddl) => env.DB.prepare(ddl)));
 
@@ -361,5 +412,17 @@ export const ensureSchema = once(async () => {
   }
 
   await env.DB.batch(INDEXES_ON_ADDED_COLUMNS.map((ddl) => env.DB.prepare(ddl)));
-  await env.DB.batch(SEEDS.map((sql) => env.DB.prepare(sql)));
+  await env.DB.batch([
+    ...SOURCE_SEEDS.map((sql, index) =>
+      env.DB.prepare(sql).bind(
+        FLYER_SOURCES[index].sourceKey,
+        FLYER_SOURCES[index].name,
+        FLYER_SOURCES[index].address,
+        FLYER_SOURCES[index].flyerUrl,
+        FLYER_SOURCES[index].flyerFormat,
+        FLYER_SOURCES[index].timeZone,
+      ),
+    ),
+    ...SEEDS.map((sql) => env.DB.prepare(sql)),
+  ]);
 });

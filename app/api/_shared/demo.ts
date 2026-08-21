@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { householdTimeZone } from "./household";
+import { DEFAULT_HOUSEHOLD_ID } from "./householdId";
 import { shiftDay } from "../../dateTime";
 import { ensureSchema } from "./schema";
 import { getOpenAIConfig } from "./openai";
@@ -326,20 +327,26 @@ const demoStores = [
  */
 export async function seedDemoPlanner() {
   if (!isDemoMode()) return false;
-  const existing = await env.DB.prepare("SELECT COUNT(*) AS count FROM stores").first<{ count: number }>();
+  const existing = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM household_stores WHERE household_id = ?",
+  )
+    .bind(DEFAULT_HOUSEHOLD_ID)
+    .first<{ count: number }>();
   if (Number(existing?.count ?? 0) > 0) return false;
 
   await env.DB.batch([
-    ...demoStores.map(([id, name, address, sourceKey, flyerUrl, flyerFormat]) =>
+    // 演示门店订阅的是全局目录里的来源，flyer 地址和格式跟着目录走，不再各存一份。
+    ...demoStores.map(([id, name, address, sourceKey]) =>
       env.DB.prepare(
-        `INSERT OR IGNORE INTO stores (id, name, address, source_key, flyer_url, flyer_format, is_favorite)
-        VALUES (?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(id, name, address, sourceKey, flyerUrl, flyerFormat),
+        `INSERT OR IGNORE INTO household_stores (id, household_id, source_key, name, address, is_favorite)
+        VALUES (?, ?, ?, ?, ?, 1)`,
+      ).bind(id, DEFAULT_HOUSEHOLD_ID, sourceKey, name, address),
     ),
-    env.DB
-      .prepare(`INSERT INTO household_settings (household_id, city, postal_code, food_budget, household_budget, max_stores)
-      VALUES (1, 'Burnaby', 'V3J 1N4', 120, 40, 2)
-      ON CONFLICT(id) DO NOTHING`),
+    env.DB.prepare(
+      `INSERT INTO household_settings (household_id, city, postal_code, food_budget, household_budget, max_stores)
+      VALUES (?, 'Burnaby', 'V3J 1N4', 120, 40, 2)
+      ON CONFLICT(household_id) DO NOTHING`,
+    ).bind(DEFAULT_HOUSEHOLD_ID),
   ]);
   return true;
 }

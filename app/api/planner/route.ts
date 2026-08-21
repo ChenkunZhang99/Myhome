@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { FLYER_SOURCES, flyerSourceByKey, manualSourceKey } from "../_shared/flyerSources";
 import { resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
@@ -7,30 +8,6 @@ import { ensureSchema } from "../_shared/schema";
 import { normalizeFlyerName } from "../../flyerRecommendations";
 import { defaultLocation } from "../_shared/inventory";
 import { seedDemoPlanner } from "../_shared/demo";
-
-const lougheedStores = {
-  "hmart-coquitlam": {
-    id: "store-hmart-coquitlam",
-    name: "H Mart Coquitlam",
-    address: "#100 - 329 North Rd, Coquitlam, BC V3K 3V8",
-    flyerUrl: "https://hmart.ca/index.php?pn=flyer",
-    flyerFormat: "pdf",
-  },
-  "pricesmart-lougheed": {
-    id: "store-pricesmart-lougheed",
-    name: "PriceSmart Foods Lougheed",
-    address: "9899 Austin Rd, Burnaby, BC V3J 1N4",
-    flyerUrl: "https://www.pricesmartfoods.com/sm/pickup/rsid/2280/weekly-specials",
-    flyerFormat: "catalog",
-  },
-  "walmart-lougheed": {
-    id: "store-walmart-lougheed",
-    name: "Walmart Supercentre Lougheed",
-    address: "9855 Austin Rd, Burnaby, BC V3J 1N5",
-    flyerUrl: "https://www.walmart.ca/en/flyer",
-    flyerFormat: "dynamic",
-  },
-} as const;
 
 function cleanText(value: unknown, fallback = "", max = 120) {
   return typeof value === "string" ? value.trim().slice(0, max) : fallback;
@@ -67,13 +44,20 @@ export const GET = withRoute("planner", async (request: Request) => {
       .bind(household)
       .first();
     const stores = await env.DB.prepare(
-      `SELECT id, name, address, source_key AS sourceKey,
-      flyer_url AS flyerUrl, flyer_format AS flyerFormat, last_synced_at AS lastSyncedAt,
-      is_favorite AS isFavorite,
-      created_at AS createdAt FROM stores ORDER BY created_at ASC`,
-    ).all();
+      `SELECT household_stores.id, household_stores.name, household_stores.address,
+      household_stores.source_key AS sourceKey, household_stores.is_favorite AS isFavorite,
+      household_stores.created_at AS createdAt,
+      flyer_sources.flyer_url AS flyerUrl, flyer_sources.flyer_format AS flyerFormat,
+      flyer_sources.last_synced_at AS lastSyncedAt
+      FROM household_stores
+      LEFT JOIN flyer_sources ON flyer_sources.source_key = household_stores.source_key
+      WHERE household_stores.household_id = ? ORDER BY household_stores.created_at ASC`,
+    )
+      .bind(household)
+      .all();
     const deals = await env.DB.prepare(
-      `SELECT flyer_deals.id, flyer_deals.store_id AS storeId, flyer_deals.item_name AS itemName,
+      `SELECT flyer_deals.id, flyer_deals.source_key AS sourceKey, household_stores.id AS storeId,
+      flyer_deals.item_name AS itemName,
       flyer_deals.category, flyer_deals.price, flyer_deals.regular_price AS regularPrice, flyer_deals.unit,
       flyer_deals.valid_from AS validFrom, flyer_deals.valid_to AS validTo, flyer_deals.source,
       flyer_deals.source_url AS sourceUrl, flyer_deals.created_at AS createdAt,
@@ -85,11 +69,16 @@ export const GET = withRoute("planner", async (request: Request) => {
       ) THEN 1 ELSE 0 END AS hidden,
       MIN(history.price) AS lowestPrice, AVG(history.price) AS averagePrice, COUNT(history.id) AS priceObservations
       FROM flyer_deals
+      JOIN household_stores ON household_stores.source_key = flyer_deals.source_key
+        AND household_stores.household_id = ?
       LEFT JOIN flyer_deal_metadata metadata ON metadata.deal_id = flyer_deals.id
-      LEFT JOIN flyer_price_history history ON history.item_key = metadata.item_key AND history.store_id = flyer_deals.store_id
+      LEFT JOIN flyer_price_history history ON history.item_key = metadata.item_key
+        AND history.source_key = flyer_deals.source_key
       GROUP BY flyer_deals.id
       ORDER BY flyer_deals.valid_to ASC, flyer_deals.created_at DESC`,
-    ).all();
+    )
+      .bind(household)
+      .all();
     const syncSettings = await env.DB.prepare(
       `SELECT enabled, interval_hours AS intervalHours,
       next_sync_at AS nextSyncAt, last_started_at AS lastStartedAt, last_completed_at AS lastCompletedAt,
@@ -212,26 +201,37 @@ export const POST = withRoute("planner", async (request: Request) => {
     if (type === "store") {
       const name = cleanText(payload.name);
       if (!name) return Response.json({ error: "请填写超市名称" }, { status: 400 });
-      const store = { id: crypto.randomUUID(), name, address: cleanText(payload.address, "", 200) };
-      await env.DB.prepare("INSERT INTO stores (id, name, address) VALUES (?, ?, ?)")
-        .bind(store.id, store.name, store.address)
-        .run();
+      // 手工门店也占一条来源，只是没有别人订阅，也不参与自动同步。
+      const sourceKey = manualSourceKey();
+      const store = {
+        id: crypto.randomUUID(),
+        name,
+        address: cleanText(payload.address, "", 200),
+        sourceKey,
+      };
+      await env.DB.batch([
+        env.DB.prepare(
+          "INSERT INTO flyer_sources (source_key, name, address, flyer_format) VALUES (?, ?, ?, 'manual')",
+        ).bind(sourceKey, store.name, store.address),
+        env.DB.prepare(
+          "INSERT INTO household_stores (id, household_id, source_key, name, address) VALUES (?, ?, ?, ?, ?)",
+        ).bind(store.id, household, sourceKey, store.name, store.address),
+      ]);
       return Response.json({ store }, { status: 201 });
     }
 
     if (type === "storePreset") {
-      const sourceKey = cleanText(payload.sourceKey) as keyof typeof lougheedStores;
-      const preset = lougheedStores[sourceKey];
+      const sourceKey = cleanText(payload.sourceKey);
+      const preset = flyerSourceByKey.get(sourceKey);
       if (!preset) return Response.json({ error: "没有找到这家预设门店" }, { status: 400 });
+      // 目录是全局的，这里只是这一户订阅它。
       await env.DB.prepare(
-        `INSERT INTO stores
-        (id, name, address, source_key, flyer_url, flyer_format)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET name = excluded.name, address = excluded.address,
-        source_key = excluded.source_key, flyer_url = excluded.flyer_url,
-        flyer_format = excluded.flyer_format, is_favorite = 1`,
+        `INSERT INTO household_stores (id, household_id, source_key, name, address, is_favorite)
+        VALUES (?, ?, ?, ?, ?, 1)
+        ON CONFLICT(household_id, source_key) DO UPDATE SET name = excluded.name,
+        address = excluded.address, is_favorite = 1`,
       )
-        .bind(preset.id, preset.name, preset.address, sourceKey, preset.flyerUrl, preset.flyerFormat)
+        .bind(crypto.randomUUID(), household, sourceKey, preset.name, preset.address)
         .run();
       return Response.json({ store: { ...preset, sourceKey } }, { status: 201 });
     }
@@ -239,9 +239,18 @@ export const POST = withRoute("planner", async (request: Request) => {
     if (type === "deal") {
       const itemName = cleanText(payload.itemName);
       const storeId = cleanText(payload.storeId);
+      // 优惠挂在来源上，前端给的是这一户的订阅行，先换成来源标识。
+      const owner = storeId
+        ? await env.DB.prepare(
+            "SELECT source_key AS sourceKey FROM household_stores WHERE household_id = ? AND id = ?",
+          )
+            .bind(household, storeId)
+            .first<{ sourceKey: string }>()
+        : null;
       const validFrom = cleanText(payload.validFrom);
       const validTo = cleanText(payload.validTo);
       const price = cleanNumber(payload.price);
+      if (!owner) return Response.json({ error: "找不到这家门店" }, { status: 404 });
       if (!itemName || !storeId || !validFrom || !validTo || price <= 0) {
         return Response.json({ error: "请完整填写优惠商品、门店、价格和有效日期" }, { status: 400 });
       }
@@ -264,11 +273,11 @@ export const POST = withRoute("planner", async (request: Request) => {
       await env.DB.batch([
         env.DB.prepare(
           `INSERT INTO flyer_deals
-          (id, store_id, item_name, category, price, regular_price, unit, valid_from, valid_to)
+          (id, source_key, item_name, category, price, regular_price, unit, valid_from, valid_to)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           deal.id,
-          deal.storeId,
+          owner.sourceKey,
           deal.itemName,
           deal.category,
           deal.price,
@@ -284,12 +293,12 @@ export const POST = withRoute("planner", async (request: Request) => {
         ).bind(deal.id, itemKey, deal.packageQuantity, deal.packageUnit),
         env.DB.prepare(
           `INSERT OR IGNORE INTO flyer_price_history
-          (id, deal_id, store_id, item_key, item_name, price, regular_price, unit, package_quantity, package_unit, valid_from, valid_to)
+          (id, deal_id, source_key, item_key, item_name, price, regular_price, unit, package_quantity, package_unit, valid_from, valid_to)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           `history-${deal.id}`,
           deal.id,
-          deal.storeId,
+          owner.sourceKey,
           itemKey,
           deal.itemName,
           deal.price,
@@ -310,12 +319,12 @@ export const POST = withRoute("planner", async (request: Request) => {
       if (!dealId || !["save", "unsave", "ignore", "restore", "suppress"].includes(action))
         return Response.json({ error: "无效的优惠操作" }, { status: 400 });
       const deal = await env.DB.prepare(
-        `SELECT flyer_deals.id, flyer_deals.item_name AS itemName, flyer_deals.store_id AS storeId,
+        `SELECT flyer_deals.id, flyer_deals.item_name AS itemName, flyer_deals.source_key AS sourceKey,
         COALESCE(metadata.item_key, '') AS itemKey FROM flyer_deals
         LEFT JOIN flyer_deal_metadata metadata ON metadata.deal_id = flyer_deals.id WHERE flyer_deals.id = ?`,
       )
         .bind(dealId)
-        .first<{ id: string; itemName: string; storeId: string; itemKey: string }>();
+        .first<{ id: string; itemName: string; sourceKey: string; itemKey: string }>();
       if (!deal) return Response.json({ error: "优惠不存在" }, { status: 404 });
       const itemKey = deal.itemKey || normalizeFlyerName(deal.itemName);
       await env.DB.prepare(
@@ -331,13 +340,14 @@ export const POST = withRoute("planner", async (request: Request) => {
       if (action === "suppress")
         await env.DB.prepare(
           `INSERT INTO flyer_recommendation_feedback
-        (id, deal_id, item_pattern, store_id, action, note) VALUES (?, ?, ?, ?, 'suppress', ?)`,
+        (id, deal_id, item_pattern, source_key, household_id, action, note) VALUES (?, ?, ?, ?, ?, 'suppress', ?)`,
         )
           .bind(
             crypto.randomUUID(),
             dealId,
             itemKey,
-            deal.storeId,
+            deal.sourceKey,
+            household,
             cleanText(payload.note, "不再推荐此类商品", 200),
           )
           .run();
@@ -550,6 +560,7 @@ export const PATCH = withRoute("planner", async (request: Request) => {
 
 export const DELETE = withRoute("planner", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     const url = new URL(request.url);
     const type = url.searchParams.get("type");
     const id = url.searchParams.get("id")?.trim();
@@ -557,19 +568,19 @@ export const DELETE = withRoute("planner", async (request: Request) => {
       return Response.json({ error: "无效操作" }, { status: 400 });
     await ensureSchema();
     if (type === "store") {
-      // 顺序有讲究：元数据按 deal_id 关联，必须赶在优惠被删之前清掉。
+      // 删的是这一户的订阅。优惠和价格历史属于全局层，别的住户可能还在用，不能跟着删。
+      // 只有手工门店的私有来源没人共享，随订阅一起清掉。
       await env.DB.batch([
         env.DB.prepare(
-          "DELETE FROM flyer_deal_metadata WHERE deal_id IN (SELECT id FROM flyer_deals WHERE store_id = ?)",
-        ).bind(id),
-        // 价格历史按 item_key + store_id 匹配，门店没了就再也匹配不上，留着只是死重量。
-        env.DB.prepare("DELETE FROM flyer_price_history WHERE store_id = ?").bind(id),
-        // 「不再推荐」是按商品名生效的，与门店无关，删门店不能把用户的这个选择一起抹掉。
-        env.DB.prepare("UPDATE flyer_recommendation_feedback SET store_id = NULL WHERE store_id = ?").bind(
-          id,
-        ),
-        env.DB.prepare("DELETE FROM flyer_deals WHERE store_id = ?").bind(id),
-        env.DB.prepare("DELETE FROM stores WHERE id = ?").bind(id),
+          `DELETE FROM flyer_deals WHERE source_key LIKE 'manual-%' AND source_key IN
+           (SELECT source_key FROM household_stores WHERE household_id = ? AND id = ?)`,
+        ).bind(household, id),
+        env.DB.prepare(
+          `DELETE FROM flyer_sources WHERE flyer_format = 'manual' AND source_key IN
+           (SELECT source_key FROM household_stores WHERE household_id = ? AND id = ?)`,
+        ).bind(household, id),
+        env.DB.prepare("DELETE FROM household_stores WHERE household_id = ? AND id = ?").bind(household, id),
+        env.DB.prepare("DELETE FROM flyer_deal_metadata WHERE deal_id NOT IN (SELECT id FROM flyer_deals)"),
       ]);
     } else if (type === "deal")
       await env.DB.batch([

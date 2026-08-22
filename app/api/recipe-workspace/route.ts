@@ -362,7 +362,7 @@ async function readWorkspace(household: string) {
 
 export const GET = withRoute("recipe.workspace", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     await ensureHouseholdMembers(household);
     return Response.json(await readWorkspace(household));
   } catch (error) {
@@ -372,7 +372,7 @@ export const GET = withRoute("recipe.workspace", async (request: Request) => {
 
 export const POST = withRoute("recipe.workspace", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     await ensureSchema();
     const payload = (await request.json()) as Record<string, unknown>;
     const action = cleanText(payload.action, "", 40);

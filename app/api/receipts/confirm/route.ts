@@ -51,7 +51,7 @@ async function sumSpent(household: string, date: string) {
 
 export const POST = withRoute("receipts.confirm", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     const payload = (await request.json()) as {
       store?: string;
       purchaseDate?: string;

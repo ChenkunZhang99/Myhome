@@ -103,7 +103,7 @@ function containsRestrictedFood(recipe: ReturnType<typeof cleanRecipe>, terms: s
 
 export const POST = withRoute("recipes", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     let focusDealId = "";
     try {
       focusDealId = String(((await request.json()) as { focusDealId?: string }).focusDealId ?? "").trim();

@@ -137,7 +137,7 @@ function outputText(response: Record<string, unknown>) {
 
 export const POST = withRoute("receipts.analyze", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     const demo = isDemoMode(request);
     const openAI = getOpenAIConfig(request);
     if (!demo && !openAI.apiKey)

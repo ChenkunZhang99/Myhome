@@ -81,7 +81,7 @@ test("住户解析器只有一处实现", async () => {
   const sources = await collectSources(API_DIR);
   const owner = sources.find((file) => file.name === "_shared/household.ts");
   assert.ok(owner, "找不到 _shared/household.ts");
-  assert.match(owner.code, /export function resolveHousehold/);
+  assert.match(owner.code, /export async function resolveHousehold/);
 
   // 住户 id 不能在别处凭空构造，否则「接鉴权只改一个函数」这个前提就不成立。
   // 常量单独放在 householdId.ts：建表语句和解析器都要用它，而解析器依赖建表模块，

@@ -29,7 +29,7 @@ async function todayDate(householdId: string) {
 
 export const GET = withRoute("planner", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     await ensureSchema();
     // 预算对账要读 purchase_records，那张表归库存 schema 管。
     await ensureSchema();
@@ -163,7 +163,7 @@ export const GET = withRoute("planner", async (request: Request) => {
 
 export const POST = withRoute("planner", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     const payload = (await request.json()) as Record<string, unknown>;
     const type = cleanText(payload.type);
     await ensureSchema();
@@ -558,7 +558,7 @@ export const POST = withRoute("planner", async (request: Request) => {
 
 export const PATCH = withRoute("planner", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     const payload = (await request.json()) as { type?: string; id?: string; checked?: boolean };
     if (payload.type !== "shopping" || !payload.id)
       return Response.json({ error: "无效操作" }, { status: 400 });
@@ -574,7 +574,7 @@ export const PATCH = withRoute("planner", async (request: Request) => {
 
 export const DELETE = withRoute("planner", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     const url = new URL(request.url);
     const type = url.searchParams.get("type");
     const id = url.searchParams.get("id")?.trim();

@@ -44,7 +44,7 @@ function clampPercent(value: unknown, fallback = 100) {
 
 export const GET = withRoute("inventory", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     await ensureSchema();
     // 全新克隆时灌一套演示数据，让界面不是空的（仅演示模式且库存为空时执行）。
     await seedDemoData();
@@ -70,7 +70,7 @@ export const GET = withRoute("inventory", async (request: Request) => {
 
 export const POST = withRoute("inventory", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     const payload = (await request.json()) as InventoryPayload;
     const name = cleanText(payload.name);
     if (!name) {
@@ -135,7 +135,7 @@ export const POST = withRoute("inventory", async (request: Request) => {
 
 export const PATCH = withRoute("inventory", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     const payload = (await request.json()) as InventoryPayload & { id?: string };
     const id = cleanText(payload.id);
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
@@ -233,7 +233,7 @@ export const PATCH = withRoute("inventory", async (request: Request) => {
 
 export const DELETE = withRoute("inventory", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
     await ensureSchema();

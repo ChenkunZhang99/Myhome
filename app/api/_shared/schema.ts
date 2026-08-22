@@ -61,6 +61,20 @@ const TABLES = [
     household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    household_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'session',
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE TABLE IF NOT EXISTS household_settings (
     id INTEGER PRIMARY KEY DEFAULT 1,
     city TEXT NOT NULL DEFAULT '',
@@ -256,6 +270,9 @@ const INDEXES = [
  * 索引会先一步失败，整个建表流程随之中断，每个请求都报 no such column。
  */
 const INDEXES_ON_ADDED_COLUMNS = [
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)",
+  "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at)",
   "CREATE INDEX IF NOT EXISTS idx_shopping_items_household ON shopping_items(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_match_rules_household ON flyer_match_rules(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_recommendation_feedback_household ON flyer_recommendation_feedback(household_id)",

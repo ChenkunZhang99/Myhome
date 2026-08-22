@@ -8,7 +8,7 @@ const MAX_FILES_PER_ITEM = 8;
 
 export const GET = withRoute("inventory.files", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     await ensureSchema();
     const url = new URL(request.url);
     const fileId = url.searchParams.get("fileId")?.trim();
@@ -48,7 +48,7 @@ export const GET = withRoute("inventory.files", async (request: Request) => {
 
 export const POST = withRoute("inventory.files", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     await ensureSchema();
     const form = await request.formData();
     const itemId = String(form.get("itemId") ?? "").trim();
@@ -118,7 +118,7 @@ export const POST = withRoute("inventory.files", async (request: Request) => {
 
 export const DELETE = withRoute("inventory.files", async (request: Request) => {
   try {
-    const household = resolveHousehold(request);
+    const household = await resolveHousehold(request);
     await ensureSchema();
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return Response.json({ error: "缺少图片编号" }, { status: 400 });

@@ -125,7 +125,6 @@ const TABLES = [
   )`,
   `CREATE TABLE IF NOT EXISTS flyer_deals (
     id TEXT PRIMARY KEY,
-    store_id TEXT NOT NULL,
     item_name TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT '其他',
     price REAL NOT NULL,
@@ -164,7 +163,6 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS flyer_price_history (
     id TEXT PRIMARY KEY,
     deal_id TEXT NOT NULL,
-    store_id TEXT NOT NULL,
     item_key TEXT NOT NULL,
     item_name TEXT NOT NULL,
     price REAL NOT NULL,
@@ -190,7 +188,6 @@ const TABLES = [
     id TEXT PRIMARY KEY,
     deal_id TEXT,
     item_pattern TEXT NOT NULL DEFAULT '',
-    store_id TEXT,
     action TEXT NOT NULL,
     note TEXT NOT NULL DEFAULT '',
     household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
@@ -265,11 +262,10 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_purchase_records_date ON purchase_records(purchase_date)",
   "CREATE INDEX IF NOT EXISTS idx_purchase_records_name ON purchase_records(name)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_deals_valid_to ON flyer_deals(valid_to)",
-  "CREATE INDEX IF NOT EXISTS idx_flyer_deals_store_source ON flyer_deals(store_id, source)",
   "CREATE INDEX IF NOT EXISTS idx_household_stores_household ON household_stores(household_id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_stores_subscription ON household_stores(household_id, source_key)",
   "CREATE INDEX IF NOT EXISTS idx_shopping_items_checked ON shopping_items(checked)",
-  "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_item_store ON flyer_price_history(item_key, store_id, observed_at)",
+  "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_item ON flyer_price_history(item_key, source_key, observed_at)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_deal ON flyer_price_history(deal_id)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_match_rules_pattern ON flyer_match_rules(deal_pattern, active)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_feedback_action_pattern ON flyer_recommendation_feedback(action, item_pattern)",
@@ -443,6 +439,28 @@ const SOURCE_SEEDS = FLYER_SOURCES.map(
  */
 const DROPPED_TABLES = ["stores", "recipe_suggestions", "recipe_favorites"];
 
+/**
+ * 已经不该存在的列。
+ *
+ * 上面的 CREATE TABLE 改了只对新库生效——已经建好的表不会因此变形。
+ * store_id 是 stores 表的遗留，多住户改造后所有查询都改用 source_key 了，
+ * 可它在 flyer_deals 和 flyer_price_history 上还带着 NOT NULL，
+ * 于是任何一个新建的数据库，Flyer 录入从第一条就插不进去。
+ */
+/**
+ * 已经不该存在的索引。
+ *
+ * 从 INDEXES 里删掉一行只是以后不再建它，库里已有的那个不会消失。
+ * 而 SQLite 不允许删除被索引引用的列——所以删列之前必须先删索引，顺序不能反。
+ */
+const DROPPED_INDEXES = ["idx_flyer_deals_store_source", "idx_flyer_price_history_item_store"];
+
+const DROPPED_COLUMNS: Array<{ table: string; column: string }> = [
+  { table: "flyer_deals", column: "store_id" },
+  { table: "flyer_price_history", column: "store_id" },
+  { table: "flyer_recommendation_feedback", column: "store_id" },
+];
+
 export const ensureSchema = once(async () => {
   await env.DB.batch([...TABLES, ...INDEXES].map((ddl) => env.DB.prepare(ddl)));
 
@@ -454,6 +472,30 @@ export const ensureSchema = once(async () => {
 
   await env.DB.batch(INDEXES_ON_ADDED_COLUMNS.map((ddl) => env.DB.prepare(ddl)));
   await env.DB.batch(DROPPED_TABLES.map((table) => env.DB.prepare(`DROP TABLE IF EXISTS ${table}`)));
+
+  await env.DB.batch(DROPPED_INDEXES.map((name) => env.DB.prepare(`DROP INDEX IF EXISTS ${name}`)));
+
+  // 删列逐条来：表可能压根不存在，也可能列早就没了，任何一条失败都不该拖垮其余的。
+  // 但失败的原因要记下来——之前这里是个空的 catch，删不掉时完全看不出为什么。
+  for (const entry of DROPPED_COLUMNS) {
+    try {
+      await env.DB.prepare(`ALTER TABLE ${entry.table} DROP COLUMN ${entry.column}`).run();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      // 列本来就不存在、表还没建，都是正常情况，不值得记。
+      if (/no such column|no such table|duplicate column/i.test(reason)) continue;
+      console.warn(
+        JSON.stringify({
+          at: new Date().toISOString(),
+          scope: "schema",
+          problem: "删列失败",
+          table: entry.table,
+          column: entry.column,
+          reason,
+        }),
+      );
+    }
+  }
 
   await env.DB.batch([
     ...SOURCE_SEEDS.map((sql, index) =>

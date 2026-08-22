@@ -26,10 +26,33 @@ async function collectSources(dir) {
 
 const isObservability = (file) => file.name.startsWith("_shared/observability");
 
+/**
+ * 这条规则针对的是「异常原文进响应」。
+ *
+ * 不构造任何 Response 的模块不在射程内——比如 schema.ts，它把失败原因写进日志，
+ * 而那里的表名和列名正是排查迁移问题唯一有用的东西。
+ *
+ * 豁免建立在一个可验证的前提上：这些文件里确实没有 Response。前提不成立时
+ * 下面那条断言会先失败，而不是让豁免悄悄扩大。
+ */
+const NO_RESPONSE_FILES = ["_shared/schema.ts"];
+
+test("豁免名单里的文件确实不构造响应", async () => {
+  for (const file of await collectSources(API_DIR)) {
+    if (!NO_RESPONSE_FILES.includes(file.name)) continue;
+    assert.doesNotMatch(
+      file.code,
+      /Response\.(json|redirect)|new Response\(/,
+      `${file.name} 开始构造响应了，不能再享受豁免`,
+    );
+  }
+});
+
 test("没有接口再把异常原文返回给调用方", async () => {
   const offenders = [];
   for (const file of await collectSources(API_DIR)) {
     if (isObservability(file)) continue; // 该模块的注释里会引用这个旧写法
+    if (NO_RESPONSE_FILES.includes(file.name)) continue;
     if (/error instanceof Error \? error\.message/.test(file.code))
       offenders.push(`${file.name}: 直接返回了异常原文`);
   }

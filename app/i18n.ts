@@ -339,6 +339,8 @@ const ui: Record<string, string> = {
   "⚠ 忌口设置": "⚠ Dietary limits",
   一次最多去几家超市: "Most stores per trip",
   账号: "Account",
+  "登录后才能看到这个家的库存、菜谱与采购记录。":
+    "Sign in to see this household's inventory, recipes and purchases.",
   已登录: "Signed in",
   退出登录: "Sign out",
   邮箱: "Email",

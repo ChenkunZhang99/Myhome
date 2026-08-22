@@ -1,3 +1,9 @@
 OPENAI_API_KEY=
 OPENAI_MODEL=
 DEMO_MODE=
+
+# 设为 on 后必须登录才能访问，公开部署时打开
+REQUIRE_HOUSEHOLD=
+# 配置后登录链接改为真实发信，留空则打印到控制台
+RESEND_API_KEY=
+LOGIN_FROM_EMAIL=

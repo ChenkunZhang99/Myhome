@@ -5094,3 +5094,33 @@ button.item-main:focus-visible {
   font-size: 8px;
   text-decoration: line-through;
 }
+
+/* 登录门：强制登录时替代整个应用的那一屏 */
+.login-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg, #f6f7f9);
+}
+.login-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 26px 24px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+}
+.login-card .settings-section {
+  padding: 0;
+  border: 0;
+}

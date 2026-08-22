@@ -1,5 +1,5 @@
 import { findOrCreateAccount } from "../_shared/accounts";
-import { currentAccount } from "../_shared/household";
+import { currentAccount, loginRequired } from "../_shared/household";
 import { failure, UserFacingError, withRoute } from "../_shared/observability";
 import { ensureSchema } from "../_shared/schema";
 import {
@@ -20,7 +20,11 @@ import { deliverLoginLink } from "../_shared/mailer";
 export const GET = withRoute("auth", async (request: Request) => {
   try {
     const account = await currentAccount(request);
-    return Response.json({ signedIn: Boolean(account), email: account?.email ?? null });
+    return Response.json({
+      signedIn: Boolean(account),
+      email: account?.email ?? null,
+      required: loginRequired(),
+    });
   } catch (error) {
     return failure("auth", error, "登录状态暂时无法读取", 500);
   }

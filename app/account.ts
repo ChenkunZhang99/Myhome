@@ -9,15 +9,19 @@ import { readJson } from "./apiClient";
  * 这里把那几次请求收在一处，界面只关心结果。
  */
 
-export type AccountState = { signedIn: boolean; email: string | null };
+export type AccountState = { signedIn: boolean; email: string | null; required: boolean };
 
-export const signedOut: AccountState = { signedIn: false, email: null };
+export const signedOut: AccountState = { signedIn: false, email: null, required: false };
 
 export async function fetchAccount(): Promise<AccountState> {
   const response = await fetch("/api/auth");
   const result = await readJson<AccountState>(response);
   if (!response.ok) return signedOut;
-  return { signedIn: Boolean(result.signedIn), email: result.email ?? null };
+  return {
+    signedIn: Boolean(result.signedIn),
+    email: result.email ?? null,
+    required: Boolean(result.required),
+  };
 }
 
 /**

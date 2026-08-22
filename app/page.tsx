@@ -12,6 +12,7 @@ import {
 } from "./inventoryUsage";
 import { withAiHeaders } from "./aiSettings";
 import { useAppSettings } from "./AppSettings";
+import { LoginGate } from "./LoginGate";
 import { LoginLanding } from "./LoginLanding";
 import { SettingsPanel } from "./SettingsPanel";
 import { locales } from "./i18n";
@@ -833,925 +834,953 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar" aria-label={t("主要导航")}>
-        <button className="brand" onClick={() => scrollTo("overview")} aria-label={t("返回首页")}>
-          <span className="brand-mark">{t("家")}</span>
-          <span>{t("家里有数")}</span>
-        </button>
-        <nav>
-          <button className="nav-item active" onClick={() => scrollTo("overview")}>
-            <span>⌂</span>
-            {t("总览")}
-          </button>
-          <button className="nav-item" onClick={() => scrollTo("inventory")}>
-            <span>▦</span>
-            {t("家庭库存")}
-          </button>
-          <button className="nav-item" onClick={() => scrollTo("flyers")}>
-            <span>％</span>
-            {t("Flyer 优惠")}
-          </button>
-          <button className="nav-item" onClick={() => scrollTo("recipes")}>
-            <span>♨</span>
-            {t("本周菜谱")}
-          </button>
-          <button className="nav-item" onClick={() => scrollTo("budget")}>
-            <span>◔</span>
-            {t("预算记录")}
-          </button>
-        </nav>
-        <div className="sidebar-spacer" />
-        <button className="nav-item" onClick={() => scrollTo("budget")}>
-          <span>⚙</span>
-          {t("家庭设置")}
-        </button>
-        <div className="home-profile">
-          <span className="avatar">{t("两")}</span>
-          <div>
-            <strong>{t("我们的家")}</strong>
-            <small>{t("2 人 · 个人维护")}</small>
-          </div>
-        </div>
-      </aside>
-
-      <section className="content">
-        <header className="topbar">
-          <div className="mobile-brand">
-            <span className="brand-mark">{t("家")}</span>
-            <strong>{t("家里有数")}</strong>
-          </div>
-          <label className="global-search">
-            <span>⌕</span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("搜索家里的物品…")}
-            />
-          </label>
-          <div className="locale-switch compact" role="group" aria-label={t("语言")}>
-            {locales.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={option === locale ? "active" : ""}
-                aria-pressed={option === locale}
-                onClick={() => setLocale(option)}
-              >
-                {option === "zh" ? t("中") : "EN"}
+    <>
+      {/* 兑换必须在门外：从邮件点进来时还没有会话，门是关着的，
+          挂在门里的组件根本不会渲染，令牌也就永远换不成会话。 */}
+      <LoginLanding notify={setToast} />
+      <LoginGate notify={setToast}>
+        <main className="app-shell">
+          <aside className="sidebar" aria-label={t("主要导航")}>
+            <button className="brand" onClick={() => scrollTo("overview")} aria-label={t("返回首页")}>
+              <span className="brand-mark">{t("家")}</span>
+              <span>{t("家里有数")}</span>
+            </button>
+            <nav>
+              <button className="nav-item active" onClick={() => scrollTo("overview")}>
+                <span>⌂</span>
+                {t("总览")}
               </button>
-            ))}
-          </div>
-          <button
-            className={demo ? "icon-button demo" : "icon-button"}
-            onClick={() => setSettingsOpen(true)}
-            aria-label={t("设置")}
-            title={demo ? t("演示模式") : t("已配置")}
-          >
-            ⚙
-          </button>
-          <button className="primary-button compact" onClick={() => setShowAdd(true)}>
-            ＋ {t("添加物品")}
-          </button>
-        </header>
-
-        <div className="dashboard" id="overview">
-          <section className="hero-row">
-            <div>
-              <p className="eyebrow">{t("家庭补给台")}</p>
-              <h1>{t("晚上好，家里一切有数。")}</h1>
-              <p className="hero-copy">{t("先看需要处理的，再决定这周买什么。")}</p>
+              <button className="nav-item" onClick={() => scrollTo("inventory")}>
+                <span>▦</span>
+                {t("家庭库存")}
+              </button>
+              <button className="nav-item" onClick={() => scrollTo("flyers")}>
+                <span>％</span>
+                {t("Flyer 优惠")}
+              </button>
+              <button className="nav-item" onClick={() => scrollTo("recipes")}>
+                <span>♨</span>
+                {t("本周菜谱")}
+              </button>
+              <button className="nav-item" onClick={() => scrollTo("budget")}>
+                <span>◔</span>
+                {t("预算记录")}
+              </button>
+            </nav>
+            <div className="sidebar-spacer" />
+            <button className="nav-item" onClick={() => scrollTo("budget")}>
+              <span>⚙</span>
+              {t("家庭设置")}
+            </button>
+            <div className="home-profile">
+              <span className="avatar">{t("两")}</span>
+              <div>
+                <strong>{t("我们的家")}</strong>
+                <small>{t("2 人 · 个人维护")}</small>
+              </div>
             </div>
-            <div className="sync-pill">
-              <span className="pulse" /> {t("已同步 · 多设备可用")}
-            </div>
-          </section>
+          </aside>
 
-          {showingDemo && (
-            <div className="demo-banner">
-              <div>
-                <strong>{t("这是一个示例家庭")}</strong>
-                <span>{t("下面的物品都带有“示例”标记，不会写入你的真实库存。")}</span>
+          <section className="content">
+            <header className="topbar">
+              <div className="mobile-brand">
+                <span className="brand-mark">{t("家")}</span>
+                <strong>{t("家里有数")}</strong>
               </div>
-              <button onClick={() => setShowAdd(true)}>{t("录入第一件真实物品")}</button>
-            </div>
-          )}
+              <label className="global-search">
+                <span>⌕</span>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("搜索家里的物品…")}
+                />
+              </label>
+              <div className="locale-switch compact" role="group" aria-label={t("语言")}>
+                {locales.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={option === locale ? "active" : ""}
+                    aria-pressed={option === locale}
+                    onClick={() => setLocale(option)}
+                  >
+                    {option === "zh" ? t("中") : "EN"}
+                  </button>
+                ))}
+              </div>
+              <button
+                className={demo ? "icon-button demo" : "icon-button"}
+                onClick={() => setSettingsOpen(true)}
+                aria-label={t("设置")}
+                title={demo ? t("演示模式") : t("已配置")}
+              >
+                ⚙
+              </button>
+              <button className="primary-button compact" onClick={() => setShowAdd(true)}>
+                ＋ {t("添加物品")}
+              </button>
+            </header>
 
-          <section className="summary-grid" aria-label={t("库存摘要")}>
-            <article className="summary-card green">
-              <div className="summary-icon">▦</div>
-              <div>
-                <span>{t("库存物品")}</span>
-                <strong>
-                  {loading ? "—" : showingDemo ? t("4 件示例") : t("{count} 件", { count: items.length })}
-                </strong>
-                <small>{showingDemo ? t("等待真实录入") : t("跨设备同步")}</small>
-              </div>
-            </article>
-            <article className="summary-card amber">
-              <div className="summary-icon">◷</div>
-              <div>
-                <span>{t("临期提醒")}</span>
-                <strong>{t("{count} 件", { count: expiringCount })}</strong>
-                <small>{t("未来 3 天需要处理")}</small>
-              </div>
-            </article>
-            <article className="summary-card coral">
-              <div className="summary-icon">↓</div>
-              <div>
-                <span>{t("需要补货")}</span>
-                <strong>{t("{count} 件", { count: lowCount })}</strong>
-                <small>{t("偏少或即将用完")}</small>
-              </div>
-            </article>
-            <article className="summary-card blue">
-              <div className="summary-icon">$</div>
-              <div>
-                <span>{t("采购计划")}</span>
-                <strong>{t("已启用")}</strong>
-                <small>{t("预算、门店与 Flyer")}</small>
-              </div>
-            </article>
-          </section>
+            <div className="dashboard" id="overview">
+              <section className="hero-row">
+                <div>
+                  <p className="eyebrow">{t("家庭补给台")}</p>
+                  <h1>{t("晚上好，家里一切有数。")}</h1>
+                  <p className="hero-copy">{t("先看需要处理的，再决定这周买什么。")}</p>
+                </div>
+                <div className="sync-pill">
+                  <span className="pulse" /> {t("已同步 · 多设备可用")}
+                </div>
+              </section>
 
-          <section className="main-grid">
-            <div className="left-column">
-              <section className="panel inventory-panel" id="inventory">
-                <div className="section-head">
+              {showingDemo && (
+                <div className="demo-banner">
                   <div>
-                    <p className="eyebrow">{t("需要关注")}</p>
-                    <h2>{t("库存状态")}</h2>
+                    <strong>{t("这是一个示例家庭")}</strong>
+                    <span>{t("下面的物品都带有“示例”标记，不会写入你的真实库存。")}</span>
                   </div>
-                  <div className="section-actions">
-                    <button className="mini-add-button" onClick={openAddForCurrentCategory}>
-                      {t("＋ 添加物品")}
-                    </button>
-                    <button className="text-button" onClick={() => setCategory("全部")}>
-                      {t("查看全部")} <span>→</span>
-                    </button>
+                  <button onClick={() => setShowAdd(true)}>{t("录入第一件真实物品")}</button>
+                </div>
+              )}
+
+              <section className="summary-grid" aria-label={t("库存摘要")}>
+                <article className="summary-card green">
+                  <div className="summary-icon">▦</div>
+                  <div>
+                    <span>{t("库存物品")}</span>
+                    <strong>
+                      {loading ? "—" : showingDemo ? t("4 件示例") : t("{count} 件", { count: items.length })}
+                    </strong>
+                    <small>{showingDemo ? t("等待真实录入") : t("跨设备同步")}</small>
                   </div>
-                </div>
-                <div className="filter-row">
-                  {["全部", "蔬菜水果", "乳品蛋类", "米面粮油", "清洁用品"].map((name) => (
-                    <button
-                      key={name}
-                      onClick={() => setCategory(name)}
-                      className={category === name ? "filter-chip active" : "filter-chip"}
-                    >
-                      {name === "全部" ? t("全部") : tv(name)}
-                    </button>
-                  ))}
-                </div>
-                <div className={category === "全部" ? "inventory-list grouped" : "inventory-list"}>
-                  {filteredItems.length === 0 ? (
-                    <div className="empty-state">
-                      <span>📦</span>
-                      <h3>{t("还没有符合条件的物品")}</h3>
-                      <p>{t("从手动录入开始，之后可以继续接入照片、小票和条码。")}</p>
-                      <button className="primary-button" onClick={() => setShowAdd(true)}>
-                        {t("添加物品")}
+                </article>
+                <article className="summary-card amber">
+                  <div className="summary-icon">◷</div>
+                  <div>
+                    <span>{t("临期提醒")}</span>
+                    <strong>{t("{count} 件", { count: expiringCount })}</strong>
+                    <small>{t("未来 3 天需要处理")}</small>
+                  </div>
+                </article>
+                <article className="summary-card coral">
+                  <div className="summary-icon">↓</div>
+                  <div>
+                    <span>{t("需要补货")}</span>
+                    <strong>{t("{count} 件", { count: lowCount })}</strong>
+                    <small>{t("偏少或即将用完")}</small>
+                  </div>
+                </article>
+                <article className="summary-card blue">
+                  <div className="summary-icon">$</div>
+                  <div>
+                    <span>{t("采购计划")}</span>
+                    <strong>{t("已启用")}</strong>
+                    <small>{t("预算、门店与 Flyer")}</small>
+                  </div>
+                </article>
+              </section>
+
+              <section className="main-grid">
+                <div className="left-column">
+                  <section className="panel inventory-panel" id="inventory">
+                    <div className="section-head">
+                      <div>
+                        <p className="eyebrow">{t("需要关注")}</p>
+                        <h2>{t("库存状态")}</h2>
+                      </div>
+                      <div className="section-actions">
+                        <button className="mini-add-button" onClick={openAddForCurrentCategory}>
+                          {t("＋ 添加物品")}
+                        </button>
+                        <button className="text-button" onClick={() => setCategory("全部")}>
+                          {t("查看全部")} <span>→</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="filter-row">
+                      {["全部", "蔬菜水果", "乳品蛋类", "米面粮油", "清洁用品"].map((name) => (
+                        <button
+                          key={name}
+                          onClick={() => setCategory(name)}
+                          className={category === name ? "filter-chip active" : "filter-chip"}
+                        >
+                          {name === "全部" ? t("全部") : tv(name)}
+                        </button>
+                      ))}
+                    </div>
+                    <div className={category === "全部" ? "inventory-list grouped" : "inventory-list"}>
+                      {filteredItems.length === 0 ? (
+                        <div className="empty-state">
+                          <span>📦</span>
+                          <h3>{t("还没有符合条件的物品")}</h3>
+                          <p>{t("从手动录入开始，之后可以继续接入照片、小票和条码。")}</p>
+                          <button className="primary-button" onClick={() => setShowAdd(true)}>
+                            {t("添加物品")}
+                          </button>
+                        </div>
+                      ) : category === "全部" ? (
+                        inventoryGroups.map((group) => (
+                          <section
+                            className="inventory-group"
+                            key={group.name}
+                            aria-labelledby={`inventory-group-${group.name}`}
+                          >
+                            <header className="inventory-group-heading">
+                              <div>
+                                <span aria-hidden="true">{categoryIcons[group.name] ?? "📦"}</span>
+                                <h3 id={`inventory-group-${group.name}`}>{tv(group.name)}</h3>
+                              </div>
+                              <small>{t("{count} 项", { count: group.items.length })}</small>
+                            </header>
+                            <div className="inventory-group-items">
+                              {group.items.map(renderInventoryItem)}
+                            </div>
+                          </section>
+                        ))
+                      ) : (
+                        filteredItems.map(renderInventoryItem)
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="panel quick-panel">
+                    <div className="section-head">
+                      <div>
+                        <p className="eyebrow">{t("快速录入")}</p>
+                        <h2>{t("怎么更新最方便？")}</h2>
+                      </div>
+                    </div>
+                    <div className="quick-grid">
+                      <button className="quick-action ready" onClick={() => setShowAdd(true)}>
+                        <span>＋</span>
+                        <strong>{t("手动添加")}</strong>
+                        <small>{t("现在可用")}</small>
+                      </button>
+                      <button
+                        className="quick-action"
+                        onClick={() => setToast(t("照片识别将在下一阶段接入"))}
+                      >
+                        <span>▧</span>
+                        <strong>{t("拍照识别")}</strong>
+                        <small>{t("下一阶段")}</small>
+                      </button>
+                      <button
+                        className="quick-action ready"
+                        onClick={() => {
+                          setReceiptDraft(null);
+                          setReceiptOpen(true);
+                        }}
+                      >
+                        <span>▤</span>
+                        <strong>{t("上传小票")}</strong>
+                        <small>{t("AI 自动识别")}</small>
+                      </button>
+                      <button
+                        className="quick-action"
+                        onClick={() => setToast(t("条码扫描将在下一阶段接入"))}
+                      >
+                        <span>▥</span>
+                        <strong>{t("扫描条码")}</strong>
+                        <small>{t("下一阶段")}</small>
                       </button>
                     </div>
-                  ) : category === "全部" ? (
-                    inventoryGroups.map((group) => (
-                      <section
-                        className="inventory-group"
-                        key={group.name}
-                        aria-labelledby={`inventory-group-${group.name}`}
-                      >
-                        <header className="inventory-group-heading">
-                          <div>
-                            <span aria-hidden="true">{categoryIcons[group.name] ?? "📦"}</span>
-                            <h3 id={`inventory-group-${group.name}`}>{tv(group.name)}</h3>
-                          </div>
-                          <small>{t("{count} 项", { count: group.items.length })}</small>
-                        </header>
-                        <div className="inventory-group-items">{group.items.map(renderInventoryItem)}</div>
-                      </section>
-                    ))
-                  ) : (
-                    filteredItems.map(renderInventoryItem)
-                  )}
+                  </section>
+                </div>
+
+                <div className="right-column">
+                  <PlannerPanel inventory={items} notify={setToast} onInventoryChange={loadItems} />
                 </div>
               </section>
-
-              <section className="panel quick-panel">
-                <div className="section-head">
-                  <div>
-                    <p className="eyebrow">{t("快速录入")}</p>
-                    <h2>{t("怎么更新最方便？")}</h2>
-                  </div>
-                </div>
-                <div className="quick-grid">
-                  <button className="quick-action ready" onClick={() => setShowAdd(true)}>
-                    <span>＋</span>
-                    <strong>{t("手动添加")}</strong>
-                    <small>{t("现在可用")}</small>
-                  </button>
-                  <button className="quick-action" onClick={() => setToast(t("照片识别将在下一阶段接入"))}>
-                    <span>▧</span>
-                    <strong>{t("拍照识别")}</strong>
-                    <small>{t("下一阶段")}</small>
-                  </button>
-                  <button
-                    className="quick-action ready"
-                    onClick={() => {
-                      setReceiptDraft(null);
-                      setReceiptOpen(true);
-                    }}
-                  >
-                    <span>▤</span>
-                    <strong>{t("上传小票")}</strong>
-                    <small>{t("AI 自动识别")}</small>
-                  </button>
-                  <button className="quick-action" onClick={() => setToast(t("条码扫描将在下一阶段接入"))}>
-                    <span>▥</span>
-                    <strong>{t("扫描条码")}</strong>
-                    <small>{t("下一阶段")}</small>
-                  </button>
-                </div>
-              </section>
-            </div>
-
-            <div className="right-column">
-              <PlannerPanel inventory={items} notify={setToast} onInventoryChange={loadItems} />
             </div>
           </section>
-        </div>
-      </section>
 
-      <nav className="mobile-nav" aria-label={t("移动端导航")}>
-        <button onClick={() => scrollTo("overview")}>
-          <span>⌂</span>
-          {t("总览")}
-        </button>
-        <button onClick={() => scrollTo("inventory")}>
-          <span>▦</span>
-          {t("库存")}
-        </button>
-        <button className="mobile-add" onClick={() => setShowAdd(true)}>
-          ＋
-        </button>
-        <button onClick={() => scrollTo("flyers")}>
-          <span>％</span>
-          {t("优惠")}
-        </button>
-        <button onClick={() => scrollTo("recipes")}>
-          <span>♨</span>
-          {t("菜谱")}
-        </button>
-      </nav>
+          <nav className="mobile-nav" aria-label={t("移动端导航")}>
+            <button onClick={() => scrollTo("overview")}>
+              <span>⌂</span>
+              {t("总览")}
+            </button>
+            <button onClick={() => scrollTo("inventory")}>
+              <span>▦</span>
+              {t("库存")}
+            </button>
+            <button className="mobile-add" onClick={() => setShowAdd(true)}>
+              ＋
+            </button>
+            <button onClick={() => scrollTo("flyers")}>
+              <span>％</span>
+              {t("优惠")}
+            </button>
+            <button onClick={() => scrollTo("recipes")}>
+              <span>♨</span>
+              {t("菜谱")}
+            </button>
+          </nav>
 
-      {showAdd && (
-        <Modal eyebrow={t("真实库存")} title={t("添加一件物品")} onClose={() => setShowAdd(false)}>
-          <form onSubmit={saveItem}>
-            <label className="field full">
-              <span>{t("物品名称")}</span>
-              <input name="name" required placeholder={t("例如：鸡蛋、洗衣液")} />
-            </label>
-            <div className="field-grid">
-              <label className="field">
-                <span>{t("种类")}</span>
-                <select name="category" defaultValue={category === "全部" ? t("蔬菜水果") : category}>
-                  {categories.map((item) => (
-                    <option key={item} value={item}>
-                      {tv(item)}
-                    </option>
-                  ))}
-                </select>
-                <small className="field-hint">
-                  {category === "全部"
-                    ? t("可选择物品种类")
-                    : t("已定位到当前分类：{category}", { category: tv(category) })}
-                </small>
-              </label>
-              <label className="field">
-                <span>{t("存放位置")}</span>
-                <select name="location" defaultValue="冰箱">
-                  {locations.map((item) => (
-                    <option key={item} value={item}>
-                      {tv(item)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>{t("记录方式")}</span>
-                <select name="precision" defaultValue="quantity">
-                  <option value="simple">{t("简单状态")}</option>
-                  <option value="quantity">{t("数量模式")}</option>
-                  <option value="exact">{t("精确模式")}</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>{t("库存状态")}</span>
-                <select name="level" defaultValue="充足">
-                  <option value="充足">{tv("充足")}</option>
-                  <option value="偏少">{tv("偏少")}</option>
-                  <option value="即将用完">{tv("即将用完")}</option>
-                  <option value="已用完">{tv("已用完")}</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>{t("数量")}</span>
-                <input name="quantity" type="number" min="0" step="0.1" defaultValue="1" required />
-              </label>
-              <label className="field" htmlFor="add-unit">
-                <span>{t("计数单位")}</span>
-                <UnitSelect
-                  id="add-unit"
-                  name="unit"
-                  defaultValue={defaultUnitForCategory(category === "全部" ? t("蔬菜水果") : category)}
-                />
-                <small className="field-hint">{t("计件、包装、重量、容量与余量分开记录")}</small>
-              </label>
-              <label className="field full">
-                <span>{t("剩余百分比")}</span>
-                <input
-                  name="remainingPercent"
-                  type="number"
-                  inputMode="numeric"
-                  min="0"
-                  max="100"
-                  step="1"
-                  defaultValue="100"
-                  required
-                />
-                <small className="field-hint">{t("适用于所有计数单位，范围 0–100%")}</small>
-              </label>
-              <YmdDateInput prefix="purchase" label={t("购买日期（可选）")} />
-              <YmdDateInput prefix="expiry" label={t("保质期（可选）")} />
-              <label className="field full">
-                <span>{t("备注（可选）")}</span>
-                <textarea name="note" rows={3} placeholder={t("品牌、开封日期或其他信息")} />
-              </label>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="secondary-button" onClick={() => setShowAdd(false)}>
-                {t("取消")}
-              </button>
-              <button type="submit" className="primary-button" disabled={saving}>
-                {saving ? t("正在保存…") : t("加入库存")}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {selectedItem && (
-        <Modal
-          className="detail-modal"
-          title={tv(selectedItem.name)}
-          onClose={() => {
-            setSelectedItem(null);
-            setEditingItem(false);
-          }}
-          head={
-            <div className="modal-head detail-head">
-              <div className="detail-title-group">
-                <span className="detail-icon" aria-hidden="true">
-                  {getItemIcon(selectedItem)}
-                </span>
-                <div>
-                  <p className="eyebrow">{t("物品详细资料")}</p>
-                  <h2 id="detail-title">{tv(selectedItem.name)}</h2>
-                  {!selectedItem.demo && (
-                    <small className="detail-edit-hint">
-                      {t("名称、种类、位置、数量、单位、状态与日期均可修改")}
-                    </small>
-                  )}
-                </div>
-              </div>
-              <div className="detail-head-actions">
-                {!selectedItem.demo && (
-                  <button
-                    className="text-button edit-toggle"
-                    onClick={() => setEditingItem((current) => !current)}
-                  >
-                    {editingItem ? t("取消编辑") : t("编辑全部资料")}
-                  </button>
-                )}
-                <button
-                  className="modal-close"
-                  onClick={() => {
-                    setSelectedItem(null);
-                    setEditingItem(false);
-                  }}
-                  aria-label={t("关闭")}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          }
-        >
-          {editingItem ? (
-            <form className="detail-edit-form" onSubmit={saveItemEdits}>
-              <div className="field-grid">
+          {showAdd && (
+            <Modal eyebrow={t("真实库存")} title={t("添加一件物品")} onClose={() => setShowAdd(false)}>
+              <form onSubmit={saveItem}>
                 <label className="field full">
                   <span>{t("物品名称")}</span>
-                  <input name="name" required defaultValue={selectedItem.name} />
+                  <input name="name" required placeholder={t("例如：鸡蛋、洗衣液")} />
                 </label>
-                <label className="field">
-                  <span>{t("种类")}</span>
-                  <select name="category" defaultValue={selectedItem.category}>
-                    {categories.map((item) => (
-                      <option key={item} value={item}>
-                        {tv(item)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>{t("存放位置")}</span>
-                  <select name="location" defaultValue={selectedItem.location}>
-                    {locations.map((item) => (
-                      <option key={item} value={item}>
-                        {tv(item)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>{t("记录方式")}</span>
-                  <select name="precision" defaultValue={selectedItem.precision}>
-                    <option value="simple">{t("简单状态")}</option>
-                    <option value="quantity">{t("数量模式")}</option>
-                    <option value="exact">{t("精确模式")}</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span>{t("库存状态")}</span>
-                  <select name="level" defaultValue={selectedItem.level}>
-                    <option value="充足">{tv("充足")}</option>
-                    <option value="偏少">{tv("偏少")}</option>
-                    <option value="即将用完">{tv("即将用完")}</option>
-                    <option value="已用完">{tv("已用完")}</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span>{t("数量")}</span>
-                  <input
-                    name="quantity"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    defaultValue={selectedItem.quantity}
-                    required
-                  />
-                </label>
-                <label className="field" htmlFor="edit-unit">
-                  <span>{t("计数单位")}</span>
-                  <UnitSelect id="edit-unit" name="unit" defaultValue={selectedItem.unit} />
-                  <small className="field-hint">{t("保存后，加减按钮会自动使用对应步长")}</small>
-                </label>
-                <label className="field full">
-                  <span>{t("剩余百分比")}</span>
-                  <input
-                    name="remainingPercent"
-                    type="number"
-                    inputMode="numeric"
-                    min="0"
-                    max="100"
-                    step="1"
-                    defaultValue={selectedItem.remainingPercent}
-                    required
-                  />
-                  <small className="field-hint">{t("可手动输入 0–100；保存时会限制在此范围内")}</small>
-                </label>
-                <YmdDateInput
-                  prefix="editPurchase"
-                  label={t("购买日期（可选）")}
-                  value={selectedItem.purchaseDate}
-                />
-                <YmdDateInput
-                  prefix="editExpiry"
-                  label={t("保质期（可选）")}
-                  value={selectedItem.expiryDate}
-                />
-                <YmdDateInput
-                  prefix="editOpened"
-                  label={t("开封日（可选）")}
-                  value={selectedItem.openedDate}
-                />
-                <label className="field" htmlFor="edit-opened-shelf">
-                  <span>{t("开封后可用天数")}</span>
-                  <input
-                    id="edit-opened-shelf"
-                    name="openedShelfLifeDays"
-                    type="number"
-                    min="1"
-                    max="3650"
-                    defaultValue={selectedItem.openedShelfLifeDays ?? ""}
-                    placeholder={String(defaultOpenedShelfLife(selectedItem.category) ?? "")}
-                  />
-                  <small className="field-hint">{t("留空则按分类默认值推算")}</small>
-                </label>
-                <label className="field full">
-                  <span>{t("备注（可选）")}</span>
-                  <textarea name="note" rows={3} defaultValue={selectedItem.note ?? ""} />
-                </label>
-              </div>
-              <div className="edit-actions">
-                <button type="button" className="secondary-button" onClick={() => setEditingItem(false)}>
-                  {t("取消")}
-                </button>
-                <button className="primary-button" disabled={saving}>
-                  {saving ? t("正在保存…") : t("保存修改")}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <div className="detail-facts">
-                <div>
-                  <span>{t("种类")}</span>
-                  <strong>{tv(selectedItem.category)}</strong>
-                </div>
-                <div>
-                  <span>{t("存放位置")}</span>
-                  <strong>{tv(selectedItem.location)}</strong>
-                </div>
-                <div>
-                  <span>{t("当前数量")}</span>
-                  <strong>{formatQuantity(selectedItem, { fmtNumber, tu, tv, t })}</strong>
-                </div>
-                <div>
-                  <span>{t("库存状态")}</span>
-                  <strong>{tv(selectedItem.level)}</strong>
-                </div>
-                <div className="detail-remaining">
-                  <span>{t("剩余百分比")}</span>
-                  <strong>{selectedItem.remainingPercent}%</strong>
-                  <div className={`remaining-track ${remainingTone(selectedItem.remainingPercent)}`}>
-                    <i style={{ width: `${selectedItem.remainingPercent}%` }} />
-                  </div>
-                </div>
-                <div>
-                  <span>{t("购买日期")}</span>
-                  <strong>
-                    {selectedItem.purchaseDate ? fmtDate(selectedItem.purchaseDate) : t("未记录")}
-                  </strong>
-                </div>
-                <div>
-                  <span>{t("保质期")}</span>
-                  <strong>{selectedItem.expiryDate ? fmtDate(selectedItem.expiryDate) : t("未记录")}</strong>
-                </div>
-                <div>
-                  <span>{t("开封日")}</span>
-                  <strong>
-                    {selectedItem.openedDate ? fmtDate(selectedItem.openedDate) : t("尚未开封")}
-                  </strong>
-                </div>
-                <div>
-                  <span>{t("已使用")}</span>
-                  <strong>
-                    {daysInUse(selectedItem) === null
-                      ? t("未记录")
-                      : t("{days} 天", { days: daysInUse(selectedItem) ?? 0 })}
-                  </strong>
-                </div>
-              </div>
-              {(() => {
-                // 开封后的实际到期日常常早于包装标注，这里明确写出依据，
-                // 免得用户看到两个日期不一致以为记错了。
-                const effective = effectiveExpiry(selectedItem);
-                if (!effective.fromOpening || !effective.date) return null;
-                return (
-                  <p className="detail-opened-note">
-                    {t("开封后实际应在 {date} 前用完", { date: fmtDate(effective.date) })}
-                  </p>
-                );
-              })()}
-              <section className="detail-note">
-                <span>{t("备注")}</span>
-                <p>{selectedItem.note ? tv(selectedItem.note) : t("暂无备注")}</p>
-              </section>
-            </>
-          )}
-          <section className="photo-section">
-            <div className="photo-heading">
-              <div>
-                <span>{t("物品照片")}</span>
-                <small>{t("包装、标签、保质期或购买小票都可以拍下来保存")}</small>
-              </div>
-              <b>{itemAttachments.length}/8</b>
-            </div>
-            {loadingDetails ? (
-              <p className="photo-status">{t("正在读取图片…")}</p>
-            ) : itemAttachments.length ? (
-              <div className="photo-grid">
-                {itemAttachments.map((attachment) => (
-                  <figure key={attachment.id}>
-                    <img
-                      src={`/api/inventory-files?fileId=${encodeURIComponent(attachment.id)}`}
-                      alt={`${selectedItem.name} - ${attachment.fileName}`}
+                <div className="field-grid">
+                  <label className="field">
+                    <span>{t("种类")}</span>
+                    <select name="category" defaultValue={category === "全部" ? t("蔬菜水果") : category}>
+                      {categories.map((item) => (
+                        <option key={item} value={item}>
+                          {tv(item)}
+                        </option>
+                      ))}
+                    </select>
+                    <small className="field-hint">
+                      {category === "全部"
+                        ? t("可选择物品种类")
+                        : t("已定位到当前分类：{category}", { category: tv(category) })}
+                    </small>
+                  </label>
+                  <label className="field">
+                    <span>{t("存放位置")}</span>
+                    <select name="location" defaultValue="冰箱">
+                      {locations.map((item) => (
+                        <option key={item} value={item}>
+                          {tv(item)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>{t("记录方式")}</span>
+                    <select name="precision" defaultValue="quantity">
+                      <option value="simple">{t("简单状态")}</option>
+                      <option value="quantity">{t("数量模式")}</option>
+                      <option value="exact">{t("精确模式")}</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>{t("库存状态")}</span>
+                    <select name="level" defaultValue="充足">
+                      <option value="充足">{tv("充足")}</option>
+                      <option value="偏少">{tv("偏少")}</option>
+                      <option value="即将用完">{tv("即将用完")}</option>
+                      <option value="已用完">{tv("已用完")}</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>{t("数量")}</span>
+                    <input name="quantity" type="number" min="0" step="0.1" defaultValue="1" required />
+                  </label>
+                  <label className="field" htmlFor="add-unit">
+                    <span>{t("计数单位")}</span>
+                    <UnitSelect
+                      id="add-unit"
+                      name="unit"
+                      defaultValue={defaultUnitForCategory(category === "全部" ? t("蔬菜水果") : category)}
                     />
+                    <small className="field-hint">{t("计件、包装、重量、容量与余量分开记录")}</small>
+                  </label>
+                  <label className="field full">
+                    <span>{t("剩余百分比")}</span>
+                    <input
+                      name="remainingPercent"
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      max="100"
+                      step="1"
+                      defaultValue="100"
+                      required
+                    />
+                    <small className="field-hint">{t("适用于所有计数单位，范围 0–100%")}</small>
+                  </label>
+                  <YmdDateInput prefix="purchase" label={t("购买日期（可选）")} />
+                  <YmdDateInput prefix="expiry" label={t("保质期（可选）")} />
+                  <label className="field full">
+                    <span>{t("备注（可选）")}</span>
+                    <textarea name="note" rows={3} placeholder={t("品牌、开封日期或其他信息")} />
+                  </label>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="secondary-button" onClick={() => setShowAdd(false)}>
+                    {t("取消")}
+                  </button>
+                  <button type="submit" className="primary-button" disabled={saving}>
+                    {saving ? t("正在保存…") : t("加入库存")}
+                  </button>
+                </div>
+              </form>
+            </Modal>
+          )}
+
+          {selectedItem && (
+            <Modal
+              className="detail-modal"
+              title={tv(selectedItem.name)}
+              onClose={() => {
+                setSelectedItem(null);
+                setEditingItem(false);
+              }}
+              head={
+                <div className="modal-head detail-head">
+                  <div className="detail-title-group">
+                    <span className="detail-icon" aria-hidden="true">
+                      {getItemIcon(selectedItem)}
+                    </span>
+                    <div>
+                      <p className="eyebrow">{t("物品详细资料")}</p>
+                      <h2 id="detail-title">{tv(selectedItem.name)}</h2>
+                      {!selectedItem.demo && (
+                        <small className="detail-edit-hint">
+                          {t("名称、种类、位置、数量、单位、状态与日期均可修改")}
+                        </small>
+                      )}
+                    </div>
+                  </div>
+                  <div className="detail-head-actions">
+                    {!selectedItem.demo && (
+                      <button
+                        className="text-button edit-toggle"
+                        onClick={() => setEditingItem((current) => !current)}
+                      >
+                        {editingItem ? t("取消编辑") : t("编辑全部资料")}
+                      </button>
+                    )}
                     <button
-                      type="button"
-                      onClick={() => deleteItemImage(attachment.id)}
-                      aria-label={t("删除{name}", { name: attachment.fileName })}
+                      className="modal-close"
+                      onClick={() => {
+                        setSelectedItem(null);
+                        setEditingItem(false);
+                      }}
+                      aria-label={t("关闭")}
                     >
                       ×
                     </button>
-                  </figure>
-                ))}
-              </div>
-            ) : (
-              <div className="photo-empty">
-                <span>▧</span>
-                <p>{selectedItem.demo ? t("示例物品不能上传图片") : t("还没有保存图片")}</p>
-              </div>
-            )}
-            {!selectedItem.demo && (
-              <form className="photo-upload" onSubmit={uploadItemImages}>
-                <label>
-                  <span>{t("＋ 选择图片")}</span>
-                  <input name="files" type="file" accept="image/*" multiple required />
-                </label>
-                <button className="primary-button" disabled={uploading || itemAttachments.length >= 8}>
-                  {uploading ? t("正在上传…") : t("上传图片")}
-                </button>
-              </form>
-            )}
-            <small className="upload-note">{t("每张最大 5MB，每件物品最多 8 张。")}</small>
-          </section>
-        </Modal>
-      )}
-
-      {receiptOpen && (
-        <Modal
-          className="receipt-modal"
-          eyebrow={t("AI 小票录入")}
-          title={receiptDraft ? t("确认识别结果") : t("上传购物小票")}
-          onClose={() => {
-            if (!analyzingReceipt && !confirmingReceipt) closeReceipt();
-          }}
-        >
-          {!receiptDraft ? (
-            <form className="receipt-upload-form" onSubmit={analyzeReceipt}>
-              <div className={receiptPreview ? "receipt-upload-box has-preview" : "receipt-upload-box"}>
-                {compressing ? (
-                  <>
-                    <span>◌</span>
-                    <strong>{t("正在压缩照片…")}</strong>
-                    <p>{t("上传前会先压到 1MB 以内，避免超出大小限制。")}</p>
-                  </>
-                ) : receiptPreview ? (
-                  <>
-                    <img className="receipt-preview" src={receiptPreview.url} alt={t("已选择的小票照片")} />
-                    <small className="receipt-file-meta">
-                      {receiptPreview.name} · {formatBytes(receiptPreview.size)}
-                      {receiptPreview.originalSize > receiptPreview.size
-                        ? ` · ${t("已从 {before} 压缩", { before: formatBytes(receiptPreview.originalSize) })}`
-                        : ""}
-                    </small>
-                  </>
-                ) : (
-                  <>
-                    <span>▤</span>
-                    <strong>{t("选择清晰的小票照片")}</strong>
-                    <p>
-                      {t("系统会识别商品、数量、价格与购买日期。识别结果不会直接写入库存，需要你先确认。")}
-                    </p>
-                  </>
-                )}
-                <label>
-                  <span>{receiptPreview ? t("重新选择") : t("选择照片")}</span>
-                  <input
-                    name="receipt"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    required
-                    onChange={pickReceipt}
-                  />
-                </label>
-              </div>
-              {category !== "全部" && (
-                <p className="receipt-category-hint">
-                  {t("识别不明确时，会优先归入当前分类「{category}」。", { category: tv(category) })}
-                </p>
-              )}
-              <div className="modal-actions">
-                <button type="button" className="secondary-button" onClick={closeReceipt}>
-                  {t("取消")}
-                </button>
-                <button className="primary-button" disabled={compressing || analyzingReceipt}>
-                  {analyzingReceipt ? t("正在识别小票…") : t("开始识别")}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <div className="receipt-summary">
-                <label>
-                  <span>{t("商店")}</span>
-                  <input
-                    value={receiptDraft.receipt.store}
-                    onChange={(event) =>
-                      setReceiptDraft({
-                        ...receiptDraft,
-                        receipt: { ...receiptDraft.receipt, store: event.target.value },
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  <span>{t("购买日期")}</span>
-                  <input
-                    value={receiptDraft.receipt.purchaseDate}
-                    placeholder="YYYY-MM-DD"
-                    onChange={(event) =>
-                      setReceiptDraft({
-                        ...receiptDraft,
-                        receipt: { ...receiptDraft.receipt, purchaseDate: event.target.value },
-                      })
-                    }
-                  />
-                </label>
-                <div>
-                  <span>{t("小票总额")}</span>
-                  <strong>
-                    {receiptDraft.receipt.total == null
-                      ? t("未识别")
-                      : `$${Number(receiptDraft.receipt.total).toFixed(2)}`}
-                  </strong>
+                  </div>
                 </div>
-              </div>
-              <div className="receipt-review-head">
-                <div>
-                  <strong>{t("识别到 {count} 项", { count: receiptDraft.items.length })}</strong>
-                  <small>{t("可修改名称、分类、数量，也可以选择新建或合并到已有物品。")}</small>
-                </div>
-                <button className="text-button" onClick={() => setReceiptDraft(null)}>
-                  {t("重新上传")}
-                </button>
-              </div>
-              <div className="receipt-items">
-                {receiptDraft.items.map((item) => (
-                  <article key={item.tempId}>
-                    <div className="receipt-item-top">
+              }
+            >
+              {editingItem ? (
+                <form className="detail-edit-form" onSubmit={saveItemEdits}>
+                  <div className="field-grid">
+                    <label className="field full">
+                      <span>{t("物品名称")}</span>
+                      <input name="name" required defaultValue={selectedItem.name} />
+                    </label>
+                    <label className="field">
+                      <span>{t("种类")}</span>
+                      <select name="category" defaultValue={selectedItem.category}>
+                        {categories.map((item) => (
+                          <option key={item} value={item}>
+                            {tv(item)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>{t("存放位置")}</span>
+                      <select name="location" defaultValue={selectedItem.location}>
+                        {locations.map((item) => (
+                          <option key={item} value={item}>
+                            {tv(item)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>{t("记录方式")}</span>
+                      <select name="precision" defaultValue={selectedItem.precision}>
+                        <option value="simple">{t("简单状态")}</option>
+                        <option value="quantity">{t("数量模式")}</option>
+                        <option value="exact">{t("精确模式")}</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>{t("库存状态")}</span>
+                      <select name="level" defaultValue={selectedItem.level}>
+                        <option value="充足">{tv("充足")}</option>
+                        <option value="偏少">{tv("偏少")}</option>
+                        <option value="即将用完">{tv("即将用完")}</option>
+                        <option value="已用完">{tv("已用完")}</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>{t("数量")}</span>
                       <input
-                        className="receipt-name"
-                        value={item.name}
-                        onChange={(event) => updateReceiptItem(item.tempId, { name: event.target.value })}
-                        aria-label={t("商品名称")}
+                        name="quantity"
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        defaultValue={selectedItem.quantity}
+                        required
                       />
-                      <span className={item.confidence >= 0.75 ? "confidence good" : "confidence review"}>
-                        {item.confidence >= 0.75 ? t("识别较清晰") : t("请重点确认")}
-                      </span>
-                      <button
-                        onClick={() =>
+                    </label>
+                    <label className="field" htmlFor="edit-unit">
+                      <span>{t("计数单位")}</span>
+                      <UnitSelect id="edit-unit" name="unit" defaultValue={selectedItem.unit} />
+                      <small className="field-hint">{t("保存后，加减按钮会自动使用对应步长")}</small>
+                    </label>
+                    <label className="field full">
+                      <span>{t("剩余百分比")}</span>
+                      <input
+                        name="remainingPercent"
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        max="100"
+                        step="1"
+                        defaultValue={selectedItem.remainingPercent}
+                        required
+                      />
+                      <small className="field-hint">{t("可手动输入 0–100；保存时会限制在此范围内")}</small>
+                    </label>
+                    <YmdDateInput
+                      prefix="editPurchase"
+                      label={t("购买日期（可选）")}
+                      value={selectedItem.purchaseDate}
+                    />
+                    <YmdDateInput
+                      prefix="editExpiry"
+                      label={t("保质期（可选）")}
+                      value={selectedItem.expiryDate}
+                    />
+                    <YmdDateInput
+                      prefix="editOpened"
+                      label={t("开封日（可选）")}
+                      value={selectedItem.openedDate}
+                    />
+                    <label className="field" htmlFor="edit-opened-shelf">
+                      <span>{t("开封后可用天数")}</span>
+                      <input
+                        id="edit-opened-shelf"
+                        name="openedShelfLifeDays"
+                        type="number"
+                        min="1"
+                        max="3650"
+                        defaultValue={selectedItem.openedShelfLifeDays ?? ""}
+                        placeholder={String(defaultOpenedShelfLife(selectedItem.category) ?? "")}
+                      />
+                      <small className="field-hint">{t("留空则按分类默认值推算")}</small>
+                    </label>
+                    <label className="field full">
+                      <span>{t("备注（可选）")}</span>
+                      <textarea name="note" rows={3} defaultValue={selectedItem.note ?? ""} />
+                    </label>
+                  </div>
+                  <div className="edit-actions">
+                    <button type="button" className="secondary-button" onClick={() => setEditingItem(false)}>
+                      {t("取消")}
+                    </button>
+                    <button className="primary-button" disabled={saving}>
+                      {saving ? t("正在保存…") : t("保存修改")}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="detail-facts">
+                    <div>
+                      <span>{t("种类")}</span>
+                      <strong>{tv(selectedItem.category)}</strong>
+                    </div>
+                    <div>
+                      <span>{t("存放位置")}</span>
+                      <strong>{tv(selectedItem.location)}</strong>
+                    </div>
+                    <div>
+                      <span>{t("当前数量")}</span>
+                      <strong>{formatQuantity(selectedItem, { fmtNumber, tu, tv, t })}</strong>
+                    </div>
+                    <div>
+                      <span>{t("库存状态")}</span>
+                      <strong>{tv(selectedItem.level)}</strong>
+                    </div>
+                    <div className="detail-remaining">
+                      <span>{t("剩余百分比")}</span>
+                      <strong>{selectedItem.remainingPercent}%</strong>
+                      <div className={`remaining-track ${remainingTone(selectedItem.remainingPercent)}`}>
+                        <i style={{ width: `${selectedItem.remainingPercent}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <span>{t("购买日期")}</span>
+                      <strong>
+                        {selectedItem.purchaseDate ? fmtDate(selectedItem.purchaseDate) : t("未记录")}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>{t("保质期")}</span>
+                      <strong>
+                        {selectedItem.expiryDate ? fmtDate(selectedItem.expiryDate) : t("未记录")}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>{t("开封日")}</span>
+                      <strong>
+                        {selectedItem.openedDate ? fmtDate(selectedItem.openedDate) : t("尚未开封")}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>{t("已使用")}</span>
+                      <strong>
+                        {daysInUse(selectedItem) === null
+                          ? t("未记录")
+                          : t("{days} 天", { days: daysInUse(selectedItem) ?? 0 })}
+                      </strong>
+                    </div>
+                  </div>
+                  {(() => {
+                    // 开封后的实际到期日常常早于包装标注，这里明确写出依据，
+                    // 免得用户看到两个日期不一致以为记错了。
+                    const effective = effectiveExpiry(selectedItem);
+                    if (!effective.fromOpening || !effective.date) return null;
+                    return (
+                      <p className="detail-opened-note">
+                        {t("开封后实际应在 {date} 前用完", { date: fmtDate(effective.date) })}
+                      </p>
+                    );
+                  })()}
+                  <section className="detail-note">
+                    <span>{t("备注")}</span>
+                    <p>{selectedItem.note ? tv(selectedItem.note) : t("暂无备注")}</p>
+                  </section>
+                </>
+              )}
+              <section className="photo-section">
+                <div className="photo-heading">
+                  <div>
+                    <span>{t("物品照片")}</span>
+                    <small>{t("包装、标签、保质期或购买小票都可以拍下来保存")}</small>
+                  </div>
+                  <b>{itemAttachments.length}/8</b>
+                </div>
+                {loadingDetails ? (
+                  <p className="photo-status">{t("正在读取图片…")}</p>
+                ) : itemAttachments.length ? (
+                  <div className="photo-grid">
+                    {itemAttachments.map((attachment) => (
+                      <figure key={attachment.id}>
+                        <img
+                          src={`/api/inventory-files?fileId=${encodeURIComponent(attachment.id)}`}
+                          alt={`${selectedItem.name} - ${attachment.fileName}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => deleteItemImage(attachment.id)}
+                          aria-label={t("删除{name}", { name: attachment.fileName })}
+                        >
+                          ×
+                        </button>
+                      </figure>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="photo-empty">
+                    <span>▧</span>
+                    <p>{selectedItem.demo ? t("示例物品不能上传图片") : t("还没有保存图片")}</p>
+                  </div>
+                )}
+                {!selectedItem.demo && (
+                  <form className="photo-upload" onSubmit={uploadItemImages}>
+                    <label>
+                      <span>{t("＋ 选择图片")}</span>
+                      <input name="files" type="file" accept="image/*" multiple required />
+                    </label>
+                    <button className="primary-button" disabled={uploading || itemAttachments.length >= 8}>
+                      {uploading ? t("正在上传…") : t("上传图片")}
+                    </button>
+                  </form>
+                )}
+                <small className="upload-note">{t("每张最大 5MB，每件物品最多 8 张。")}</small>
+              </section>
+            </Modal>
+          )}
+
+          {receiptOpen && (
+            <Modal
+              className="receipt-modal"
+              eyebrow={t("AI 小票录入")}
+              title={receiptDraft ? t("确认识别结果") : t("上传购物小票")}
+              onClose={() => {
+                if (!analyzingReceipt && !confirmingReceipt) closeReceipt();
+              }}
+            >
+              {!receiptDraft ? (
+                <form className="receipt-upload-form" onSubmit={analyzeReceipt}>
+                  <div className={receiptPreview ? "receipt-upload-box has-preview" : "receipt-upload-box"}>
+                    {compressing ? (
+                      <>
+                        <span>◌</span>
+                        <strong>{t("正在压缩照片…")}</strong>
+                        <p>{t("上传前会先压到 1MB 以内，避免超出大小限制。")}</p>
+                      </>
+                    ) : receiptPreview ? (
+                      <>
+                        <img
+                          className="receipt-preview"
+                          src={receiptPreview.url}
+                          alt={t("已选择的小票照片")}
+                        />
+                        <small className="receipt-file-meta">
+                          {receiptPreview.name} · {formatBytes(receiptPreview.size)}
+                          {receiptPreview.originalSize > receiptPreview.size
+                            ? ` · ${t("已从 {before} 压缩", { before: formatBytes(receiptPreview.originalSize) })}`
+                            : ""}
+                        </small>
+                      </>
+                    ) : (
+                      <>
+                        <span>▤</span>
+                        <strong>{t("选择清晰的小票照片")}</strong>
+                        <p>
+                          {t(
+                            "系统会识别商品、数量、价格与购买日期。识别结果不会直接写入库存，需要你先确认。",
+                          )}
+                        </p>
+                      </>
+                    )}
+                    <label>
+                      <span>{receiptPreview ? t("重新选择") : t("选择照片")}</span>
+                      <input
+                        name="receipt"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        required
+                        onChange={pickReceipt}
+                      />
+                    </label>
+                  </div>
+                  {category !== "全部" && (
+                    <p className="receipt-category-hint">
+                      {t("识别不明确时，会优先归入当前分类「{category}」。", { category: tv(category) })}
+                    </p>
+                  )}
+                  <div className="modal-actions">
+                    <button type="button" className="secondary-button" onClick={closeReceipt}>
+                      {t("取消")}
+                    </button>
+                    <button className="primary-button" disabled={compressing || analyzingReceipt}>
+                      {analyzingReceipt ? t("正在识别小票…") : t("开始识别")}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="receipt-summary">
+                    <label>
+                      <span>{t("商店")}</span>
+                      <input
+                        value={receiptDraft.receipt.store}
+                        onChange={(event) =>
                           setReceiptDraft({
                             ...receiptDraft,
-                            items: receiptDraft.items.filter((entry) => entry.tempId !== item.tempId),
+                            receipt: { ...receiptDraft.receipt, store: event.target.value },
                           })
                         }
-                        aria-label={t("移除{name}", { name: item.name })}
-                      >
-                        ×
-                      </button>
+                      />
+                    </label>
+                    <label>
+                      <span>{t("购买日期")}</span>
+                      <input
+                        value={receiptDraft.receipt.purchaseDate}
+                        placeholder="YYYY-MM-DD"
+                        onChange={(event) =>
+                          setReceiptDraft({
+                            ...receiptDraft,
+                            receipt: { ...receiptDraft.receipt, purchaseDate: event.target.value },
+                          })
+                        }
+                      />
+                    </label>
+                    <div>
+                      <span>{t("小票总额")}</span>
+                      <strong>
+                        {receiptDraft.receipt.total == null
+                          ? t("未识别")
+                          : `$${Number(receiptDraft.receipt.total).toFixed(2)}`}
+                      </strong>
                     </div>
-                    <div className="receipt-item-fields">
-                      <label>
-                        <span>{t("实付单价")}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.unitPrice ?? ""}
-                          placeholder="0.00"
-                          onChange={(event) => {
-                            const unitPrice = event.target.value ? Number(event.target.value) : null;
-                            // 单价改了就重算行合计，除非用户自己填过合计。
-                            updateReceiptItem(item.tempId, {
-                              unitPrice,
-                              lineTotal:
-                                unitPrice === null ? null : Math.round(unitPrice * item.quantity * 100) / 100,
-                            });
-                          }}
-                        />
-                        {item.regularUnitPrice !== null && item.unitPrice !== null && (
-                          <small className="receipt-was-price">
-                            {t("原价 {price}", { price: money(item.regularUnitPrice) })}
-                          </small>
-                        )}
-                      </label>
-                      <label>
-                        <span>{t("数量")}</span>
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={item.quantity}
-                          onChange={(event) =>
-                            updateReceiptItem(item.tempId, { quantity: Number(event.target.value) })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>{t("计数单位")}</span>
-                        <select
-                          value={item.unit}
-                          onChange={(event) => updateReceiptItem(item.tempId, { unit: event.target.value })}
-                        >
-                          {!commonUnits.includes(item.unit as (typeof commonUnits)[number]) && (
-                            <option value={item.unit}>{item.unit}</option>
-                          )}
-                          {unitGroups.map((group) => (
-                            <optgroup key={group.label} label={group.label}>
-                              {group.units.map((unit) => (
-                                <option key={unit} value={unit}>
-                                  {tv(unit)}
+                  </div>
+                  <div className="receipt-review-head">
+                    <div>
+                      <strong>{t("识别到 {count} 项", { count: receiptDraft.items.length })}</strong>
+                      <small>{t("可修改名称、分类、数量，也可以选择新建或合并到已有物品。")}</small>
+                    </div>
+                    <button className="text-button" onClick={() => setReceiptDraft(null)}>
+                      {t("重新上传")}
+                    </button>
+                  </div>
+                  <div className="receipt-items">
+                    {receiptDraft.items.map((item) => (
+                      <article key={item.tempId}>
+                        <div className="receipt-item-top">
+                          <input
+                            className="receipt-name"
+                            value={item.name}
+                            onChange={(event) => updateReceiptItem(item.tempId, { name: event.target.value })}
+                            aria-label={t("商品名称")}
+                          />
+                          <span className={item.confidence >= 0.75 ? "confidence good" : "confidence review"}>
+                            {item.confidence >= 0.75 ? t("识别较清晰") : t("请重点确认")}
+                          </span>
+                          <button
+                            onClick={() =>
+                              setReceiptDraft({
+                                ...receiptDraft,
+                                items: receiptDraft.items.filter((entry) => entry.tempId !== item.tempId),
+                              })
+                            }
+                            aria-label={t("移除{name}", { name: item.name })}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="receipt-item-fields">
+                          <label>
+                            <span>{t("实付单价")}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice ?? ""}
+                              placeholder="0.00"
+                              onChange={(event) => {
+                                const unitPrice = event.target.value ? Number(event.target.value) : null;
+                                // 单价改了就重算行合计，除非用户自己填过合计。
+                                updateReceiptItem(item.tempId, {
+                                  unitPrice,
+                                  lineTotal:
+                                    unitPrice === null
+                                      ? null
+                                      : Math.round(unitPrice * item.quantity * 100) / 100,
+                                });
+                              }}
+                            />
+                            {item.regularUnitPrice !== null && item.unitPrice !== null && (
+                              <small className="receipt-was-price">
+                                {t("原价 {price}", { price: money(item.regularUnitPrice) })}
+                              </small>
+                            )}
+                          </label>
+                          <label>
+                            <span>{t("数量")}</span>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={item.quantity}
+                              onChange={(event) =>
+                                updateReceiptItem(item.tempId, { quantity: Number(event.target.value) })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>{t("计数单位")}</span>
+                            <select
+                              value={item.unit}
+                              onChange={(event) =>
+                                updateReceiptItem(item.tempId, { unit: event.target.value })
+                              }
+                            >
+                              {!commonUnits.includes(item.unit as (typeof commonUnits)[number]) && (
+                                <option value={item.unit}>{item.unit}</option>
+                              )}
+                              {unitGroups.map((group) => (
+                                <optgroup key={group.label} label={group.label}>
+                                  {group.units.map((unit) => (
+                                    <option key={unit} value={unit}>
+                                      {tv(unit)}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            <span>{t("分类")}</span>
+                            <select
+                              value={item.category}
+                              onChange={(event) =>
+                                updateReceiptItem(item.tempId, { category: event.target.value })
+                              }
+                            >
+                              {categories.map((name) => (
+                                <option key={name} value={name}>
+                                  {tv(name)}
                                 </option>
                               ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span>{t("分类")}</span>
-                        <select
-                          value={item.category}
-                          onChange={(event) =>
-                            updateReceiptItem(item.tempId, { category: event.target.value })
-                          }
-                        >
-                          {categories.map((name) => (
-                            <option key={name} value={name}>
-                              {tv(name)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span>{t("处理方式")}</span>
-                        <select
-                          value={item.action}
-                          onChange={(event) =>
-                            updateReceiptItem(item.tempId, { action: event.target.value as "new" | "merge" })
-                          }
-                        >
-                          <option value="new">{t("新建物品")}</option>
-                          <option value="merge">{t("合并已有")}</option>
-                        </select>
-                      </label>
-                    </div>
-                    {item.action === "merge" && (
-                      <label className="merge-target">
-                        <span>{t("合并到")}</span>
-                        <select
-                          value={item.mergeItemId}
-                          onChange={(event) =>
-                            updateReceiptItem(item.tempId, { mergeItemId: event.target.value })
-                          }
-                        >
-                          <option value="">{t("请选择已有物品")}</option>
-                          {items.map((existing) => (
-                            <option key={existing.id} value={existing.id}>
-                              {existing.name} · {formatQuantity(existing, { fmtNumber, tu, tv, t })}
-                            </option>
-                          ))}
-                        </select>
-                        {item.matchName && (
-                          <small>
-                            模糊匹配建议：{item.matchName}（{Math.round(item.matchScore * 100)}%）
+                            </select>
+                          </label>
+                          <label>
+                            <span>{t("处理方式")}</span>
+                            <select
+                              value={item.action}
+                              onChange={(event) =>
+                                updateReceiptItem(item.tempId, {
+                                  action: event.target.value as "new" | "merge",
+                                })
+                              }
+                            >
+                              <option value="new">{t("新建物品")}</option>
+                              <option value="merge">{t("合并已有")}</option>
+                            </select>
+                          </label>
+                        </div>
+                        {item.action === "merge" && (
+                          <label className="merge-target">
+                            <span>{t("合并到")}</span>
+                            <select
+                              value={item.mergeItemId}
+                              onChange={(event) =>
+                                updateReceiptItem(item.tempId, { mergeItemId: event.target.value })
+                              }
+                            >
+                              <option value="">{t("请选择已有物品")}</option>
+                              {items.map((existing) => (
+                                <option key={existing.id} value={existing.id}>
+                                  {existing.name} · {formatQuantity(existing, { fmtNumber, tu, tv, t })}
+                                </option>
+                              ))}
+                            </select>
+                            {item.matchName && (
+                              <small>
+                                模糊匹配建议：{item.matchName}（{Math.round(item.matchScore * 100)}%）
+                              </small>
+                            )}
+                          </label>
+                        )}
+                        {item.lineTotal != null && (
+                          <small className="receipt-price">
+                            {t("小票金额 {total}", { total: money(item.lineTotal) })}
                           </small>
                         )}
-                      </label>
-                    )}
-                    {item.lineTotal != null && (
-                      <small className="receipt-price">
-                        {t("小票金额 {total}", { total: money(item.lineTotal) })}
-                      </small>
-                    )}
-                  </article>
-                ))}
-              </div>
-              <div className="modal-actions">
-                <button className="secondary-button" onClick={closeReceipt}>
-                  {t("取消")}
-                </button>
-                <button
-                  className="primary-button"
-                  onClick={confirmReceiptItems}
-                  disabled={confirmingReceipt || !receiptDraft.items.length}
-                >
-                  {confirmingReceipt ? t("正在写入库存…") : t("确认并加入库存")}
-                </button>
-              </div>
-            </>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="modal-actions">
+                    <button className="secondary-button" onClick={closeReceipt}>
+                      {t("取消")}
+                    </button>
+                    <button
+                      className="primary-button"
+                      onClick={confirmReceiptItems}
+                      disabled={confirmingReceipt || !receiptDraft.items.length}
+                    >
+                      {confirmingReceipt ? t("正在写入库存…") : t("确认并加入库存")}
+                    </button>
+                  </div>
+                </>
+              )}
+            </Modal>
           )}
-        </Modal>
-      )}
 
-      <LoginLanding notify={setToast} />
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} notify={setToast} />}
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      )}
-    </main>
+          {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} notify={setToast} />}
+          {toast && (
+            <div className="toast" role="status">
+              {toast}
+            </div>
+          )}
+        </main>
+      </LoginGate>
+    </>
   );
 }

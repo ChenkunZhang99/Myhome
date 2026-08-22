@@ -30,6 +30,11 @@ const VALID = /^[A-Za-z0-9_-]{1,64}$/;
  * 还没打开：现有数据都在默认住户下，贸然要求登录会让人打不开自己的东西。
  * 登录流程跑通之后把它设成 on，这是一个配置项，不需要改代码。
  */
+/** 前端要靠它决定是显示登录页还是应用本体。 */
+export function loginRequired() {
+  return strictMode();
+}
+
 function strictMode() {
   return (env as typeof env & { REQUIRE_HOUSEHOLD?: string }).REQUIRE_HOUSEHOLD?.trim() === "on";
 }
@@ -60,17 +65,19 @@ export async function currentAccount(request?: Request) {
 /**
  * 取当前住户 id。定时任务没有请求可取，不传即可，它会落到默认住户。
  *
- * 优先级：登录会话 → 显式指定的住户标识（开发用）→ 默认住户。
- * 严格模式下前两者都没有就抛 401，交给各路由已有的 failure() 统一处理。
+ * 优先级：登录会话 → 显式指定的住户标识（仅非严格模式）→ 默认住户。
+ * 严格模式下没有会话就抛 401，交给各路由已有的 failure() 统一处理。
  */
 export async function resolveHousehold(request?: Request) {
   const account = await currentAccount(request);
   if (account) return account.householdId;
 
+  // 严格模式下只认会话。显式标识是开发期的便利，如果在这里也放行，
+  // 任何人发一个 x-household-id 就能读别人家的数据，严格模式就没有意义了。
+  if (strictMode()) throw new UserFacingError("请先登录后再访问", 401);
+
   const explicit = request ? (request.headers.get(HEADER)?.trim() ?? "") || readCookie(request, COOKIE) : "";
   if (VALID.test(explicit)) return explicit;
-
-  if (strictMode()) throw new UserFacingError("请先登录后再访问", 401);
   // 回落时留一条日志：真的公开部署之后，能看出有多少匿名流量落进了默认住户。
   if (request)
     console.warn(JSON.stringify({ at: new Date().toISOString(), scope: "household", fallback: true }));

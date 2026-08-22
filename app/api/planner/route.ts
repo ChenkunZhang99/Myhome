@@ -65,12 +65,13 @@ export const GET = withRoute("planner", async (request: Request) => {
       metadata.confidence, metadata.verified_at AS verifiedAt, metadata.is_saved AS isSaved,
       CASE WHEN metadata.hidden = 1 OR EXISTS (
         SELECT 1 FROM flyer_recommendation_feedback feedback
-        WHERE feedback.action = 'suppress' AND feedback.item_pattern = metadata.item_key
+        WHERE feedback.household_id = ?1 AND feedback.action = 'suppress'
+          AND feedback.item_pattern = metadata.item_key
       ) THEN 1 ELSE 0 END AS hidden,
       MIN(history.price) AS lowestPrice, AVG(history.price) AS averagePrice, COUNT(history.id) AS priceObservations
       FROM flyer_deals
       JOIN household_stores ON household_stores.source_key = flyer_deals.source_key
-        AND household_stores.household_id = ?
+        AND household_stores.household_id = ?1
       LEFT JOIN flyer_deal_metadata metadata ON metadata.deal_id = flyer_deals.id
       LEFT JOIN flyer_price_history history ON history.item_key = metadata.item_key
         AND history.source_key = flyer_deals.source_key
@@ -88,8 +89,10 @@ export const GET = withRoute("planner", async (request: Request) => {
     const shopping = await env.DB.prepare(
       `SELECT id, name, quantity, unit, category,
       checked, stocked, source, created_at AS createdAt
-      FROM shopping_items ORDER BY checked ASC, created_at DESC`,
-    ).all();
+      FROM shopping_items WHERE household_id = ? ORDER BY checked ASC, created_at DESC`,
+    )
+      .bind(household)
+      .all();
     // 本周实际花费。预算原本只用来筛推荐，从没和真实支出比较过。
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - 6);
@@ -119,8 +122,10 @@ export const GET = withRoute("planner", async (request: Request) => {
     const matchRules = await env.DB.prepare(
       `SELECT id, inventory_name AS inventoryName, deal_pattern AS dealPattern,
       category, match_kind AS matchKind, active, updated_at AS updatedAt
-      FROM flyer_match_rules ORDER BY updated_at DESC`,
-    ).all();
+      FROM flyer_match_rules WHERE household_id = ? ORDER BY updated_at DESC`,
+    )
+      .bind(household)
+      .all();
 
     return Response.json({
       settings: settings ?? {
@@ -353,9 +358,9 @@ export const POST = withRoute("planner", async (request: Request) => {
           .run();
       if (action === "restore")
         await env.DB.prepare(
-          "DELETE FROM flyer_recommendation_feedback WHERE action = 'suppress' AND item_pattern = ?",
+          "DELETE FROM flyer_recommendation_feedback WHERE household_id = ? AND action = 'suppress' AND item_pattern = ?",
         )
-          .bind(itemKey)
+          .bind(household, itemKey)
           .run();
       return Response.json({ ok: true });
     }
@@ -369,12 +374,13 @@ export const POST = withRoute("planner", async (request: Request) => {
         return Response.json({ error: "请完整填写匹配规则" }, { status: 400 });
       await env.DB.prepare(
         `INSERT INTO flyer_match_rules
-        (id, inventory_name, deal_pattern, category, match_kind, active, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (household_id, id, inventory_name, deal_pattern, category, match_kind, active, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET inventory_name = excluded.inventory_name, deal_pattern = excluded.deal_pattern,
           category = excluded.category, match_kind = excluded.match_kind, active = excluded.active, updated_at = CURRENT_TIMESTAMP`,
       )
         .bind(
+          household,
           id,
           inventoryName,
           dealPattern,
@@ -397,10 +403,10 @@ export const POST = withRoute("planner", async (request: Request) => {
         category: cleanText(payload.category, "其他"),
       };
       await env.DB.prepare(
-        `INSERT INTO shopping_items (id, name, quantity, unit, category, source)
-        VALUES (?, ?, ?, ?, ?, 'manual')`,
+        `INSERT INTO shopping_items (household_id, id, name, quantity, unit, category, source)
+        VALUES (?, ?, ?, ?, ?, ?, 'manual')`,
       )
-        .bind(item.id, item.name, item.quantity, item.unit, item.category)
+        .bind(household, item.id, item.name, item.quantity, item.unit, item.category)
         .run();
       return Response.json({ item }, { status: 201 });
     }
@@ -413,8 +419,10 @@ export const POST = withRoute("planner", async (request: Request) => {
         .bind(household)
         .all<{ name: string; category: string; unit: string }>();
       const existing = await env.DB.prepare(
-        "SELECT lower(name) AS name FROM shopping_items WHERE checked = 0",
-      ).all<{ name: string }>();
+        "SELECT lower(name) AS name FROM shopping_items WHERE household_id = ? AND checked = 0",
+      )
+        .bind(household)
+        .all<{ name: string }>();
       const names = new Set(existing.results.map((row) => row.name));
       const additions = low.results.filter((row) => !names.has(row.name.toLowerCase()));
       if (additions.length) {
@@ -422,8 +430,8 @@ export const POST = withRoute("planner", async (request: Request) => {
           additions.map((row) =>
             env.DB.prepare(
               `INSERT INTO shopping_items
-          (id, name, quantity, unit, category, source) VALUES (?, ?, 1, ?, ?, 'low-stock')`,
-            ).bind(crypto.randomUUID(), row.name, row.unit, row.category),
+          (household_id, id, name, quantity, unit, category, source) VALUES (?, ?, ?, 1, ?, ?, 'low-stock')`,
+            ).bind(household, crypto.randomUUID(), row.name, row.unit, row.category),
           ),
         );
       }
@@ -446,9 +454,9 @@ export const POST = withRoute("planner", async (request: Request) => {
 
       const shoppingRows = await env.DB.prepare(
         `SELECT id, name, quantity, unit, category
-         FROM shopping_items WHERE id IN (${ids.map(() => "?").join(", ")})`,
+         FROM shopping_items WHERE household_id = ? AND id IN (${ids.map(() => "?").join(", ")})`,
       )
-        .bind(...ids)
+        .bind(household, ...ids)
         .all<{ id: string; name: string; quantity: number; unit: string; category: string }>();
       const shoppingById = new Map(shoppingRows.results.map((row) => [row.id, row]));
 
@@ -531,7 +539,9 @@ export const POST = withRoute("planner", async (request: Request) => {
           added += 1;
         }
         writes.push(
-          env.DB.prepare("UPDATE shopping_items SET checked = 1, stocked = 1 WHERE id = ?").bind(id),
+          env.DB.prepare(
+            "UPDATE shopping_items SET checked = 1, stocked = 1 WHERE household_id = ? AND id = ?",
+          ).bind(household, id),
         );
       }
 
@@ -548,12 +558,13 @@ export const POST = withRoute("planner", async (request: Request) => {
 
 export const PATCH = withRoute("planner", async (request: Request) => {
   try {
+    const household = resolveHousehold(request);
     const payload = (await request.json()) as { type?: string; id?: string; checked?: boolean };
     if (payload.type !== "shopping" || !payload.id)
       return Response.json({ error: "无效操作" }, { status: 400 });
     await ensureSchema();
-    await env.DB.prepare("UPDATE shopping_items SET checked = ? WHERE id = ?")
-      .bind(payload.checked ? 1 : 0, payload.id)
+    await env.DB.prepare("UPDATE shopping_items SET checked = ? WHERE household_id = ? AND id = ?")
+      .bind(payload.checked ? 1 : 0, household, payload.id)
       .run();
     return Response.json({ ok: true });
   } catch (error) {
@@ -590,7 +601,10 @@ export const DELETE = withRoute("planner", async (request: Request) => {
         env.DB.prepare("DELETE FROM flyer_deal_metadata WHERE deal_id = ?").bind(id),
         env.DB.prepare("DELETE FROM flyer_deals WHERE id = ?").bind(id),
       ]);
-    else await env.DB.prepare("DELETE FROM shopping_items WHERE id = ?").bind(id).run();
+    else
+      await env.DB.prepare("DELETE FROM shopping_items WHERE household_id = ? AND id = ?")
+        .bind(household, id)
+        .run();
     return Response.json({ ok: true });
   } catch (error) {
     return failure("planner", error, "内容暂时无法删除", 500);

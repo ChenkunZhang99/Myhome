@@ -760,7 +760,8 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       // 一周菜单可能有几十个食材。原来每个都要先查一次「是否已在清单里」再写一次，
       // 这里改成一次性把待买清单查回来做集合判断，写入合并成一个 batch。
       const pending = await db
-        .prepare("SELECT lower(name) AS name FROM shopping_items WHERE checked = 0")
+        .prepare("SELECT lower(name) AS name FROM shopping_items WHERE household_id = ? AND checked = 0")
+        .bind(household)
         .all<{ name: string }>();
       const alreadyListed = new Set(pending.results.map((row) => row.name));
 
@@ -778,7 +779,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
           inserts.push(
             db
               .prepare(
-                "INSERT INTO shopping_items (id, name, quantity, unit, category, source) VALUES (?, ?, ?, ?, ?, 'menu-plan')",
+                "INSERT INTO shopping_items (household_id, id, name, quantity, unit, category, source) VALUES (?, ?, ?, ?, ?, 'menu-plan')",
               )
               .bind(
                 `shop-menu-${crypto.randomUUID()}`,

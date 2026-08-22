@@ -163,6 +163,7 @@ const TABLES = [
     category TEXT NOT NULL DEFAULT '',
     match_kind TEXT NOT NULL DEFAULT 'substitute',
     active INTEGER NOT NULL DEFAULT 1,
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS flyer_recommendation_feedback (
@@ -172,6 +173,7 @@ const TABLES = [
     store_id TEXT,
     action TEXT NOT NULL,
     note TEXT NOT NULL DEFAULT '',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS shopping_items (
@@ -183,6 +185,7 @@ const TABLES = [
     checked INTEGER NOT NULL DEFAULT 0,
     stocked INTEGER NOT NULL DEFAULT 0,
     source TEXT NOT NULL DEFAULT 'manual',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS recipe_suggestions (
@@ -295,6 +298,9 @@ const INDEXES = [
  * 索引会先一步失败，整个建表流程随之中断，每个请求都报 no such column。
  */
 const INDEXES_ON_ADDED_COLUMNS = [
+  "CREATE INDEX IF NOT EXISTS idx_shopping_items_household ON shopping_items(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_flyer_match_rules_household ON flyer_match_rules(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_flyer_recommendation_feedback_household ON flyer_recommendation_feedback(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_recipe_catalog_household ON recipe_catalog(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_recipe_attachments_household ON recipe_attachments(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_recipe_cook_history_household ON recipe_cook_history(household_id)",
@@ -343,6 +349,11 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     column: "timezone",
     ddl: `ALTER TABLE household_settings ADD COLUMN timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}'`,
   },
+  ...["shopping_items", "flyer_match_rules", "flyer_recommendation_feedback"].map((table) => ({
+    table,
+    column: "household_id",
+    ddl: `ALTER TABLE ${table} ADD COLUMN household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}'`,
+  })),
   ...[
     "recipe_catalog",
     "recipe_attachments",

@@ -3,20 +3,16 @@ import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 /**
- * 多住户改造的进度闸门。
+ * 分库纪律的闸门。
  *
- * 目标是每一条读写租户表的 SQL 都带上 household_id——这是将来能把数据按住户
+ * 每一条读写租户表的 SQL 都必须带上 household_id。这是将来能把数据按住户
  * 拆开的唯一前提，也是最容易在某次「临时查一下」时被破坏的约定。
  *
- * 改造要分批进行，所以这里不是「必须全部合规」，而是一个棘轮：
- * 未作用域的语句数只能下降，不能回升。每完成一批就把下面的数字调低。
- * 降到 0 之后，把这条测试换成严格断言，闸门就永久关上了。
+ * 改造期间这里是一个棘轮，未作用域的语句数从 111 逐批降到 0。
+ * 现在已经归零，换成严格断言：一条都不许再出现。
  *
  * 见 docs/multi-household-design.md。
  */
-
-/** 每完成一批就调低这个数字。它同时是进度指标和防回退的闸门。 */
-const REMAINING = 13;
 
 const TENANT_TABLES = [
   "inventory_items",
@@ -72,19 +68,12 @@ async function unscoped() {
   return out;
 }
 
-test("未作用域的租户查询只减不增", async () => {
+test("每一条读写租户表的查询都带 household_id", async () => {
   const found = await unscoped();
-
-  assert.ok(
-    found.length <= REMAINING,
-    `未作用域的语句从 ${REMAINING} 涨到了 ${found.length}。新写的查询必须带 household_id：\n` +
-      found.slice(0, 20).join("\n"),
-  );
-
-  assert.equal(
-    found.length,
-    REMAINING,
-    `未作用域的语句已降到 ${found.length}，请把 tests/household-scoping.test.mjs 里的 REMAINING 改成这个数`,
+  assert.deepEqual(
+    found,
+    [],
+    `跨住户的查询会让数据无法按住户拆开，也可能读到别人家的东西：\n${found.join("\n")}`,
   );
 });
 

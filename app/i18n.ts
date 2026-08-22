@@ -621,6 +621,8 @@ const ui: Record<string, string> = {
   按余量记录: "By remaining %",
   日: "D",
   主要导航: "Main navigation",
+  收起侧边栏: "Collapse sidebar",
+  展开侧边栏: "Expand sidebar",
   返回首页: "Back to overview",
   家里有数: "Home Stock",
   "搜索家里的物品…": "Search your items…",

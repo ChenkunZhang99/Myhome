@@ -413,6 +413,28 @@ export default function Home() {
     }
   }
 
+  // 侧边栏的展开状态记在本地，下次打开保持上次的选择。
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRailed(window.localStorage.getItem("hsp.sidebar") === "rail");
+    } catch {
+      /* localStorage 可能被隐私设置禁用，那就保持展开 */
+    }
+  }, []);
+
+  function toggleRail() {
+    setRailed((value) => {
+      const next = !value;
+      try {
+        window.localStorage.setItem("hsp.sidebar", next ? "rail" : "full");
+      } catch {
+        /* 存不下就只在本次会话生效 */
+      }
+      return next;
+    });
+  }
+
   // 挂载时拉一次数据。规则希望改用框架级的数据加载或 SWR 之类的库，
   // 但为此在这个规模的项目里引入一整套数据层并不划算，这里明确保留。
   useEffect(() => {
@@ -455,6 +477,8 @@ export default function Home() {
   // 打开应用时想知道的是「什么快过期、什么快没了」，不是「我有哪 150 件东西」。
   // 所以默认只展示需要处理的，全部库存收进另一个视图。
   const [scope, setScope] = useState<"attention" | "all">("attention");
+  // 大屏上多出来的宽度应该给内容，而不是给一列常驻的导航文字。
+  const [railed, setRailed] = useState(false);
 
   const filteredItems = useMemo(
     () =>
@@ -792,67 +816,77 @@ export default function Home() {
    * 状态标签（偏少 / 充足）本来就是百分比的分档结果，同一个数字显示两遍，
    * 所以只在「已用完」这个需要立刻行动的状态下才出现。
    */
+  /**
+   * 物品卡片，两行排布。
+   *
+   * 原来仪表、名称、微调、数量四块挤在一行，341px 的卡片里信息区只剩 126px，
+   * 「3 天后到期」这类文字被截断。改成两行之后横向压力变成纵向空间，
+   * 而纵向是这个页面最不缺的。
+   *
+   * 左侧仪表跨两行：图标在上，进度条和百分比在下面。
+   * 第一行是名称和数量，第二行是已购买天数、到期提醒和余量微调。
+   */
   function renderItem(item: InventoryItem) {
     const expiry = getExpiryInfo(item, t);
     const used = daysInUse(item);
     const emptied = Number(item.quantity) <= 0 || Number(item.remainingPercent) <= 0;
     return (
       <article className="item-card" key={item.id}>
-        <button
-          type="button"
-          className="item-open"
-          onClick={() => setSelectedItem(item)}
-          aria-label={t("查看{name}详细资料", { name: item.name })}
-        >
-          <span className={`item-gauge ${remainingTone(item.remainingPercent)}`}>
-            <span className="gauge-icon" aria-hidden="true">
-              {getItemIcon(item)}
-            </span>
-            <span className="gauge-bar" aria-hidden="true">
-              <i style={{ width: `${item.remainingPercent}%` }} />
-            </span>
-            <b>{item.remainingPercent}%</b>
+        <span className={`item-gauge ${remainingTone(item.remainingPercent)}`}>
+          <span className="gauge-icon" aria-hidden="true">
+            {getItemIcon(item)}
           </span>
-          <span className="item-info">
-            <span className="item-head">
-              <strong>{tv(item.name)}</strong>
-              {item.demo && <span className="demo-tag">{t("示例")}</span>}
-              {emptied && <span className="stock-tag low">{tv("已用完")}</span>}
-            </span>
-            <span className="item-sub">
-              {used === null ? tv(item.category) : t("买了 {days} 天", { days: used })}
-              {expiry && <span className={`expiry-tag ${expiry.tone}`}>{expiry.label}</span>}
-            </span>
+          <span className="gauge-bar" aria-hidden="true">
+            <i style={{ width: `${item.remainingPercent}%` }} />
           </span>
-        </button>
-        <div className="item-tune">
+          <b>{item.remainingPercent}%</b>
+        </span>
+        <div className="item-row">
           <button
-            onClick={() => changeRemaining(item, -25)}
-            aria-label={t("减少{name}余量", { name: tv(item.name) })}
+            type="button"
+            className="item-open"
+            onClick={() => setSelectedItem(item)}
+            aria-label={t("查看{name}详细资料", { name: item.name })}
           >
-            −25%
+            <strong>{tv(item.name)}</strong>
+            {item.demo && <span className="demo-tag">{t("示例")}</span>}
+            {emptied && <span className="stock-tag low">{tv("已用完")}</span>}
           </button>
-          <button
-            onClick={() => changeRemaining(item, 25)}
-            aria-label={t("增加{name}余量", { name: tv(item.name) })}
-          >
-            ＋25%
-          </button>
+          <div className="item-qty">
+            <button
+              onClick={() => changeQuantity(item, -1)}
+              aria-label={t("减少{name}数量", { name: tv(item.name) })}
+            >
+              −
+            </button>
+            <strong>{formatQuantity(item, { fmtNumber, tu, tv, t })}</strong>
+            <button
+              onClick={() => changeQuantity(item, 1)}
+              aria-label={t("增加{name}数量", { name: tv(item.name) })}
+            >
+              ＋
+            </button>
+          </div>
         </div>
-        <div className="item-qty">
-          <button
-            onClick={() => changeQuantity(item, -1)}
-            aria-label={t("减少{name}数量", { name: tv(item.name) })}
-          >
-            −
-          </button>
-          <strong>{formatQuantity(item, { fmtNumber, tu, tv, t })}</strong>
-          <button
-            onClick={() => changeQuantity(item, 1)}
-            aria-label={t("增加{name}数量", { name: tv(item.name) })}
-          >
-            ＋
-          </button>
+        <div className="item-row item-meta">
+          <span className="item-sub">
+            {used === null ? tv(item.category) : t("买了 {days} 天", { days: used })}
+            {expiry && <span className={`expiry-tag ${expiry.tone}`}>{expiry.label}</span>}
+          </span>
+          <span className="item-tune">
+            <button
+              onClick={() => changeRemaining(item, -25)}
+              aria-label={t("减少{name}余量", { name: tv(item.name) })}
+            >
+              −25%
+            </button>
+            <button
+              onClick={() => changeRemaining(item, 25)}
+              aria-label={t("增加{name}余量", { name: tv(item.name) })}
+            >
+              ＋25%
+            </button>
+          </span>
         </div>
       </article>
     );
@@ -864,42 +898,82 @@ export default function Home() {
           挂在门里的组件根本不会渲染，令牌也就永远换不成会话。 */}
       <LoginLanding notify={setToast} />
       <LoginGate notify={setToast}>
-        <main className="app-shell">
+        <main className={railed ? "app-shell railed" : "app-shell"}>
           <aside className="sidebar" aria-label={t("主要导航")}>
+            <button
+              type="button"
+              className="rail-toggle"
+              onClick={toggleRail}
+              aria-expanded={!railed}
+              aria-label={railed ? t("展开侧边栏") : t("收起侧边栏")}
+              title={railed ? t("展开侧边栏") : t("收起侧边栏")}
+            >
+              {railed ? "»" : "«"}
+            </button>
             <button className="brand" onClick={() => scrollTo("overview")} aria-label={t("返回首页")}>
               <span className="brand-mark">{t("家")}</span>
-              <span>{t("家里有数")}</span>
+              <span className="nav-label">{t("家里有数")}</span>
             </button>
             <nav>
-              <button className="nav-item active" onClick={() => scrollTo("overview")}>
+              <button
+                className="nav-item active"
+                onClick={() => scrollTo("overview")}
+                aria-label={t("总览")}
+                title={t("总览")}
+              >
                 <Icon name="home" />
-                {t("总览")}
+                <span className="nav-label">{t("总览")}</span>
               </button>
-              <button className="nav-item" onClick={() => scrollTo("inventory")}>
+              <button
+                className="nav-item"
+                onClick={() => scrollTo("inventory")}
+                aria-label={t("家庭库存")}
+                title={t("家庭库存")}
+              >
                 <Icon name="inventory" />
-                {t("家庭库存")}
+                <span className="nav-label">{t("家庭库存")}</span>
               </button>
-              <button className="nav-item" onClick={() => scrollTo("flyers")}>
+              <button
+                className="nav-item"
+                onClick={() => scrollTo("flyers")}
+                aria-label={t("Flyer 优惠")}
+                title={t("Flyer 优惠")}
+              >
                 <Icon name="deals" />
-                {t("Flyer 优惠")}
+                <span className="nav-label">{t("Flyer 优惠")}</span>
               </button>
-              <button className="nav-item" onClick={() => scrollTo("recipes")}>
+              <button
+                className="nav-item"
+                onClick={() => scrollTo("recipes")}
+                aria-label={t("本周菜谱")}
+                title={t("本周菜谱")}
+              >
                 <Icon name="recipes" />
-                {t("本周菜谱")}
+                <span className="nav-label">{t("本周菜谱")}</span>
               </button>
-              <button className="nav-item" onClick={() => scrollTo("budget")}>
+              <button
+                className="nav-item"
+                onClick={() => scrollTo("budget")}
+                aria-label={t("预算记录")}
+                title={t("预算记录")}
+              >
                 <Icon name="budget" />
-                {t("预算记录")}
+                <span className="nav-label">{t("预算记录")}</span>
               </button>
             </nav>
             <div className="sidebar-spacer" />
-            <button className="nav-item" onClick={() => scrollTo("budget")}>
+            <button
+              className="nav-item"
+              onClick={() => scrollTo("budget")}
+              aria-label={t("家庭设置")}
+              title={t("家庭设置")}
+            >
               <Icon name="settings" />
-              {t("家庭设置")}
+              <span className="nav-label">{t("家庭设置")}</span>
             </button>
             <div className="home-profile">
               <span className="avatar">{t("两")}</span>
-              <div>
+              <div className="nav-label">
                 <strong>{t("我们的家")}</strong>
                 <small>{t("2 人 · 个人维护")}</small>
               </div>

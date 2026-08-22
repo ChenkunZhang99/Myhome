@@ -16,10 +16,26 @@ import path from "node:path";
 
 const D1_DIR = ".wrangler/state/v3/d1/miniflare-D1DatabaseObject";
 
+/**
+ * 本地数据库文件。
+ *
+ * 文件名是 miniflare 按 wrangler.jsonc 里的 database_id 派生的哈希，所以改了
+ * database_id（比如从占位符换成真实的 D1 id）就会多出一个空库，旧的那份还留在原地。
+ *
+ * 这种时候必须停下来问人：随手取第一个的话，备份的可能是那个空库，
+ * 而「备份成功了」的提示照样会打出来——空快照比没有快照更危险。
+ */
 function findDatabase() {
   const files = readdirSync(D1_DIR).filter((f) => f.endsWith(".sqlite") && f !== "metadata.sqlite");
   if (!files.length) throw new Error(`${D1_DIR} 里没有找到数据库，先启动一次 pnpm dev`);
-  // 文件名是 wrangler 按数据库名派生的哈希；正常只有一个
+  if (files.length > 1)
+    throw new Error(
+      [
+        `${D1_DIR} 里有 ${files.length} 个数据库，分不清该备份哪个：`,
+        ...files.map((f) => `  ${f}`),
+        `改过 database_id 之后会这样。确认哪个是当前在用的，把其余的删掉或移走。`,
+      ].join("\n"),
+    );
   return path.join(D1_DIR, files[0]);
 }
 

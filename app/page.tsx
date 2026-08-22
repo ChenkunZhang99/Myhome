@@ -413,28 +413,6 @@ export default function Home() {
     }
   }
 
-  // 侧边栏的展开状态记在本地，下次打开保持上次的选择。
-  useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setRailed(window.localStorage.getItem("hsp.sidebar") === "rail");
-    } catch {
-      /* localStorage 可能被隐私设置禁用，那就保持展开 */
-    }
-  }, []);
-
-  function toggleRail() {
-    setRailed((value) => {
-      const next = !value;
-      try {
-        window.localStorage.setItem("hsp.sidebar", next ? "rail" : "full");
-      } catch {
-        /* 存不下就只在本次会话生效 */
-      }
-      return next;
-    });
-  }
-
   // 挂载时拉一次数据。规则希望改用框架级的数据加载或 SWR 之类的库，
   // 但为此在这个规模的项目里引入一整套数据层并不划算，这里明确保留。
   useEffect(() => {
@@ -479,6 +457,28 @@ export default function Home() {
   const [scope, setScope] = useState<"attention" | "all">("attention");
   // 大屏上多出来的宽度应该给内容，而不是给一列常驻的导航文字。
   const [railed, setRailed] = useState(false);
+
+  // 侧边栏的展开状态记在本地，下次打开保持上次的选择。
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRailed(window.localStorage.getItem("hsp.sidebar") === "rail");
+    } catch {
+      /* localStorage 可能被隐私设置禁用，那就保持展开 */
+    }
+  }, []);
+
+  function toggleRail() {
+    setRailed((value) => {
+      const next = !value;
+      try {
+        window.localStorage.setItem("hsp.sidebar", next ? "rail" : "full");
+      } catch {
+        /* 存不下就只在本次会话生效 */
+      }
+      return next;
+    });
+  }
 
   const filteredItems = useMemo(
     () =>

@@ -109,3 +109,21 @@ export async function purgeExpiredInvites() {
     .bind(new Date().toISOString())
     .run();
 }
+
+/**
+ * 有没有一条还能用的邀请在等这个邮箱。
+ *
+ * 和 redeemInvite 不同：这里只看，不作废。注册时先问一句，
+ * 真正的兑换发生在登录之后——那时候才知道是谁接受了。
+ */
+export async function hasUsableInvite(email: string) {
+  const row = await env.DB.prepare(
+    `SELECT 1 AS ok FROM household_invites
+      WHERE accepted_at IS NULL AND expires_at > ?
+        AND (email IS NULL OR email = ?)
+      LIMIT 1`,
+  )
+    .bind(new Date().toISOString(), email)
+    .first<{ ok: number }>();
+  return Boolean(row);
+}

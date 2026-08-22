@@ -123,3 +123,9 @@ export async function ownerCount(householdId: string) {
     .first<{ count: number }>();
   return Number(row?.count ?? 0);
 }
+
+/** 这个部署上一共有几个账号。用来判断是不是「第一个人」。 */
+export async function accountCount() {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS count FROM users").first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}

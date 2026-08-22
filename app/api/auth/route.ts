@@ -1,10 +1,12 @@
 import {
   accountByEmail,
+  accountCount,
   clearLoginFailures,
   findOrCreateAccount,
   recordLoginFailure,
   setAccountPassword,
 } from "../_shared/accounts";
+import { hasUsableInvite } from "../_shared/invites";
 import {
   assertPasswordAllowed,
   burnVerificationTime,
@@ -101,6 +103,7 @@ export const POST = withRoute("auth", async (request: Request) => {
     // 默认动作：请求登录链接
     const email = normalizeEmail(payload.email);
     await purgeExpiredSessions();
+    await assertMayRegister(email);
     const account = await findOrCreateAccount(email);
     const token = await issueLoginToken(account.id);
     const delivery = await deliverLoginLink(request, email, token);
@@ -110,6 +113,29 @@ export const POST = withRoute("auth", async (request: Request) => {
   }
 });
 
+/**
+ * 这个邮箱可不可以在这里开一个新账号。
+ *
+ * 请求登录链接的那一刻账号就建出来了，所以闸门必须在这里，不能等到兑换的时候。
+ *
+ * 放行的三种情况：
+ *  1. 账号已经存在——那是登录，不是注册
+ *  2. 一个账号都还没有——第一个人得能进来，否则部署完谁也开不了门
+ *  3. 有一条还没被用掉的邀请在等他
+ *
+ * 没开强制登录时完全不拦：那是单机自用的模式，clone 下来跑 pnpm dev 不该先要一封邀请。
+ *
+ * 不这样做的后果很具体：任何人输个邮箱就能在你的部署上注册，
+ * 然后用掉你配在服务端的 OpenAI 额度。
+ */
+async function assertMayRegister(email: string) {
+  if (!loginRequired()) return;
+  if (await accountByEmail(email)) return;
+  if ((await accountCount()) === 0) return;
+  if (await hasUsableInvite(email)) return;
+  // 不说「这个邮箱没注册过」——那等于告诉对方哪些邮箱是注册过的。
+  throw new UserFacingError("这个站点不接受自助注册，请让家里人给你发一条邀请链接", 403);
+}
 /** 连续失败几次就锁。5 次是个折中：手滑几次不至于被关在门外，暴力破解又跑不起来。 */
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;

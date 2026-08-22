@@ -7,3 +7,8 @@ REQUIRE_HOUSEHOLD=
 # 配置后登录链接改为真实发信，留空则打印到控制台
 RESEND_API_KEY=
 LOGIN_FROM_EMAIL=
+
+# 密码哈希轮数，默认 600000（约 60ms CPU）。
+# Cloudflare Workers 免费版每请求只有 10ms CPU，部署在那里必须调低，
+# 比如 100000；付费版是 30 秒，保持默认即可。
+PASSWORD_ITERATIONS=

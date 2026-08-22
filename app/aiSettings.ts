@@ -56,13 +56,29 @@ export function clearAiSettings() {
 /** 设置变更后广播，让页面上的状态提示同步更新。 */
 export const AI_SETTINGS_EVENT = "hsp-ai-settings-changed";
 
-/** 给需要调用模型的请求补上密钥头；没配置时什么都不加，后端会走演示模式。 */
+/**
+ * 密钥和模型名的形状。和服务端 sanitizeKey 用的是同一套规则。
+ *
+ * HTTP 头只能装 ISO-8859-1 字符。存了一个带中文、带全角标点或者带换行的值时，
+ * Headers.set() 会直接抛 "String contains non ISO-8859-1 code point"——
+ * 那个报错出现在点按钮的一瞬间，看起来像是功能坏了，其实是保存的值不对。
+ * 与其让它抛，不如在这里就认定「没配置」。
+ */
+const KEY_SHAPE = /^[A-Za-z0-9._-]{20,200}$/;
+const MODEL_SHAPE = /^[A-Za-z0-9._-]{1,60}$/;
+
+/** 保存的密钥是不是一个能用的形状。界面靠它决定要不要提示用户重填。 */
+export function isUsableKey(apiKey: string) {
+  return KEY_SHAPE.test(apiKey.trim());
+}
+
+/** 给需要调用模型的请求补上密钥头；没配置或形状不对时什么都不加。 */
 export function withAiHeaders(headers: HeadersInit = {}): HeadersInit {
   const { apiKey, model } = readAiSettings();
-  if (!apiKey) return headers;
+  if (!isUsableKey(apiKey)) return headers;
   const merged = new Headers(headers);
-  merged.set(API_KEY_HEADER, apiKey);
-  if (model) merged.set(MODEL_HEADER, model);
+  merged.set(API_KEY_HEADER, apiKey.trim());
+  if (MODEL_SHAPE.test(model.trim())) merged.set(MODEL_HEADER, model.trim());
   return merged;
 }
 

@@ -621,6 +621,9 @@ const ui: Record<string, string> = {
   按余量记录: "By remaining %",
   日: "D",
   主要导航: "Main navigation",
+  密钥格式不对: "Key looks wrong",
+  "保存的值不像一个 API 密钥，请只粘贴 sk- 开头的那一段，前后不要带别的字符。":
+    "The saved value does not look like an API key. Paste only the sk- string, with nothing before or after it.",
   不再推荐: "Never suggest",
   "以后不再推荐「{title}」这类菜？": "Stop suggesting dishes like “{title}”?",
   以后不再推荐它: "It will not be suggested again",

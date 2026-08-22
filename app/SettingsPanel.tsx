@@ -6,7 +6,7 @@ import { DataSection } from "./DataSection";
 import { HouseholdSection } from "./HouseholdSection";
 import { useAppSettings } from "./AppSettings";
 import { Modal } from "./Modal";
-import { clearAiSettings, maskKey, readAiSettings, writeAiSettings } from "./aiSettings";
+import { clearAiSettings, isUsableKey, maskKey, readAiSettings, writeAiSettings } from "./aiSettings";
 import { localeLabels, locales } from "./i18n";
 
 /**
@@ -24,6 +24,7 @@ export function SettingsPanel({
   const [draftKey, setDraftKey] = useState("");
   // 这个面板只在用户点开后才渲染（不参与服务端渲染），所以可以直接惰性读取本地设置。
   const [draftModel, setDraftModel] = useState(() => readAiSettings().model);
+  const usable = isUsableKey(ai.apiKey);
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,14 +73,18 @@ export function SettingsPanel({
             "小票识别、Flyer 自动读取和菜谱生成需要 OpenAI 密钥。密钥只保存在这台设备的浏览器里，每次请求直接发给本站后端转发，服务端不会存储或显示它。",
           )}
         </p>
-        <div className={ai.apiKey ? "settings-status ok" : "settings-status"}>
+        {/* 存了一个形状不对的值时不能显示「已配置」——那正是这次的问题：
+            界面说已配置，实际每次调用都在报 ISO-8859-1 的错。 */}
+        <div className={usable ? "settings-status ok" : "settings-status"}>
           <span />
           <p>
-            <b>{ai.apiKey ? t("已配置") : t("未配置")}</b>
+            <b>{usable ? t("已配置") : ai.apiKey ? t("密钥格式不对") : t("未配置")}</b>
             <small>
-              {ai.apiKey
+              {usable
                 ? maskKey(ai.apiKey)
-                : t("当前为演示模式：需要模型的功能返回内置示例数据，不产生任何费用。")}
+                : ai.apiKey
+                  ? t("保存的值不像一个 API 密钥，请只粘贴 sk- 开头的那一段，前后不要带别的字符。")
+                  : t("当前为演示模式：需要模型的功能返回内置示例数据，不产生任何费用。")}
             </small>
           </p>
         </div>

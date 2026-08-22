@@ -882,7 +882,13 @@ export default function Home() {
         </div>
         <div className="item-row item-meta">
           <span className="item-sub">
-            {used === null ? tv(item.category) : t("买了 {days} 天", { days: used })}
+            {used === null
+              ? tv(item.category)
+              : emptied
+                ? // 东西已经没了，「买了 2 天」听着像还在手上。用完之后说的是
+                  // 一件过去的事，不是一段还在持续的时间。
+                  t("{days} 天前购买", { days: used })
+                : t("买了 {days} 天", { days: used })}
             {expiry && <span className={`expiry-tag ${expiry.tone}`}>{expiry.label}</span>}
           </span>
           <span className="item-tune">

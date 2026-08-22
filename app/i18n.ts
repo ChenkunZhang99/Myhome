@@ -621,6 +621,22 @@ const ui: Record<string, string> = {
   按余量记录: "By remaining %",
   日: "D",
   主要导航: "Main navigation",
+  "↗ 分享菜谱": "↗ Share recipes",
+  "↙ 导入菜谱": "↙ Import recipes",
+  "用一句话描述这道菜，让 AI 先填一版": "Describe the dish and let AI fill in a first pass",
+  "例如：妈妈做的番茄牛腩，牛腩先焯水，番茄炒出沙":
+    "e.g. Mum's tomato beef brisket — blanch the brisket first, cook the tomatoes down",
+  "✦ 按描述补全": "✦ Fill from description",
+  "填好的是初稿，保存之前自己过一遍。": "This is a first draft. Read it over before saving.",
+  "多写几个字，比如「妈妈做的番茄牛腩，牛腩先焯水」":
+    "Write a bit more, e.g. “Mum's tomato beef brisket, blanch the brisket first”",
+  "已按描述填好，检查一下再保存": "Filled in from your description — check it before saving",
+  "演示模式：填的是示例内容": "Demo mode: this is placeholder content",
+  菜谱补全失败: "Could not fill the recipe in",
+  菜谱库还是空的: "The recipe library is empty",
+  "已导出 {count} 道菜谱": "Exported {count} recipes",
+  "已导入 {count} 道菜谱": "Imported {count} recipes",
+  "{days} 天前购买": "bought {days} days ago",
   数据: "Data",
   "导出的是一个普通 JSON 文件，可以自己打开看。附件图片不在其中。":
     "The export is a plain JSON file you can open yourself. Attached photos are not included.",

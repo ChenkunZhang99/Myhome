@@ -19,7 +19,7 @@ import { readJson } from "./apiClient";
 import { Modal } from "./Modal";
 import type { Locale } from "./i18n";
 
-type Ingredient = { name: string; amount: string; source: "inventory" | "flyer" | "pantry" };
+type Ingredient = { name: string; amount: string; source: "inventory" | "flyer" | "pantry" | "buy" };
 type RecipePhoto = {
   id: string;
   recipeId: string;
@@ -136,8 +136,10 @@ function shortDate(value: string | null | undefined, locale: Locale, t: (text: s
 }
 // 这两个函数是一对：ingredientText 把食材渲染进文本框，parseIngredients 再解析回来。
 // 因为标签会跟着语言变，解析端必须同时认识中英文两套写法。
-const FLYER_SOURCE = /优惠|购买|flyer|on sale|sale/i;
+// 「优惠购买」要比「需要购买」先判，否则前者会被后者截走。
+const FLYER_SOURCE = /优惠|flyer|on sale|sale/i;
 const INVENTORY_SOURCE = /已有|库存|inventory|at home|home/i;
+const BUY_SOURCE = /需要购买|买|buy|shop/i;
 
 function parseIngredients(value: string): Ingredient[] {
   return value
@@ -148,7 +150,9 @@ function parseIngredients(value: string): Ingredient[] {
         ? "flyer"
         : INVENTORY_SOURCE.test(rawSource)
           ? "inventory"
-          : "pantry";
+          : BUY_SOURCE.test(rawSource)
+            ? "buy"
+            : "pantry";
       // amount 留空时交给服务端补默认值，避免把当前语言的「适量」写进库。
       return { name, amount, source } as Ingredient;
     })
@@ -157,7 +161,13 @@ function parseIngredients(value: string): Ingredient[] {
 
 function ingredientText(recipe: Recipe | null | undefined, t: (text: string) => string) {
   const label = (source: Ingredient["source"]) =>
-    source === "inventory" ? t("家里已有") : source === "flyer" ? t("优惠购买") : t("基础调料");
+    source === "inventory"
+      ? t("家里已有")
+      : source === "flyer"
+        ? t("优惠购买")
+        : source === "buy"
+          ? t("需要购买")
+          : t("基础调料");
   return (recipe?.ingredients ?? [])
     .map((item) => `${item.name} | ${item.amount} | ${label(item.source)}`)
     .join("\n");
@@ -708,6 +718,20 @@ export function RecipeWorkspace({
         <div className="catalog-card-actions">
           <button onClick={() => openOrder(recipe)}>{t("＋ 我想吃")}</button>
           <button onClick={() => setRecipeDraft(recipe)}>{t("编辑资料")}</button>
+          {/* 「删除」只是这次不看它，下次照样推。要让它别再来，得留下记录。 */}
+          {!recipe.isCustom && (
+            <button
+              onClick={() => {
+                if (window.confirm(t("以后不再推荐「{title}」这类菜？", { title: recipe.title })))
+                  void act(
+                    { action: "rejectRecipe", recipeId: recipe.id, title: recipe.title },
+                    "以后不再推荐它",
+                  );
+              }}
+            >
+              {t("不再推荐")}
+            </button>
+          )}
           <button
             className="danger"
             onClick={() => {
@@ -1216,7 +1240,9 @@ export function RecipeWorkspace({
                         ? t("家里已有")
                         : ingredient.source === "flyer"
                           ? t("优惠购买")
-                          : t("基础调料")}
+                          : ingredient.source === "buy"
+                            ? t("需要购买")
+                            : t("基础调料")}
                     </small>
                   </article>
                 ))}

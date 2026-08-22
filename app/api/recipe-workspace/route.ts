@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { ensureHouseholdMembers, resolveHousehold } from "../_shared/household";
-import { failure, withRoute } from "../_shared/observability";
+import { UserFacingError, failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
 import { dayIn } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
@@ -486,6 +486,25 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         .bind(payload.favorite ? 1 : 0, household, recipeId)
         .run();
       await logActivity(household, payload.favorite ? "收藏菜谱" : "取消收藏", recipeId);
+    } else if (action === "rejectRecipe") {
+      /**
+       * 「不再推荐这道菜」。
+       *
+       * 优惠早就有这个动作，菜谱一直没有——所以看到一道怪菜只能删掉，
+       * 下次它照样回来，因为没有任何地方记着「这家人不要它」。
+       *
+       * 记进活动日志而不是新开一张表：这本来就是一条「谁在什么时候做了什么」的记录，
+       * 而菜谱生成那边会把它读回去。
+       */
+      const recipeId = cleanId(payload.recipeId);
+      const title = cleanText((payload as { title?: unknown }).title, "", 80);
+      if (!title) throw new UserFacingError("缺少菜名");
+      await logActivity(household, "不再推荐", recipeId || null, null, { title });
+      if (recipeId)
+        await db
+          .prepare("DELETE FROM recipe_catalog WHERE household_id = ? AND id = ? AND is_custom = 0")
+          .bind(household, recipeId)
+          .run();
     } else if (action === "deleteRecipe") {
       const recipeId = cleanId(payload.recipeId);
       const photos = await db

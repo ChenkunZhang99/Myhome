@@ -22,7 +22,7 @@ export type SharedRecipe = {
   cookTime: string;
   difficulty: string;
   servings: number;
-  ingredients: Array<{ name: string; amount: string; source: "inventory" | "flyer" | "pantry" }>;
+  ingredients: Array<{ name: string; amount: string; source: "inventory" | "flyer" | "pantry" | "buy" }>;
   steps: string[];
   tags: string[];
   mealTypes: string[];

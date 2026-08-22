@@ -256,15 +256,17 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
   //
   // 闸门单独放在下面那个 try 之外：被拒绝不是「同步失败」，不能走 markFailure，
   // 否则谁都能把界面上的「上次同步」刷成一条无关的错误。状态码也要是 401 而不是 500。
+  // null 表示定时任务：它没有请求者可言，按部署者本人处理。
+  let household: string | null = null;
   try {
-    if (!isInternalCall(request)) await resolveHousehold(request);
+    if (!isInternalCall(request)) household = await resolveHousehold(request);
   } catch (error) {
     return failure("flyers.sync", error, "Flyer 自动同步失败", 401);
   }
 
   try {
     // 定时任务没有浏览器可问，只会拿到环境变量里的密钥；这里两者都覆盖。
-    const openAI = getOpenAIConfig(request);
+    const openAI = getOpenAIConfig(request, household);
     await ensureSchema();
     const scheduled = new URL(request.url).searchParams.get("scheduled") === "1";
     const stores = await env.DB.prepare(

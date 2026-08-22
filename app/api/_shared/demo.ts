@@ -14,7 +14,8 @@ export function isDemoMode(request?: Request) {
   const explicit = (env as typeof env & { DEMO_MODE?: string }).DEMO_MODE?.trim().toLowerCase();
   if (explicit === "off") return false;
   if (explicit === "on") return true;
-  return !getOpenAIConfig(request).apiKey;
+  // 传 null：要不要灌演示数据是部署级决定，不该由某个住户的身份左右。
+  return !getOpenAIConfig(request, null).apiKey;
 }
 
 function daysFromToday(offset: number, timeZone: string) {

@@ -139,7 +139,7 @@ export const POST = withRoute("receipts.analyze", async (request: Request) => {
   try {
     const household = await resolveHousehold(request);
     const demo = isDemoMode(request);
-    const openAI = getOpenAIConfig(request);
+    const openAI = getOpenAIConfig(request, household);
     if (!demo && !openAI.apiKey)
       return Response.json({ error: "OpenAI API 私钥尚未配置到网站" }, { status: 503 });
     const form = await request.formData();

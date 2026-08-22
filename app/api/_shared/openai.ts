@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { DEFAULT_HOUSEHOLD_ID } from "./householdId";
 import { UserFacingError } from "./observability";
 
 /**
@@ -7,6 +8,11 @@ import { UserFacingError } from "./observability";
  *     localStorage 里；服务端不落库、不回显、不写日志。
  *  2. 环境变量 OPENAI_API_KEY —— 私有部署用 `wrangler secret put` 设置，
  *     也是定时任务（没有浏览器可问）唯一能用的来源。
+ *
+ * **服务端那份只给部署者自己的家用。** 别的住户要用 AI 功能就自己填一个。
+ * 花的是部署者的钱，不该因为某个人被邀请进来、或者以后开放了注册，
+ * 就变成谁登录了谁都能刷。哪一家算「自己的家」由 AI_HOUSEHOLD 指定，
+ * 默认是第一个账号接管的那个默认住户。
  */
 export const API_KEY_HEADER = "x-openai-key";
 export const MODEL_HEADER = "x-openai-model";
@@ -17,6 +23,12 @@ export type OpenAIConfig = { apiKey: string; model: string };
 
 function envKey() {
   return (env as typeof env & { OPENAI_API_KEY?: string }).OPENAI_API_KEY?.trim() || "";
+}
+
+/** 允许用服务端密钥的那一家。 */
+function serverKeyHousehold() {
+  const configured = (env as typeof env & { AI_HOUSEHOLD?: string }).AI_HOUSEHOLD?.trim();
+  return configured || DEFAULT_HOUSEHOLD_ID;
 }
 
 function envModel() {
@@ -34,11 +46,23 @@ function sanitizeModel(value: string | null) {
   return /^[A-Za-z0-9._-]{1,60}$/.test(model) ? model : "";
 }
 
-export function getOpenAIConfig(request?: Request): OpenAIConfig {
+/**
+ * 取出这次请求该用哪个密钥。
+ *
+ * householdId 必须显式传：
+ *  - 传住户标识 —— 只有它等于 serverKeyHousehold() 时才拿得到服务端那份
+ *  - 传 null —— 定时任务，没有请求者可言，按部署者本人处理
+ *
+ * 做成必填参数是有意的。写成可选的话，将来新增一个 AI 接口时很容易忘了传，
+ * 而忘记的后果是那个接口对所有住户都放开了服务端密钥——一个不会报错、
+ * 只会在账单上出现的疏漏。
+ */
+export function getOpenAIConfig(request: Request | undefined, householdId: string | null): OpenAIConfig {
   const headerKey = request ? sanitizeKey(request.headers.get(API_KEY_HEADER)) : "";
   const headerModel = request ? sanitizeModel(request.headers.get(MODEL_HEADER)) : "";
+  const mayUseServerKey = householdId === null || householdId === serverKeyHousehold();
   return {
-    apiKey: headerKey || envKey(),
+    apiKey: headerKey || (mayUseServerKey ? envKey() : ""),
     model: headerModel || envModel() || DEFAULT_MODEL,
   };
 }

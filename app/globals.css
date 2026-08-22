@@ -5535,3 +5535,30 @@ button.item-main:focus-visible {
   margin-left: 8px;
   color: var(--muted);
 }
+
+/* 「导入菜谱」是 <label> 包着隐藏的 file input——浏览器自带的选择文件控件
+   没法定制，而它要和旁边的按钮长得一样。 */
+.recipe-secondary-action input[type="file"] {
+  display: none;
+}
+.recipe-secondary-action:has(input[type="file"]) {
+  cursor: pointer;
+}
+
+/* 自定义菜谱表单顶部的 AI 补全区，和下面的字段用一条线分开 */
+.recipe-autofill {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.recipe-autofill-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.recipe-autofill-actions small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { Icon } from "./Icon";
 import { dayIn, detectTimeZone } from "./dateTime";
 import {
@@ -14,6 +14,7 @@ import {
 } from "./inventoryUsage";
 import { withAiHeaders } from "./aiSettings";
 import { useAppSettings } from "./AppSettings";
+import { downloadRecipeFile, draftRecipeFromDescription, parseRecipeFile } from "./recipeTransfer";
 import { readJson } from "./apiClient";
 import { Modal } from "./Modal";
 import type { Locale } from "./i18n";
@@ -182,6 +183,10 @@ export function RecipeWorkspace({
   const [tagFilter, setTagFilter] = useState("全部");
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [recipeDraft, setRecipeDraft] = useState<Recipe | null | undefined>(undefined);
+  // 表单是非受控的（用 defaultValue），AI 补全之后要让它按新值重新挂载，
+  // 否则 React 不会去改已经渲染出来的 input。换 key 是最省事的做法。
+  const [draftSeed, setDraftSeed] = useState(0);
+  const [description, setDescription] = useState("");
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [requestDraft, setRequestDraft] = useState<Partial<MealRequest> | null>(null);
   const [historyDraft, setHistoryDraft] = useState<(Partial<CookHistory> & { rating?: number }) | null>(null);
@@ -367,6 +372,88 @@ export function RecipeWorkspace({
         desiredTo: addDays(timeZone, dateString(timeZone), 6),
       },
     );
+  }
+
+  /**
+   * 把一段描述交给模型，拿回一份填好的草稿。
+   *
+   * 结果只填进表单，不入库——补全的是初稿，该由人过一遍再保存。
+   */
+  async function autofill() {
+    const text = description.trim();
+    if (text.length < 4) {
+      notify(t("多写几个字，比如「妈妈做的番茄牛腩，牛腩先焯水」"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const { recipe, demo } = await draftRecipeFromDescription(text);
+      // 只覆盖模型填得出来的字段。收藏、做过几次、照片这些属于这个家的记录，
+      // 补全一份草稿不该把它们冲掉——编辑已有菜谱时尤其明显。
+      setRecipeDraft((current) => ({
+        cookedCount: 0,
+        ratingCount: 0,
+        photos: [],
+        isFavorite: false,
+        isCustom: true,
+        tags: [],
+        mealTypes: [],
+        ...(current ?? {}),
+        // recipe 里没有 tags / mealTypes，所以上面那两个默认值（或已有值）会留下来
+        ...recipe,
+        id: current?.id ?? "",
+      }));
+      setDraftSeed((seed) => seed + 1);
+      notify(demo ? t("演示模式：填的是示例内容") : t("已按描述填好，检查一下再保存"));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("菜谱补全失败"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** 把菜谱库导成一个可以直接发给别人的文件。 */
+  function shareRecipes() {
+    if (!data.recipes.length) {
+      notify(t("菜谱库还是空的"));
+      return;
+    }
+    downloadRecipeFile(data.recipes);
+    notify(t("已导出 {count} 道菜谱", { count: data.recipes.length }));
+  }
+
+  /**
+   * 导入别人分享的菜谱。
+   *
+   * 逐道调用现有的 saveRecipe——那条路上的清洗、截断、默认值都已经写好了，
+   * 再写一遍只会多出一份会分叉的逻辑。每道都换新 id，不会覆盖自己已有的菜。
+   */
+  async function importRecipes(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    try {
+      const shared = parseRecipeFile(await file.text());
+      let saved = 0;
+      for (const recipe of shared) {
+        const response = await fetch("/api/recipe-workspace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "saveRecipe",
+            recipe: { ...recipe, id: `recipe-${crypto.randomUUID()}`, isFavorite: false, isCustom: true },
+          }),
+        });
+        if (response.ok) saved += 1;
+      }
+      await load();
+      notify(t("已导入 {count} 道菜谱", { count: saved }));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("菜谱导入失败"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveRecipe(event: FormEvent<HTMLFormElement>) {
@@ -656,6 +743,13 @@ export function RecipeWorkspace({
           <button className="recipe-secondary-action" onClick={() => setRecipeDraft(null)}>
             {t("＋ 自定义菜谱")}
           </button>
+          <button className="recipe-secondary-action" disabled={busy} onClick={shareRecipes}>
+            {t("↗ 分享菜谱")}
+          </button>
+          <label className="recipe-secondary-action">
+            {t("↙ 导入菜谱")}
+            <input type="file" accept=".json,application/json" disabled={busy} onChange={importRecipes} />
+          </label>
           <button className="recipe-generate" disabled={busy} onClick={generateRecipes}>
             {busy ? t("处理中…") : t("✦ 根据库存推荐")}
           </button>
@@ -1269,7 +1363,24 @@ export function RecipeWorkspace({
           title={recipeDraft?.id ? t("编辑菜谱") : t("创建自定义菜谱")}
           onClose={() => setRecipeDraft(undefined)}
         >
-          <form onSubmit={saveRecipe}>
+          <form onSubmit={saveRecipe} key={draftSeed}>
+            <div className="recipe-autofill">
+              <label className="field full">
+                <span>{t("用一句话描述这道菜，让 AI 先填一版")}</span>
+                <textarea
+                  value={description}
+                  rows={2}
+                  placeholder={t("例如：妈妈做的番茄牛腩，牛腩先焯水，番茄炒出沙")}
+                  onChange={(event) => setDescription(event.target.value)}
+                />
+              </label>
+              <div className="recipe-autofill-actions">
+                <button type="button" className="secondary-button" disabled={busy} onClick={autofill}>
+                  {busy ? t("处理中…") : t("✦ 按描述补全")}
+                </button>
+                <small>{t("填好的是初稿，保存之前自己过一遍。")}</small>
+              </div>
+            </div>
             <div className="field-grid">
               <label className="field">
                 <span>{t("菜名")}</span>

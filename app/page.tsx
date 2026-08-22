@@ -204,7 +204,19 @@ function getItemIcon(item: Pick<InventoryItem, "name" | "category">) {
 type Translate = (text: string, vars?: Record<string, string | number>) => string;
 
 // 下面几个是模块级纯函数，拿不到 hook，所以把需要的格式化器当参数传进来。
-function getExpiryInfo(item: ShelfLifeInput, t: Translate) {
+/**
+ * 到期信息。已经用完的东西没有到期日可言。
+ *
+ * 这一条挡在这里而不是挡在卡片里，是因为同一个函数还喂着总览上的「临期」计数
+ * 和「需要处理」的筛选。只改卡片的话，数字里仍然混着一堆你早就吃完的东西——
+ * 一盒空豆浆不该让你觉得有东西要坏了。
+ */
+function getExpiryInfo(
+  item: ShelfLifeInput & { quantity?: number; remainingPercent?: number },
+  t: Translate,
+) {
+  const emptied = Number(item.quantity) <= 0 || Number(item.remainingPercent) <= 0;
+  if (emptied) return null;
   const { date, fromOpening } = effectiveExpiry(item);
   if (!date) return null;
   const today = new Date();

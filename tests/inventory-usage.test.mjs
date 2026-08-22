@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   applyConsumption,
@@ -206,4 +207,21 @@ test("days in use counts from the opening date, falling back to the purchase dat
 
 test("a future date reports nothing rather than a negative age", () => {
   assert.equal(daysInUse({ purchaseDate: "2026-08-25" }, new Date("2026-08-20T12:00:00")), null);
+});
+
+/**
+ * 已经用完的东西不该再显示到期信息。
+ *
+ * 一盒喝完的豆浆挂着「已过期 7 天」，看着像是有东西要坏了，其实早就没了。
+ * 而且同一个 getExpiryInfo 还喂着总览上的「临期」计数和「需要处理」的筛选——
+ * 只在卡片上藏起来的话，数字里仍然混着一堆你早就吃完的东西。
+ * 所以闸门必须在函数最前面，早于算日期。
+ */
+test("已用完的物品不产生到期信息", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const body = page.slice(page.indexOf("function getExpiryInfo"));
+  const guard = body.indexOf("if (emptied) return null;");
+  const compute = body.indexOf("effectiveExpiry(item)");
+  assert.ok(guard !== -1, "getExpiryInfo 里缺少「已用完」的闸门");
+  assert.ok(guard < compute, "闸门要排在算到期日之前");
 });

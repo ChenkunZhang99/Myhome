@@ -93,12 +93,13 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
   assert.match(workspace, /catalog-recipe-photo/);
   assert.match(workspace, /完成并评分/);
   assert.match(schema, /recipe_catalog/);
+  assert.match(schema, /flyer_sources/);
+  assert.match(schema, /household_stores/);
+  assert.doesNotMatch(schema, /CREATE TABLE IF NOT EXISTS recipe_favorites/);
   assert.match(schema, /household_members/);
   assert.match(schema, /meal_requests/);
   assert.match(schema, /recipe_cook_history/);
   assert.match(workspaceRoute, /generateShopping/);
-  assert.match(schema, /DELETE FROM recipe_suggestions/);
-  assert.match(schema, /DELETE FROM recipe_favorites/);
   assert.match(schema, /action = '删除菜谱'/);
   assert.match(workspaceRoute, /savePreferences/);
   assert.match(schema, /recipe_attachments/);
@@ -112,7 +113,6 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
   assert.match(recipe, /当前库存/);
   assert.match(recipe, /当前有效 Flyer 优惠/);
   assert.match(recipe, /source/);
-  assert.match(schema, /recipe_favorites/);
   assert.match(recipe, /export const POST = withRoute/);
   assert.doesNotMatch(recipe, /export const (GET|PATCH) =/);
   assert.match(skill, /targeted match/);

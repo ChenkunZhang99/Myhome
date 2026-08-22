@@ -505,8 +505,6 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         db
           .prepare("DELETE FROM recipe_cook_history WHERE household_id = ? AND recipe_id = ?")
           .bind(household, recipeId),
-        db.prepare("DELETE FROM recipe_favorites WHERE id = ?").bind(recipeId),
-        db.prepare("DELETE FROM recipe_suggestions WHERE id = ?").bind(recipeId),
         db
           .prepare("DELETE FROM recipe_attachments WHERE household_id = ? AND recipe_id = ?")
           .bind(household, recipeId),

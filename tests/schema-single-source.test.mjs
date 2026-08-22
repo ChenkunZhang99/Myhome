@@ -55,7 +55,7 @@ test("每张被查询的表都由唯一的 schema 文件创建", async () => {
       name.toLowerCase(),
     ),
   );
-  assert.ok(declared.size >= 22, `schema.ts 只声明了 ${declared.size} 张表`);
+  assert.ok(declared.size >= 20, `schema.ts 只声明了 ${declared.size} 张表`);
 
   const missing = [];
   for (const file of sources) {

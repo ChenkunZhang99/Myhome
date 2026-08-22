@@ -7,9 +7,8 @@ import { once } from "./once";
 /**
  * 全项目唯一的建表来源。
  *
- * 语句按固定顺序执行：先建表，再建索引，然后补列，最后才是种子数据和回填。
- * 顺序是必需的，因为回填会跨表读取（把 recipe_favorites 的旧数据搬进 recipe_catalog），
- * 只有全部表都存在时才成立。
+ * 语句按固定顺序执行：先建表，再建索引，然后补列，最后才是种子数据。
+ * 顺序是必需的，因为种子里的清理语句会跨表读取，只有全部表都存在时才成立。
  *
  * 以前每个路由各自维护自己用到的那几张表。结果是同一张表在两处重复定义，
  * 而跨表的回填语句依赖了别的路由才会建的表，谁先被访问决定了会不会报错。
@@ -72,17 +71,6 @@ const TABLES = [
     timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}',
     household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`,
-  `CREATE TABLE IF NOT EXISTS stores (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    address TEXT NOT NULL DEFAULT '',
-    source_key TEXT,
-    flyer_url TEXT NOT NULL DEFAULT '',
-    flyer_format TEXT NOT NULL DEFAULT 'manual',
-    last_synced_at TEXT,
-    is_favorite INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS flyer_sources (
     source_key TEXT PRIMARY KEY,
@@ -188,34 +176,6 @@ const TABLES = [
     household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
-  `CREATE TABLE IF NOT EXISTS recipe_suggestions (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    summary TEXT NOT NULL DEFAULT '',
-    reason TEXT NOT NULL DEFAULT '',
-    origin TEXT NOT NULL DEFAULT '库存优先',
-    icon TEXT NOT NULL DEFAULT '🍲',
-    cook_time TEXT NOT NULL DEFAULT '30 分钟',
-    difficulty TEXT NOT NULL DEFAULT '简单',
-    servings INTEGER NOT NULL DEFAULT 2,
-    ingredients_json TEXT NOT NULL DEFAULT '[]',
-    steps_json TEXT NOT NULL DEFAULT '[]',
-    generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`,
-  `CREATE TABLE IF NOT EXISTS recipe_favorites (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    summary TEXT NOT NULL DEFAULT '',
-    reason TEXT NOT NULL DEFAULT '',
-    origin TEXT NOT NULL DEFAULT '库存优先',
-    icon TEXT NOT NULL DEFAULT '🍲',
-    cook_time TEXT NOT NULL DEFAULT '30 分钟',
-    difficulty TEXT NOT NULL DEFAULT '简单',
-    servings INTEGER NOT NULL DEFAULT 2,
-    ingredients_json TEXT NOT NULL DEFAULT '[]',
-    steps_json TEXT NOT NULL DEFAULT '[]',
-    favorited_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`,
   `CREATE TABLE IF NOT EXISTS recipe_catalog (
     id TEXT PRIMARY KEY, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', reason TEXT NOT NULL DEFAULT '',
     origin TEXT NOT NULL DEFAULT '家庭自建', icon TEXT NOT NULL DEFAULT '🍲', cook_time TEXT NOT NULL DEFAULT '30 分钟',
@@ -274,7 +234,6 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_purchase_records_name ON purchase_records(name)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_deals_valid_to ON flyer_deals(valid_to)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_deals_store_source ON flyer_deals(store_id, source)",
-  "CREATE INDEX IF NOT EXISTS idx_stores_source_key ON stores(source_key)",
   "CREATE INDEX IF NOT EXISTS idx_household_stores_household ON household_stores(household_id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_stores_subscription ON household_stores(household_id, source_key)",
   "CREATE INDEX IF NOT EXISTS idx_shopping_items_checked ON shopping_items(checked)",
@@ -282,7 +241,6 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_deal ON flyer_price_history(deal_id)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_match_rules_pattern ON flyer_match_rules(deal_pattern, active)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_feedback_action_pattern ON flyer_recommendation_feedback(action, item_pattern)",
-  "CREATE INDEX IF NOT EXISTS idx_recipe_favorites_favorited_at ON recipe_favorites(favorited_at)",
   "CREATE INDEX IF NOT EXISTS idx_recipe_catalog_updated_at ON recipe_catalog(updated_at)",
   "CREATE INDEX IF NOT EXISTS idx_meal_requests_status_date ON meal_requests(status, scheduled_date)",
   "CREATE INDEX IF NOT EXISTS idx_recipe_cook_history_recipe_date ON recipe_cook_history(recipe_id, cooked_date)",
@@ -376,10 +334,6 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     table,
     column: "source_key",
     ddl: `ALTER TABLE ${table} ADD COLUMN source_key TEXT NOT NULL DEFAULT ''`,
-    // 老库里这些行是按 store_id 记的，通过 stores 换成来源标识。
-    backfill: `UPDATE ${table} SET source_key = COALESCE(
-      (SELECT stores.source_key FROM stores WHERE stores.id = ${table}.store_id), '')
-      WHERE source_key = ''`,
   })),
   ...["household_settings", "recipe_preferences", "household_members"].map((table) => ({
     // 多住户改造：已有数据全部归到默认住户，带默认值的加列会一次填好。
@@ -402,29 +356,11 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
 ];
 
 /**
- * 种子行，以及把早期的 recipe_favorites / recipe_suggestions 合并进 recipe_catalog 的回填。
- * 这些语句跨表读写，必须排在所有建表之后。
+ * 种子与清理语句。它们跨表读写，必须排在所有建表之后。
  */
 const SEEDS = [
-  // 门店订阅从旧的 stores 表搬过来。手工门店没有来源标识，就地补一个私有的。
-  `INSERT OR IGNORE INTO household_stores (id, household_id, source_key, name, address, is_favorite, created_at)
-    SELECT id, '${DEFAULT_HOUSEHOLD_ID}', COALESCE(NULLIF(source_key, ''), 'manual-' || id),
-      name, address, is_favorite, created_at FROM stores`,
-  // 手工门店的私有来源也要在目录里有一行，否则订阅指向空处。
-  `INSERT OR IGNORE INTO flyer_sources (source_key, name, address, flyer_url, flyer_format)
-    SELECT 'manual-' || id, name, address, '', 'manual' FROM stores
-    WHERE source_key IS NULL OR source_key = ''`,
-  "DELETE FROM recipe_favorites WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
-  "DELETE FROM recipe_suggestions WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
+  // 删除菜谱时留下的墓碑，用来阻止旧数据被回填语句复活。
   "DELETE FROM recipe_catalog WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
-  `INSERT OR IGNORE INTO recipe_catalog
-    (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json, tags_json, meal_types_json, is_favorite, is_custom)
-    SELECT id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json,
-    '["已收藏"]', '[]', 1, 0 FROM recipe_favorites`,
-  `INSERT OR IGNORE INTO recipe_catalog
-    (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json, tags_json, meal_types_json, is_favorite, is_custom)
-    SELECT id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json,
-    '["智能推荐"]', '[]', 0, 0 FROM recipe_suggestions`,
   "PRAGMA optimize",
 ];
 
@@ -449,6 +385,13 @@ const SOURCE_SEEDS = FLYER_SOURCES.map(
        flyer_url = excluded.flyer_url, flyer_format = excluded.flyer_format`,
 );
 
+/**
+ * 多住户改造之前留下的表。数据已经迁进 household_stores 与 recipe_catalog，
+ * 这里把它们真正删掉，让数据库结构和这个文件保持一致——留着不建也不删的幽灵表，
+ * 「建表只有一个来源」这句话就不成立了。
+ */
+const DROPPED_TABLES = ["stores", "recipe_suggestions", "recipe_favorites"];
+
 export const ensureSchema = once(async () => {
   await env.DB.batch([...TABLES, ...INDEXES].map((ddl) => env.DB.prepare(ddl)));
 
@@ -459,6 +402,8 @@ export const ensureSchema = once(async () => {
   }
 
   await env.DB.batch(INDEXES_ON_ADDED_COLUMNS.map((ddl) => env.DB.prepare(ddl)));
+  await env.DB.batch(DROPPED_TABLES.map((table) => env.DB.prepare(`DROP TABLE IF EXISTS ${table}`)));
+
   await env.DB.batch([
     ...SOURCE_SEEDS.map((sql, index) =>
       env.DB.prepare(sql).bind(

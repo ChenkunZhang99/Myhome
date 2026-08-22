@@ -9,7 +9,7 @@ import { DEFAULT_HOUSEHOLD_ID } from "./householdId";
  * 所以这两张表分开，以后可以关联，现在不强行合并。
  */
 
-export type Account = { id: string; email: string; householdId: string };
+export type Account = { id: string; email: string; householdId: string; role: "owner" | "member" };
 
 /**
  * 按邮箱找账号，没有就建一个。
@@ -19,7 +19,7 @@ export type Account = { id: string; email: string; householdId: string };
  */
 export async function findOrCreateAccount(email: string): Promise<Account> {
   const existing = await env.DB.prepare(
-    "SELECT id, email, household_id AS householdId FROM users WHERE email = ?",
+    "SELECT id, email, household_id AS householdId, role FROM users WHERE email = ?",
   )
     .bind(email)
     .first<Account>();
@@ -29,15 +29,16 @@ export async function findOrCreateAccount(email: string): Promise<Account> {
   const householdId =
     Number(claimed?.count ?? 0) === 0 ? DEFAULT_HOUSEHOLD_ID : `household-${crypto.randomUUID()}`;
 
-  const account = { id: crypto.randomUUID(), email, householdId };
-  await env.DB.prepare("INSERT INTO users (id, email, household_id) VALUES (?, ?, ?)")
-    .bind(account.id, account.email, account.householdId)
+  // 自己开的家，自己就是 owner。被邀请进来的人在接受邀请时改成 member。
+  const account: Account = { id: crypto.randomUUID(), email, householdId, role: "owner" };
+  await env.DB.prepare("INSERT INTO users (id, email, household_id, role) VALUES (?, ?, ?, ?)")
+    .bind(account.id, account.email, account.householdId, account.role)
     .run();
   return account;
 }
 
 export async function accountById(userId: string) {
-  return env.DB.prepare("SELECT id, email, household_id AS householdId FROM users WHERE id = ?")
+  return env.DB.prepare("SELECT id, email, household_id AS householdId, role FROM users WHERE id = ?")
     .bind(userId)
     .first<Account>();
 }
@@ -55,7 +56,7 @@ export async function touchAccount(userId: string) {
  */
 export async function accountByEmail(email: string) {
   return env.DB.prepare(
-    `SELECT id, email, household_id AS householdId, password_hash AS passwordHash,
+    `SELECT id, email, household_id AS householdId, role, password_hash AS passwordHash,
             failed_logins AS failedLogins, locked_until AS lockedUntil
        FROM users WHERE email = ?`,
   )
@@ -82,4 +83,43 @@ export async function clearLoginFailures(userId: string) {
   await env.DB.prepare("UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?")
     .bind(userId)
     .run();
+}
+
+/** 这个家里所有能登录的账号。设置页要列出来，好知道谁进来了。 */
+export async function accountsInHousehold(householdId: string) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, email, role, created_at AS createdAt, last_seen_at AS lastSeenAt
+       FROM users WHERE household_id = ? ORDER BY created_at`,
+  )
+    .bind(householdId)
+    .all<{
+      id: string;
+      email: string;
+      role: "owner" | "member";
+      createdAt: string;
+      lastSeenAt: string | null;
+    }>();
+  return results ?? [];
+}
+
+/**
+ * 把一个账号迁到另一个家。
+ *
+ * 只改 users 这一行——原来那个家的库存、菜谱不会跟着走，也不会被删。
+ * 这是有意的：数据属于家，不属于人。人走了，家还在。
+ */
+export async function moveAccountToHousehold(userId: string, householdId: string, role: "owner" | "member") {
+  await env.DB.prepare("UPDATE users SET household_id = ?, role = ? WHERE id = ?")
+    .bind(householdId, role, userId)
+    .run();
+}
+
+/** 这个家里还剩几个 owner。踢人和退出时都要看，不能让一个家变成没有主人的孤儿。 */
+export async function ownerCount(householdId: string) {
+  const row = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM users WHERE household_id = ? AND role = 'owner'",
+  )
+    .bind(householdId)
+    .first<{ count: number }>();
+  return Number(row?.count ?? 0);
 }

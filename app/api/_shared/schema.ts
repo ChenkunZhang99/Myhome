@@ -70,7 +70,21 @@ const TABLES = [
     -- 密码是可选的：不设就只能用邮箱链接登录，设了两种都行。
     password_hash TEXT,
     failed_logins INTEGER NOT NULL DEFAULT 0,
-    locked_until TEXT
+    locked_until TEXT,
+    -- owner 是开这个家的人，member 是被邀请进来的。两者看到的数据完全一样，
+    -- 区别只在能不能把别人请出去。
+    role TEXT NOT NULL DEFAULT 'owner'
+  )`,
+  `CREATE TABLE IF NOT EXISTS household_invites (
+    token_hash TEXT PRIMARY KEY,
+    household_id TEXT NOT NULL,
+    invited_by TEXT NOT NULL,
+    -- 填了就只有这个邮箱能接受，留空则谁拿到链接都能进
+    email TEXT,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    accepted_at TEXT,
+    accepted_by TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -276,6 +290,8 @@ const INDEXES = [
 const INDEXES_ON_ADDED_COLUMNS = [
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)",
   "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_household_invites_household ON household_invites(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_household_invites_expiry ON household_invites(expires_at)",
   "CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at)",
   "CREATE INDEX IF NOT EXISTS idx_shopping_items_household ON shopping_items(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_match_rules_household ON flyer_match_rules(household_id)",
@@ -331,6 +347,10 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
       ddl: "ALTER TABLE users ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0",
     },
     { column: "locked_until", ddl: "ALTER TABLE users ADD COLUMN locked_until TEXT" },
+    {
+      column: "role",
+      ddl: "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'",
+    },
   ].map((entry) => ({ table: "users", ...entry })),
   {
     // 时区原先写死在代码里，改成按家庭设置，老库需要补上这一列。

@@ -451,6 +451,11 @@ export default function Home() {
 
   const showingDemo = !loading && items.length === 0;
   const displayItems = showingDemo ? demoItems : items;
+  // 打开应用时想知道的是「什么快过期、什么快没了」，不是「我有哪 150 件东西」。
+  // 所以默认只展示需要处理的，全部库存收进另一个视图。
+  const [scope, setScope] = useState<"attention" | "all">("attention");
+  const [dense, setDense] = useState(true);
+
   const filteredItems = useMemo(
     () =>
       displayItems.filter((item) => {
@@ -460,17 +465,31 @@ export default function Home() {
       }),
     [displayItems, search, category],
   );
+  /** 需要处理 = 临期或即将过期，或者数量偏少、已用完。 */
+  function needsAttention(item: InventoryItem) {
+    const info = getExpiryInfo(item, t);
+    if (info?.tone === "warning" || info?.tone === "danger") return true;
+    if (["偏少", "即将用完", "已用完"].includes(item.level)) return true;
+    return Number(item.quantity) <= 0 || Number(item.remainingPercent) <= 30;
+  }
+
+  const attentionItems = useMemo(
+    () => filteredItems.filter(needsAttention),
+    // getExpiryInfo 只依赖翻译函数，翻译变了标签文案会变，但分类结果不变。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredItems],
+  );
+  const visibleItems = scope === "attention" ? attentionItems : filteredItems;
+
   const inventoryGroups = useMemo(() => {
     const grouped = new Map<string, InventoryItem[]>();
-    filteredItems.forEach((item) =>
-      grouped.set(item.category, [...(grouped.get(item.category) ?? []), item]),
-    );
+    visibleItems.forEach((item) => grouped.set(item.category, [...(grouped.get(item.category) ?? []), item]));
     const knownGroups = categories.filter((name) => grouped.has(name));
     const customGroups = [...grouped.keys()]
       .filter((name) => !categories.includes(name))
       .sort((left, right) => left.localeCompare(right, "zh-CN"));
     return [...knownGroups, ...customGroups].map((name) => ({ name, items: grouped.get(name) ?? [] }));
-  }, [filteredItems]);
+  }, [visibleItems]);
 
   const expiringCount = displayItems.filter((item) => {
     const info = getExpiryInfo(item, t);
@@ -756,6 +775,69 @@ export default function Home() {
     setShowAdd(true);
   }
 
+  /**
+   * 紧凑行。
+   *
+   * 原来每件物品是 109px 高、7 个按钮的卡片，150 件就是 23 屏、1000 多个按钮。
+   * 这里把「剩余百分比微调」那四个按钮收进详情——它们是低频的精确操作，
+   * 不该在每一行里常驻。整行可点开详情，加减数量留在行内因为它最常用。
+   */
+  function renderCompactItem(item: InventoryItem) {
+    const expiry = getExpiryInfo(item, t);
+    return (
+      <article className="inventory-row" key={item.id}>
+        <button
+          type="button"
+          className="row-main"
+          onClick={() => setSelectedItem(item)}
+          aria-label={t("查看{name}详细资料", { name: item.name })}
+        >
+          <span className="row-icon" aria-hidden="true">
+            {getItemIcon(item)}
+          </span>
+          <span className="row-name">
+            {tv(item.name)}
+            {item.demo && <span className="demo-tag">{t("示例")}</span>}
+          </span>
+          <span className="row-place">{tv(item.location)}</span>
+          <span
+            className={`stock-tag ${item.level === "即将用完" ? "low" : item.level === "偏少" ? "medium" : "good"}`}
+          >
+            {tv(item.level)}
+          </span>
+          <span className={`row-remaining ${remainingTone(item.remainingPercent)}`}>
+            <i style={{ width: `${item.remainingPercent}%` }} />
+            <b>{item.remainingPercent}%</b>
+          </span>
+          {expiry ? (
+            <span className={`expiry-tag ${expiry.tone}`}>{expiry.label}</span>
+          ) : (
+            <span className="row-spacer" />
+          )}
+        </button>
+        <div className="row-quantity">
+          <button
+            onClick={() => changeQuantity(item, -1)}
+            aria-label={t("减少{name}数量", { name: tv(item.name) })}
+          >
+            −
+          </button>
+          <strong>{formatQuantity(item, { fmtNumber, tu, tv, t })}</strong>
+          <button
+            onClick={() => changeQuantity(item, 1)}
+            aria-label={t("增加{name}数量", { name: tv(item.name) })}
+          >
+            ＋
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  function renderItem(item: InventoryItem) {
+    return dense ? renderCompactItem(item) : renderInventoryItem(item);
+  }
+
   function renderInventoryItem(item: InventoryItem) {
     const expiry = getExpiryInfo(item, t);
     return (
@@ -985,15 +1067,32 @@ export default function Home() {
                   <section className="panel inventory-panel" id="inventory">
                     <div className="section-head">
                       <div>
-                        <p className="eyebrow">{t("需要关注")}</p>
-                        <h2>{t("库存状态")}</h2>
+                        <p className="eyebrow">{scope === "attention" ? t("需要关注") : t("全部库存")}</p>
+                        <h2>
+                          {t("库存状态")}
+                          <small className="section-count">
+                            {t("{count} 项", {
+                              count: scope === "attention" ? attentionItems.length : filteredItems.length,
+                            })}
+                          </small>
+                        </h2>
                       </div>
                       <div className="section-actions">
                         <button className="mini-add-button" onClick={openAddForCurrentCategory}>
                           {t("＋ 添加物品")}
                         </button>
-                        <button className="text-button" onClick={() => setCategory("全部")}>
-                          {t("查看全部")} <span>→</span>
+                        <button
+                          className="text-button"
+                          onClick={() => setDense((value) => !value)}
+                          aria-pressed={!dense}
+                        >
+                          {dense ? t("宽松视图") : t("紧凑视图")}
+                        </button>
+                        <button
+                          className="text-button"
+                          onClick={() => setScope((value) => (value === "all" ? "attention" : "all"))}
+                        >
+                          {scope === "attention" ? t("查看全部") : t("只看需要处理")} <span>→</span>
                         </button>
                       </div>
                     </div>
@@ -1008,16 +1107,30 @@ export default function Home() {
                         </button>
                       ))}
                     </div>
-                    <div className={category === "全部" ? "inventory-list grouped" : "inventory-list"}>
-                      {filteredItems.length === 0 ? (
-                        <div className="empty-state">
-                          <span>📦</span>
-                          <h3>{t("还没有符合条件的物品")}</h3>
-                          <p>{t("从手动录入开始，之后可以继续接入照片、小票和条码。")}</p>
-                          <button className="primary-button" onClick={() => setShowAdd(true)}>
-                            {t("添加物品")}
-                          </button>
-                        </div>
+                    <div
+                      className={`inventory-list${category === "全部" ? " grouped" : ""}${dense ? " dense" : ""}`}
+                    >
+                      {visibleItems.length === 0 ? (
+                        scope === "attention" && filteredItems.length > 0 ? (
+                          // 没有需要处理的不是空状态，是好消息，不该催人添加物品。
+                          <div className="empty-state calm">
+                            <span>✓</span>
+                            <h3>{t("目前没有需要处理的物品")}</h3>
+                            <p>{t("临期、偏少和已用完的物品会出现在这里。")}</p>
+                            <button className="secondary-button" onClick={() => setScope("all")}>
+                              {t("查看全部")}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="empty-state">
+                            <span>📦</span>
+                            <h3>{t("还没有符合条件的物品")}</h3>
+                            <p>{t("从手动录入开始，之后可以继续接入照片、小票和条码。")}</p>
+                            <button className="primary-button" onClick={() => setShowAdd(true)}>
+                              {t("添加物品")}
+                            </button>
+                          </div>
+                        )
                       ) : category === "全部" ? (
                         inventoryGroups.map((group) => (
                           <section
@@ -1032,13 +1145,11 @@ export default function Home() {
                               </div>
                               <small>{t("{count} 项", { count: group.items.length })}</small>
                             </header>
-                            <div className="inventory-group-items">
-                              {group.items.map(renderInventoryItem)}
-                            </div>
+                            <div className="inventory-group-items">{group.items.map(renderItem)}</div>
                           </section>
                         ))
                       ) : (
-                        filteredItems.map(renderInventoryItem)
+                        visibleItems.map(renderItem)
                       )}
                     </div>
                   </section>

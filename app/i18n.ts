@@ -339,6 +339,12 @@ const ui: Record<string, string> = {
   "⚠ 忌口设置": "⚠ Dietary limits",
   一次最多去几家超市: "Most stores per trip",
   账号: "Account",
+  全部库存: "All items",
+  紧凑视图: "Compact view",
+  宽松视图: "Roomy view",
+  只看需要处理: "Needs attention only",
+  目前没有需要处理的物品: "Nothing needs attention",
+  "临期、偏少和已用完的物品会出现在这里。": "Items that are expiring, running low or used up show up here.",
   "登录后才能看到这个家的库存、菜谱与采购记录。":
     "Sign in to see this household's inventory, recipes and purchases.",
   已登录: "Signed in",

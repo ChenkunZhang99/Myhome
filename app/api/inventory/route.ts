@@ -48,6 +48,11 @@ export const GET = withRoute("inventory", async (request: Request) => {
     await ensureSchema();
     // 全新克隆时灌一套演示数据，让界面不是空的（仅演示模式且库存为空时执行）。
     await seedDemoData();
+    // 一次传几百行 JSON 对谁都没好处。上限可调，但必须有。
+    // 注意 Number(null) 是 0 而且它是有限数，直接判 isFinite 会把「没传参数」当成 limit=0。
+    const raw = new URL(request.url).searchParams.get("limit");
+    const requested = raw === null ? Number.NaN : Number(raw);
+    const limit = Number.isFinite(requested) ? Math.min(500, Math.max(1, requested)) : 200;
     const result = await env.DB.prepare(
       `
       SELECT id, name, category, location, precision, quantity, unit,
@@ -58,11 +63,21 @@ export const GET = withRoute("inventory", async (request: Request) => {
              updated_at AS updatedAt
       FROM inventory_items WHERE household_id = ?
       ORDER BY updated_at DESC, created_at DESC
+      LIMIT ?
     `,
     )
-      .bind(household)
+      .bind(household, limit + 1)
       .all();
-    return Response.json({ items: result.results });
+    // 多取一条用来判断还有没有更多，返回时去掉。
+    const items = result.results.slice(0, limit);
+    const total = await env.DB.prepare("SELECT COUNT(*) AS count FROM inventory_items WHERE household_id = ?")
+      .bind(household)
+      .first<{ count: number }>();
+    return Response.json({
+      items,
+      total: Number(total?.count ?? items.length),
+      hasMore: result.results.length > limit,
+    });
   } catch (error) {
     return failure("inventory", error, "库存暂时无法读取", 500);
   }

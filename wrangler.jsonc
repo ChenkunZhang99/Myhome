@@ -10,9 +10,9 @@
     "binding": "ASSETS"
   },
 
-  // 本地开发用 Miniflare 模拟，不需要真实的 Cloudflare 账号。
-  // 部署前先跑 `npx wrangler d1 create home-stock-planner`，把返回的
-  // database_id 填到下面，再跑 `npx wrangler r2 bucket create home-stock-uploads`。
+  // 本地开发用 Miniflare 模拟，不需要真实的 Cloudflare 账号，
+  // 下面这个占位 id 在本地不会被用到。
+  // 部署步骤见 docs/deploy.md。
   "d1_databases": [
     {
       "binding": "DB",
@@ -27,6 +27,20 @@
       "bucket_name": "home-stock-uploads"
     }
   ],
+
+  /**
+   * 线上默认值。
+   *
+   * 这两个开关写在提交进版本库的配置里，而不是留成部署时的手工步骤——
+   * 忘记设 REQUIRE_HOUSEHOLD 的后果是任何人都能读到这个家的全部库存，
+   * 那种错误不该靠记性来防。
+   *
+   * 本地开发用 .dev.vars 覆盖它们，那个文件优先级更高。
+   */
+  "vars": {
+    "REQUIRE_HOUSEHOLD": "on",
+    "DEMO_MODE": "off"
+  },
 
   // 每 6 小时检查一次是否到了 flyer 自动同步时间。
   "triggers": {

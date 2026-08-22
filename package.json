@@ -15,7 +15,9 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "backup": "node scripts/backup-db.mjs"
+    "backup": "node scripts/backup-db.mjs",
+    "release": "pnpm run build && wrangler deploy -c dist/server/wrangler.json",
+    "release:check": "pnpm run build && wrangler deploy -c dist/server/wrangler.json --dry-run"
   },
   "dependencies": {
     "lucide-react": "^1.33.0",

@@ -14,7 +14,8 @@
     "typecheck": "wrangler types && tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "backup": "node scripts/backup-db.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.33.0",

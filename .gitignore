@@ -54,3 +54,6 @@ yarn-error.log*
 
 
 worker-configuration.d.ts
+
+# 本地数据库快照，含真实家庭数据
+/backups/

@@ -81,7 +81,7 @@ type ConsumptionSnapshot = {
  * 按用户在「完成菜谱」里选的用量扣减库存，并返回改动前后的快照。
  * 快照存进制作记录，撤销时才能把库存原样还回去。
  */
-async function consumeInventory(value: unknown): Promise<ConsumptionSnapshot[]> {
+async function consumeInventory(householdId: string, value: unknown): Promise<ConsumptionSnapshot[]> {
   const entries = (Array.isArray(value) ? value : [])
     .slice(0, 40)
     .map((entry) => {
@@ -109,7 +109,7 @@ async function consumeInventory(value: unknown): Promise<ConsumptionSnapshot[]> 
     `SELECT id, name, quantity, unit, remaining_percent AS remainingPercent, level
      FROM inventory_items WHERE household_id = ? AND id IN (${placeholders})`,
   )
-    .bind(...ids)
+    .bind(householdId, ...ids)
     .all<{
       id: string;
       name: string;
@@ -136,7 +136,7 @@ async function consumeInventory(value: unknown): Promise<ConsumptionSnapshot[]> 
       env.DB.prepare(
         `UPDATE inventory_items SET quantity = ?, remaining_percent = ?, level = ?,
         updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?`,
-      ).bind(after.quantity, after.remainingPercent, after.level, stock.id),
+      ).bind(after.quantity, after.remainingPercent, after.level, householdId, stock.id),
     );
     snapshots.push({ inventoryId: stock.id, name: stock.name, before, after });
   }
@@ -149,7 +149,7 @@ async function consumeInventory(value: unknown): Promise<ConsumptionSnapshot[]> 
  * 撤销制作记录时把扣掉的库存还回去。
  * 只还原那些从扣减之后没有再被人改动过的物品，避免覆盖用户后来的修改。
  */
-async function restoreInventory(value: string) {
+async function restoreInventory(householdId: string, value: string) {
   const snapshots = safeJson<ConsumptionSnapshot[]>(value, []);
   if (!Array.isArray(snapshots) || !snapshots.length) return { restored: 0, skipped: 0 };
   await ensureSchema();
@@ -167,7 +167,7 @@ async function restoreInventory(value: string) {
     `SELECT id, quantity, remaining_percent AS remainingPercent
      FROM inventory_items WHERE household_id = ? AND id IN (${placeholders})`,
   )
-    .bind(...ids)
+    .bind(householdId, ...ids)
     .all<{ id: string; quantity: number; remainingPercent: number }>();
   const currentById = new Map(currentRows.results.map((row) => [row.id, row]));
 
@@ -191,6 +191,7 @@ async function restoreInventory(value: string) {
         snapshot.before.quantity,
         snapshot.before.remainingPercent,
         snapshot.before.level,
+        householdId,
         snapshot.inventoryId,
       ),
     );
@@ -615,7 +616,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         .prepare(
           "SELECT recipe_id AS recipeId, member_id AS memberId FROM meal_requests WHERE household_id = ? AND id = ?",
         )
-        .bind(requestId)
+        .bind(household, requestId)
         .first<{ recipeId: string; memberId: string }>();
       await db
         .prepare("DELETE FROM meal_requests WHERE household_id = ? AND id = ?")
@@ -691,7 +692,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
           .bind(household, `rating-${recipeId}-${memberId}`, recipeId, memberId, rating)
           .run();
       // 只有第一次记录完成时才扣库存，编辑旧记录不应该重复扣。
-      const consumption = item.id ? [] : await consumeInventory(payload.consumption);
+      const consumption = item.id ? [] : await consumeInventory(household, payload.consumption);
       if (consumption.length) {
         await db
           .prepare("UPDATE recipe_cook_history SET consumption_json = ? WHERE household_id = ? AND id = ?")
@@ -716,7 +717,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         .first<{ recipeId: string; requestId: string | null; consumptionJson: string }>();
       if (existing) {
         // 先把这顿饭扣掉的库存还回去，再删记录。
-        const { restored, skipped } = await restoreInventory(existing.consumptionJson);
+        const { restored, skipped } = await restoreInventory(household, existing.consumptionJson);
         await db
           .prepare("DELETE FROM recipe_cook_history WHERE household_id = ? AND id = ?")
           .bind(household, historyId)

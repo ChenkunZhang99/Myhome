@@ -5,6 +5,7 @@ import {
   DEFAULT_IMAGE_SIZES,
 } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { INTERNAL_HEADER, internalToken } from "../app/api/_shared/internal";
 
 /** Cloudflare Images is optional; without it images are served unmodified. */
 type ImagesBinding = {
@@ -61,7 +62,10 @@ const worker = {
     return handler.fetch(request, env, ctx);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    const request = new Request("https://household.internal/api/flyers/sync?scheduled=1", { method: "POST" });
+    const request = new Request("https://household.internal/api/flyers/sync?scheduled=1", {
+      method: "POST",
+      headers: { [INTERNAL_HEADER]: internalToken() },
+    });
     ctx.waitUntil(
       handler.fetch(request, env, ctx).then(async (response) => {
         if (!response.ok) throw new Error(`Flyer background sync failed: ${response.status}`);

@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
-import { safeMessage, UserFacingError, withRoute } from "../../_shared/observability";
-import { householdTimeZone } from "../../_shared/household";
+import { failure, safeMessage, UserFacingError, withRoute } from "../../_shared/observability";
+import { householdTimeZone, resolveHousehold } from "../../_shared/household";
+import { isInternalCall } from "../../_shared/internal";
 import { dayIn } from "../../../dateTime";
 import { ensureSchema } from "../../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig, type OpenAIConfig } from "../../_shared/openai";
@@ -249,6 +250,18 @@ function packageDetails(itemName: string, unit: string) {
 }
 
 export const POST = withRoute("flyers.sync", async (request: Request) => {
+  // 这个接口会调用模型，也就是会花钱。不鉴权的话，任何人循环打它就能
+  // 把服务端配置的额度烧光——他不需要拿到密钥，把这个 Worker 当免费代理就够了。
+  // 定时任务带着进程内的内部令牌，走另一条路。
+  //
+  // 闸门单独放在下面那个 try 之外：被拒绝不是「同步失败」，不能走 markFailure，
+  // 否则谁都能把界面上的「上次同步」刷成一条无关的错误。状态码也要是 401 而不是 500。
+  try {
+    if (!isInternalCall(request)) await resolveHousehold(request);
+  } catch (error) {
+    return failure("flyers.sync", error, "Flyer 自动同步失败", 401);
+  }
+
   try {
     // 定时任务没有浏览器可问，只会拿到环境变量里的密钥；这里两者都覆盖。
     const openAI = getOpenAIConfig(request);

@@ -8,7 +8,7 @@ REQUIRE_HOUSEHOLD=
 RESEND_API_KEY=
 LOGIN_FROM_EMAIL=
 
-# 密码哈希轮数，默认 600000（约 60ms CPU）。
-# Cloudflare Workers 免费版每请求只有 10ms CPU，部署在那里必须调低，
-# 比如 100000；付费版是 30 秒，保持默认即可。
+# 密码哈希轮数，默认 20000（约 2ms CPU），为了能跑在 Workers 免费版的
+# 10ms CPU 上限内。迁到付费版（单请求 30 秒）后调到 600000，
+# 那是 OWASP 的建议值。已存在的密码不受影响，哈希串自带轮数。
 PASSWORD_ITERATIONS=

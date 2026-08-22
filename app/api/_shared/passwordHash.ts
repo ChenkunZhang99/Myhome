@@ -8,7 +8,9 @@ import { UserFacingError } from "./observability.ts";
  * 算法用 WebCrypto 自带的 PBKDF2-HMAC-SHA256。Workers 里没有 Argon2id 或 bcrypt，
  * 它们要么是原生模块，要么得背一个 WASM 包。PBKDF2 抗 GPU 破解的能力确实不如
  * Argon2id，但它零依赖；对一个要自己长期维护的项目来说，「少一个依赖」是实打实的
- * 收益，差距可以靠轮数补一部分。
+ * 收益。
+ *
+ * 轮数由调用方给，见 password.ts —— 那里解释了为什么是现在这个数。
  */
 
 const SALT_BYTES = 16;
@@ -39,7 +41,7 @@ async function derive(password: string, salt: Uint8Array, rounds: number) {
 }
 
 /**
- * 存进库里的字符串自带算法和轮数：`pbkdf2-sha256$600000$<salt>$<hash>`。
+ * 存进库里的字符串自带算法和轮数：`pbkdf2-sha256$20000$<salt>$<hash>`。
  *
  * 以后换成 Argon2 或者调高轮数时，老密码仍然能按它自己记着的参数验证，
  * 验证通过后就地重算成新格式即可——不需要让所有人重设密码。

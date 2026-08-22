@@ -1,4 +1,4 @@
-import { daysInUse } from "./inventoryUsage.ts";
+import { daysInUse, effectiveExpiry } from "./inventoryUsage.ts";
 
 export type FlyerInventorySignal = {
   name: string;
@@ -57,6 +57,12 @@ export type FlyerRecommendation = {
   suggestedQuantity: number;
   /** 同一件商品还在几家别的门店打折。用来提示「另有 N 家也在特价」而不是重复推荐。 */
   alsoAtStoreCount: number;
+  /** 按当前消耗速度推算还能撑几天。查不到购买日或还没动过时为空。 */
+  daysLeft?: number;
+  /** 匹配到的物品还有几天到期。负数表示已经过期。 */
+  expiresInDays?: number;
+  /** 分数由哪几项组成。排查「为什么这条排在前面」时唯一有用的东西。 */
+  factors: ScoreFactor[];
 };
 
 export type PurchasePlan = {
@@ -101,14 +107,104 @@ export function normalizeFlyerName(value: string) {
     .replace(/[\s\p{P}\p{S}]/gu, "");
 }
 
-function urgency(item: FlyerInventorySignal) {
+/**
+ * 按已用掉的比例和用了多少天，推算还能撑几天。
+ *
+ * 「还剩 40%」本身说明不了什么：买了 2 天就剩 40%，三天后就没了；
+ * 买了 45 天才剩 40%，还能撑两个月。决定要不要现在买的是后者，不是前者。
+ *
+ * 只用得上一次购买之内的数据，所以这是个粗估，不是预测。查不到购买日、
+ * 或者一口都没动过（没有消耗速度可言）时返回 undefined，调用方据此退回只看剩余量。
+ */
+export function estimateDaysLeft(item: FlyerInventorySignal, today?: string) {
+  const remaining = Math.max(0, Math.min(100, Number(item.remainingPercent ?? 100)));
+  // 必须用传进来的这一天，不能读设备时钟：整个推荐都以 today 为基准算有效期和到期日，
+  // 消耗天数偷偷用另一个「今天」的话，同一次推荐里的日期就自相矛盾了。
+  const days = daysInUse(item, today ? new Date(`${today}T00:00:00`) : undefined);
+  if (days === null || days <= 0 || remaining >= 100 || remaining <= 0) return undefined;
+  const perDay = (100 - remaining) / days;
+  if (perDay <= 0) return undefined;
+  return Math.round((remaining / perDay) * 10) / 10;
+}
+
+/** 距离到期还有几天。已经过期返回负数。 */
+export function daysToExpiry(item: FlyerInventorySignal, today: string) {
+  const { date } = effectiveExpiry(item);
+  if (!date) return undefined;
+  const target = Date.parse(`${date}T00:00:00`);
+  const base = Date.parse(`${today}T00:00:00`);
+  if (Number.isNaN(target) || Number.isNaN(base)) return undefined;
+  return Math.ceil((target - base) / 86400000);
+}
+
+/**
+ * 有多急着补这件东西。
+ *
+ * 「急」的定义是「多快就会没有」，而它有三个来源，取最急的那个：
+ *  - 剩下多少（原本唯一看的东西）
+ *  - 用得多快——同样剩 40%，两天用掉六成和四十天用掉六成不是一回事
+ *  - 还有几天过期——快过期的东西等于快没了，哪怕瓶子还是满的
+ *
+ * 4 留给「已经没有了」这一种确定状态，推算出来的最多到 3：
+ * 估算再准也不该和事实平起平坐。
+ */
+/**
+ * 排序权重。
+ *
+ * 这些数字原本散在三段 score 表达式里，改一个要在三处对齐，而且改完没有任何办法
+ * 判断是变好还是变坏。集中放在这里，配合下面的 factors 一起看：
+ * 每条推荐都会带上自己的分数是由哪几项、各加了多少组成的。
+ *
+ * 数值本身仍然是经验值，不是算出来的——但至少现在它们是可读、可调、可解释的。
+ */
+const WEIGHTS = {
+  /** 匹配到具体缺货物品时的起步分，保证它们排在分类机会之前 */
+  matchedBase: 90,
+  /** 分类兜底的起步分 */
+  categoryBase: 45,
+  /** 机会购买的起步分：家里不缺，只是便宜 */
+  opportunityBase: 25,
+  /** 每一级紧急度的加成 */
+  urgencyStep: 12,
+  categoryUrgencyStep: 8,
+  /** 匹配精度：同名 > 同产品族 > 分类 */
+  targetedMatch: 18,
+  substituteMatch: 8,
+  /** 折扣的加成上限——再深的折扣也不该盖过「家里真的缺」 */
+  savingsCap: 16,
+  categorySavingsCap: 12,
+  /** 价格触及历史最低 */
+  historicalLow: 10,
+  categoryHistoricalLow: 8,
+  opportunityHistoricalLow: 12,
+} as const;
+
+/** 一条推荐的分数是怎么来的。给人看的，不参与计算。 */
+export type ScoreFactor = { label: string; points: number };
+
+function urgency(item: FlyerInventorySignal, today?: string) {
   const remaining = Math.max(0, Math.min(100, Number(item.remainingPercent ?? 100)));
   if (Number(item.quantity) === 0 || remaining === 0 || item.level === "已用完") return 4;
-  if (remaining <= 20) return 3;
-  if (remaining <= 50) return 2;
-  if (item.level === "即将用完") return 3;
-  if (item.level === "偏少") return 2;
-  return 0;
+
+  let level = 0;
+  if (remaining <= 20) level = 3;
+  else if (remaining <= 50) level = 2;
+  if (item.level === "即将用完") level = Math.max(level, 3);
+  if (item.level === "偏少") level = Math.max(level, 2);
+
+  const daysLeft = estimateDaysLeft(item, today);
+  if (daysLeft !== undefined) {
+    if (daysLeft <= 3) level = Math.max(level, 3);
+    else if (daysLeft <= 7) level = Math.max(level, 2);
+  }
+
+  const untilExpiry = today ? daysToExpiry(item, today) : undefined;
+  if (untilExpiry !== undefined) {
+    if (untilExpiry <= 2) level = Math.max(level, 3);
+    else if (untilExpiry <= 5) level = Math.max(level, 2);
+  }
+
+  return level;
 }
 
 /**
@@ -118,8 +214,9 @@ function urgency(item: FlyerInventorySignal) {
  * 界面却说得像真算过。改成报告已使用天数：这是从购买日或开封日直接得出的事实，
  * 用户自己就能判断还能撑多久。
  */
-function usedDays(item?: FlyerInventorySignal) {
-  return item ? (daysInUse(item) ?? undefined) : undefined;
+function usedDays(item?: FlyerInventorySignal, today?: string) {
+  if (!item) return undefined;
+  return daysInUse(item, today ? new Date(`${today}T00:00:00`) : undefined) ?? undefined;
 }
 
 function sameProductFamily(left: string, right: string) {
@@ -216,7 +313,7 @@ export function recommendFlyerDeals(
 ) {
   const rules = Array.isArray(rulesOrToday) ? rulesOrToday : [];
   const today = typeof rulesOrToday === "string" ? rulesOrToday : (planningDate ?? localDateString());
-  const lowItems = inventory.filter((item) => urgency(item) > 0);
+  const lowItems = inventory.filter((item) => urgency(item, today) > 0);
   const lowByCategory = new Map<string, FlyerInventorySignal[]>();
   for (const item of lowItems)
     lowByCategory.set(item.category, [...(lowByCategory.get(item.category) ?? []), item]);
@@ -228,10 +325,10 @@ export function recommendFlyerDeals(
       const manual = manualMatch(deal, inventory, rules);
       const exact = lowItems
         .filter((item) => item.category === deal.category && exactProduct(item.name, deal.itemName))
-        .sort((a, b) => urgency(b) - urgency(a))[0];
+        .sort((a, b) => urgency(b, today) - urgency(a, today))[0];
       const substitute = lowItems
         .filter((item) => item.category === deal.category && sameProductFamily(item.name, deal.itemName))
-        .sort((a, b) => urgency(b) - urgency(a))[0];
+        .sort((a, b) => urgency(b, today) - urgency(a, today))[0];
       const direct = manual?.item ?? exact ?? substitute;
       const kind = manual?.kind ?? (exact ? "targeted" : substitute ? "substitute" : "category");
       const categoryItems = lowByCategory.get(deal.category) ?? [];
@@ -249,16 +346,35 @@ export function recommendFlyerDeals(
               ? "normal"
               : "unknown";
       if (direct) {
-        const level = urgency(direct);
+        const level = urgency(direct, today);
         const tier = level >= 3 ? "must" : "recommended";
+        const daysLeft = estimateDaysLeft(direct, today);
+        const expiresInDays = daysToExpiry(direct, today);
+        const factors: ScoreFactor[] = [
+          { label: "匹配到缺货物品", points: WEIGHTS.matchedBase },
+          { label: `紧急度 ${level}`, points: level * WEIGHTS.urgencyStep },
+        ];
+        if (kind === "targeted") factors.push({ label: "同名商品", points: WEIGHTS.targetedMatch });
+        else if (kind === "substitute") factors.push({ label: "同产品族", points: WEIGHTS.substituteMatch });
+        if (savings > 0)
+          factors.push({
+            label: `折扣 ${Math.round(savings)}%`,
+            points: Math.min(WEIGHTS.savingsCap, savings / 2),
+          });
+        if (endingBonus > 0) factors.push({ label: "优惠即将结束", points: endingBonus });
+        if (priceSignal === "historical-low")
+          factors.push({ label: "触及历史最低价", points: WEIGHTS.historicalLow });
         return {
+          daysLeft,
+          expiresInDays,
+          factors,
           dealId: deal.id,
           storeId: deal.storeId,
           tier,
           kind,
           matchedItemName: direct.name,
           matchedLevel: direct.level,
-          daysUsed: usedDays(direct),
+          daysUsed: usedDays(direct, today),
           lowCategoryCount: categoryItems.length,
           savingsPercent: savings,
           unitPrice: pack.unitPrice,
@@ -266,18 +382,43 @@ export function recommendFlyerDeals(
           priceSignal,
           suggestedQuantity: level === 4 ? 2 : 1,
           alsoAtStoreCount: 0,
-          score:
-            90 +
-            level * 12 +
-            (kind === "targeted" ? 18 : kind === "substitute" ? 8 : 0) +
-            Math.min(16, savings / 2) +
-            endingBonus +
-            (priceSignal === "historical-low" ? 10 : 0),
+          score: factors.reduce((sum, factor) => sum + factor.points, 0),
         };
       }
       if (categoryItems.length && categoryFallbacks.has(deal.category)) {
-        const highestUrgency = Math.max(...categoryItems.map(urgency));
+        const highestUrgency = Math.max(...categoryItems.map((item) => urgency(item, today)));
+        /**
+         * 这个大类里最快要断的那件还有几天。
+         *
+         * 注意不能取「最急的那件」——最急的往往是已经用完的，
+         * 而用完的东西没有消耗速度可言，算出来是空。要的是那些还剩一点、
+         * 但按当前用量马上要没的东西：那才是这一趟该顺手带的。
+         *
+         * 一件都算不出来（全都空了，或者都没记购买日）时留空，
+         * 文案会退回只讲「有几项在减少」。
+         */
+        const categoryDaysLeft = categoryItems
+          .map((item) => estimateDaysLeft(item, today))
+          .filter((days): days is number => days !== undefined)
+          .sort((x, y) => x - y)[0];
+        const factors: ScoreFactor[] = [
+          { label: `${deal.category}有 ${categoryItems.length} 项缺货`, points: WEIGHTS.categoryBase },
+          {
+            label: `最急的一项紧急度 ${highestUrgency}`,
+            points: highestUrgency * WEIGHTS.categoryUrgencyStep,
+          },
+        ];
+        if (savings > 0)
+          factors.push({
+            label: `折扣 ${Math.round(savings)}%`,
+            points: Math.min(WEIGHTS.categorySavingsCap, savings / 3),
+          });
+        if (endingBonus > 0) factors.push({ label: "优惠即将结束", points: endingBonus });
+        if (priceSignal === "historical-low")
+          factors.push({ label: "触及历史最低价", points: WEIGHTS.categoryHistoricalLow });
         return {
+          factors,
+          daysLeft: categoryDaysLeft,
           dealId: deal.id,
           storeId: deal.storeId,
           tier: "recommended",
@@ -289,12 +430,7 @@ export function recommendFlyerDeals(
           priceSignal,
           suggestedQuantity: 1,
           alsoAtStoreCount: 0,
-          score:
-            45 +
-            highestUrgency * 8 +
-            Math.min(12, savings / 3) +
-            endingBonus +
-            (priceSignal === "historical-low" ? 8 : 0),
+          score: factors.reduce((sum, factor) => sum + factor.points, 0),
         };
       }
       const ownedItem = inventory.find(
@@ -305,7 +441,15 @@ export function recommendFlyerDeals(
         ownedItem &&
         (savings >= 25 || priceSignal === "historical-low")
       ) {
+        const factors: ScoreFactor[] = [
+          { label: "家里有同款，只是便宜", points: WEIGHTS.opportunityBase },
+          { label: `折扣 ${Math.round(savings)}%`, points: savings / 2 },
+        ];
+        if (priceSignal === "historical-low")
+          factors.push({ label: "触及历史最低价", points: WEIGHTS.opportunityHistoricalLow });
+        if (endingBonus > 0) factors.push({ label: "优惠即将结束", points: endingBonus });
         return {
+          factors,
           dealId: deal.id,
           storeId: deal.storeId,
           tier: "opportunity",
@@ -317,7 +461,7 @@ export function recommendFlyerDeals(
           priceSignal,
           suggestedQuantity: 1,
           alsoAtStoreCount: 0,
-          score: 25 + savings / 2 + (priceSignal === "historical-low" ? 12 : 0) + endingBonus,
+          score: factors.reduce((sum, factor) => sum + factor.points, 0),
         };
       }
       return null;

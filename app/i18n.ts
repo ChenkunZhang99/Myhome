@@ -621,6 +621,22 @@ const ui: Record<string, string> = {
   按余量记录: "By remaining %",
   日: "D",
   主要导航: "Main navigation",
+  "不到 1 天就会用完": "will run out within a day",
+  "约还能撑 {days} 天": "has about {days} days left",
+  "，按目前用量{pace}": ", at the current pace it {pace}",
+  "{category}中有 {count} 项库存开始减少，最快要断的一项{pace}。":
+    "{count} items in {category} are running low; the first to go {pace}.",
+  "不到 1 天": "under a day",
+  "，按目前用量约还能撑{days}": ", about {days} left at the current pace",
+  "{category}中有 {count} 项库存开始减少，最快要断的一项约还能撑{days}。":
+    "{count} items in {category} are running low; the first to run out has about {days} left.",
+  "{category}中有 {count} 项库存开始减少，最急的一项约还能撑 {days} 天。":
+    "{count} items in {category} are running low; the most urgent has about {days} days left.",
+  "{name}目前{level}{pace}{expiry}。": "{name} is {level}{pace}{expiry}.",
+  "，已使用 {days} 天": ", in use for {days} days",
+  "，按目前用量约还能撑 {days} 天": ", about {days} days left at the current pace",
+  "，且已过期": ", and already past its date",
+  "，且 {days} 天后到期": ", and expires in {days} days",
   密钥格式不对: "Key looks wrong",
   "保存的值不像一个 API 密钥，请只粘贴 sk- 开头的那一段，前后不要带别的字符。":
     "The saved value does not look like an API key. Paste only the sk- string, with nothing before or after it.",

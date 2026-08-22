@@ -851,14 +851,35 @@ export function PlannerPanel({
                 );
                 const matchedName = tv(recommendation.matchedItemName ?? "");
                 const matchedLevel = tv(recommendation.matchedLevel ?? "");
-                const targetedReason =
-                  recommendation.daysUsed === undefined
-                    ? t("{name}目前{level}。", { name: matchedName, level: matchedLevel })
-                    : t("{name}目前{level}，已使用 {days} 天。", {
-                        name: matchedName,
-                        level: matchedLevel,
-                        days: recommendation.daysUsed,
-                      });
+                /**
+                 * 「还能撑几天」比「已使用几天」更能决定要不要现在买，
+                 * 所以有推算结果时优先说它；推不出来（没记购买日、或者还没动过）
+                 * 才退回讲事实：已经放了多少天，让人自己判断。
+                 */
+                /**
+                 * 天数是估算，显示成 0.5 或 1.3 会让人以为算得很准。
+                 * 不到一天就直说不到一天，其余取整。
+                 */
+                const paceText = (days: number) =>
+                  days < 1 ? t("不到 1 天就会用完") : t("约还能撑 {days} 天", { days: Math.round(days) });
+                const paceNote =
+                  recommendation.daysLeft === undefined
+                    ? recommendation.daysUsed === undefined
+                      ? ""
+                      : t("，已使用 {days} 天", { days: recommendation.daysUsed })
+                    : t("，按目前用量{pace}", { pace: paceText(recommendation.daysLeft) });
+                const expiryNote =
+                  recommendation.expiresInDays === undefined || recommendation.expiresInDays > 5
+                    ? ""
+                    : recommendation.expiresInDays < 0
+                      ? t("，且已过期")
+                      : t("，且 {days} 天后到期", { days: recommendation.expiresInDays });
+                const targetedReason = t("{name}目前{level}{pace}{expiry}。", {
+                  name: matchedName,
+                  level: matchedLevel,
+                  pace: paceNote,
+                  expiry: expiryNote,
+                });
                 const reason =
                   recommendation.kind === "targeted"
                     ? targetedReason
@@ -869,10 +890,20 @@ export function PlannerPanel({
                           name: tv(recommendation.matchedItemName ?? ""),
                         })
                       : recommendation.lowCategoryCount
-                        ? t("{category}中有 {count} 项库存开始减少，适合补充这个大类。", {
-                            category: tv(deal.category),
-                            count: recommendation.lowCategoryCount,
-                          })
+                        ? // 「这个大类有 4 项在减少」等于没说——4 项里最急的那项还能撑多久，
+                          // 才是决定这一趟要不要买的信息。天数已经算出来了，这里必须接上。
+                          recommendation.daysLeft === undefined
+                          ? t("{category}中有 {count} 项库存开始减少，适合补充这个大类。", {
+                              category: tv(deal.category),
+                              count: recommendation.lowCategoryCount,
+                            })
+                          : // 说的是「最快要断的」不是「最急的」——最急的往往已经空了，
+                            // 而算得出天数的恰恰是那些还剩一点、马上要没的。
+                            t("{category}中有 {count} 项库存开始减少，最快要断的一项{pace}。", {
+                              category: tv(deal.category),
+                              count: recommendation.lowCategoryCount,
+                              pace: paceText(recommendation.daysLeft),
+                            })
                         : t("当前库存尚可，但这项优惠达到值得关注的价格。");
                 const priceNote =
                   recommendation.priceSignal === "historical-low"

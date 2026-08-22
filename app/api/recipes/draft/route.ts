@@ -84,14 +84,15 @@ export const POST = withRoute("recipes.draft", async (request: Request) => {
     if (!response.ok) {
       // 只记状态码是不够的：400 有几十种原因，没有原文就只能靠猜。
       // 原文进日志、不出接口——redact 会把 sk- 形态的东西抹掉。
-      const upstream = (raw.error as { message?: string; code?: string } | undefined) ?? {};
+      // 之前只记 message 和 code，拿到的是一句「Bad Request」——对排查毫无用处。
+      // 整个错误体记下来（截断 + 脱敏）：400 的原因几乎总在 param 或 type 里。
+      // 这里记的是 OpenAI 的响应，不含我们发过去的内容，也就不含密钥。
       console.error(
         JSON.stringify({
           at: new Date().toISOString(),
           scope: "recipes.draft",
           status: response.status,
-          code: upstream.code,
-          reason: redact(String(upstream.message ?? "")),
+          body: redact(JSON.stringify(raw).slice(0, 900)),
         }),
       );
       throw new UserFacingError("菜谱补全暂时失败，请稍后再试", 502);
@@ -100,8 +101,21 @@ export const POST = withRoute("recipes.draft", async (request: Request) => {
     if (!text) throw new UserFacingError("没有生成可用的内容，换一段描述再试", 422);
 
     const recipe = cleanGeneratedRecipe(JSON.parse(text) as GeneratedRecipe);
-    if (!recipe.ingredients.length || !recipe.steps.length)
+    if (!recipe.ingredients.length || !recipe.steps.length) {
+      // 「不完整」有两种可能：模型真没写，或者我们没从响应里取对地方。
+      // 不把原始文本记下来就分不清这两者。
+      console.warn(
+        JSON.stringify({
+          at: new Date().toISOString(),
+          scope: "recipes.draft",
+          problem: "清洗后食材或步骤为空",
+          ingredients: recipe.ingredients.length,
+          steps: recipe.steps.length,
+          sample: redact(text.slice(0, 500)),
+        }),
+      );
       throw new UserFacingError("生成的内容不完整，换一段描述再试", 422);
+    }
     return Response.json({ recipe });
   } catch (error) {
     return failure("recipes.draft", error, "菜谱补全暂时不可用", 500);

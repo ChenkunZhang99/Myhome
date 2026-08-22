@@ -21,8 +21,41 @@ const DEFAULT_MODEL = "gpt-5.6-luna";
 
 export type OpenAIConfig = { apiKey: string; model: string };
 
+/** 只接受长得像密钥的值：避免把任意内容原样拼进 Authorization 头。 */
+function sanitizeKey(value: string | null) {
+  const key = (value ?? "").trim();
+  return /^[A-Za-z0-9._-]{20,200}$/.test(key) ? key : "";
+}
+
+/**
+ * 环境变量里的密钥，和请求头那份走同一套校验。
+ *
+ * 以前这里只做 trim。trim 只去掉首尾空白——中间夹一个换行、两头带着引号、
+ * 或者整行连变量名一起粘了进来，都会原样拼进 Authorization 头，
+ * 于是请求在到达模型之前就被网关拒掉，回一句没有任何细节的 "Bad Request"。
+ * 那种错误最难查：看起来像是我们的请求体写错了，其实是密钥的形状不对。
+ *
+ * 现在形状不对就当作没配，并且记一条日志说明原因——记长度和字符类别，不记内容。
+ */
 function envKey() {
-  return (env as typeof env & { OPENAI_API_KEY?: string }).OPENAI_API_KEY?.trim() || "";
+  const raw = (env as typeof env & { OPENAI_API_KEY?: string }).OPENAI_API_KEY ?? "";
+  const key = sanitizeKey(raw);
+  if (!key && raw.trim()) {
+    const trimmed = raw.trim();
+    console.warn(
+      JSON.stringify({
+        at: new Date().toISOString(),
+        scope: "openai",
+        problem: "服务端密钥格式不合法，已当作未配置",
+        length: trimmed.length,
+        hasWhitespaceInside: /\s/.test(trimmed),
+        hasQuotes: /["']/.test(trimmed),
+        hasEquals: trimmed.includes("="),
+        startsWithSk: trimmed.startsWith("sk-"),
+      }),
+    );
+  }
+  return key;
 }
 
 /** 允许用服务端密钥的那一家。 */
@@ -33,12 +66,6 @@ function serverKeyHousehold() {
 
 function envModel() {
   return (env as typeof env & { OPENAI_MODEL?: string }).OPENAI_MODEL?.trim() || "";
-}
-
-/** 只接受长得像密钥的值，避免把任意请求头内容原样转发出去。 */
-function sanitizeKey(value: string | null) {
-  const key = (value ?? "").trim();
-  return /^[A-Za-z0-9._-]{20,200}$/.test(key) ? key : "";
 }
 
 function sanitizeModel(value: string | null) {

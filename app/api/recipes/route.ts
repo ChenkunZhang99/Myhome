@@ -67,17 +67,28 @@ export const POST = withRoute("recipes", async (request: Request) => {
     )
       .bind(household)
       .all();
+    /**
+     * 这条查询以前有两处错，而且一直没被发现——演示模式在它之前就返回了，
+     * 所以直到线上配上真密钥，它才第一次真正执行。
+     *
+     *  1. 取的是 stores.name，但多住户改造时那张表已经拆成 household_stores
+     *     和 flyer_sources 了，没有叫 stores 的东西
+     *  2. 四个占位符只绑了三个值，household 压根没传进去
+     *
+     * 改用编号参数：today 要用两次，位置绑法在这种时候最容易错位。
+     */
     const deals = await env.DB.prepare(
       `SELECT flyer_deals.id, flyer_deals.item_name AS itemName, flyer_deals.category,
-      flyer_deals.price, flyer_deals.unit, flyer_deals.valid_to AS validTo, stores.name AS storeName
+      flyer_deals.price, flyer_deals.unit, flyer_deals.valid_to AS validTo,
+      flyer_sources.name AS storeName
       FROM flyer_deals
       JOIN household_stores ON household_stores.source_key = flyer_deals.source_key
-        AND household_stores.household_id = ?
+        AND household_stores.household_id = ?1
       LEFT JOIN flyer_sources ON flyer_sources.source_key = flyer_deals.source_key
-      WHERE flyer_deals.valid_from <= ? AND flyer_deals.valid_to >= ?
-      ORDER BY CASE WHEN flyer_deals.id = ? THEN 0 ELSE 1 END, flyer_deals.valid_to ASC LIMIT 50`,
+      WHERE flyer_deals.valid_from <= ?2 AND flyer_deals.valid_to >= ?2
+      ORDER BY CASE WHEN flyer_deals.id = ?3 THEN 0 ELSE 1 END, flyer_deals.valid_to ASC LIMIT 50`,
     )
-      .bind(today, today, focusDealId)
+      .bind(household, today, focusDealId)
       .all();
     const preferences = await env.DB.prepare(
       "SELECT allergies, avoid_foods AS avoidFoods, dislikes, notes FROM recipe_preferences WHERE household_id = ?",
@@ -212,14 +223,15 @@ export const POST = withRoute("recipes", async (request: Request) => {
       // 见 tests/error-handling.test.mjs：对外只给这个接口自己的安全文案。
       // 只记状态码是不够的：400 有几十种原因，没有原文就只能靠猜。
       // 原文进日志、不出接口——redact 会把 sk- 形态的东西抹掉。
-      const upstream = (raw.error as { message?: string; code?: string } | undefined) ?? {};
+      // 之前只记 message 和 code，拿到的是一句「Bad Request」——对排查毫无用处。
+      // 整个错误体记下来（截断 + 脱敏）：400 的原因几乎总在 param 或 type 里。
+      // 这里记的是 OpenAI 的响应，不含我们发过去的内容，也就不含密钥。
       console.error(
         JSON.stringify({
           at: new Date().toISOString(),
           scope: "recipes",
           status: response.status,
-          code: upstream.code,
-          reason: redact(String(upstream.message ?? "")),
+          body: redact(JSON.stringify(raw).slice(0, 900)),
         }),
       );
       return Response.json({ error: "菜谱生成暂时失败" }, { status: 502 });

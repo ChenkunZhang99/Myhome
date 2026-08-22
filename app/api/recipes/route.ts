@@ -6,24 +6,9 @@ import { dayIn } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig } from "../_shared/openai";
 import { demoRecipes, isDemoMode } from "../_shared/demo";
+import { cleanGeneratedRecipe as cleanRecipe, GeneratedRecipe, RECIPE_SCHEMA } from "../_shared/recipeShape";
 
 const foodCategories = ["蔬菜水果", "肉类海鲜", "乳品蛋类", "米面粮油", "调味品", "冷冻食品", "零食饮料"];
-const origins = ["库存优先", "临期优先", "Flyer 搭配", "库存＋优惠"];
-const ingredientSources = ["inventory", "flyer", "pantry"];
-
-type GeneratedIngredient = { name: string; amount: string; source: "inventory" | "flyer" | "pantry" };
-type GeneratedRecipe = {
-  title: string;
-  summary: string;
-  reason: string;
-  origin: string;
-  icon: string;
-  cookTime: string;
-  difficulty: string;
-  servings: number;
-  ingredients: GeneratedIngredient[];
-  steps: string[];
-};
 
 function outputText(response: Record<string, unknown>) {
   const output = Array.isArray(response.output)
@@ -37,50 +22,6 @@ function outputText(response: Record<string, unknown>) {
 
 async function localDate(householdId: string) {
   return dayIn(await householdTimeZone(householdId));
-}
-
-function cleanRecipe(recipe: GeneratedRecipe) {
-  const ingredients = (recipe.ingredients ?? [])
-    .slice(0, 14)
-    .map((item) => ({
-      name: String(item.name ?? "")
-        .trim()
-        .slice(0, 80),
-      amount:
-        String(item.amount ?? "适量")
-          .trim()
-          .slice(0, 40) || "适量",
-      source: ingredientSources.includes(item.source) ? item.source : "pantry",
-    }))
-    .filter((item) => item.name);
-  const steps = (recipe.steps ?? [])
-    .slice(0, 8)
-    .map((step) => String(step).trim().slice(0, 240))
-    .filter(Boolean);
-  return {
-    id: crypto.randomUUID(),
-    title:
-      String(recipe.title ?? "家常料理")
-        .trim()
-        .slice(0, 80) || "家常料理",
-    summary: String(recipe.summary ?? "")
-      .trim()
-      .slice(0, 180),
-    reason: String(recipe.reason ?? "")
-      .trim()
-      .slice(0, 220),
-    origin: origins.includes(recipe.origin) ? recipe.origin : "库存优先",
-    icon: String(recipe.icon ?? "🍲").slice(0, 8) || "🍲",
-    cookTime: String(recipe.cookTime ?? "30 分钟")
-      .trim()
-      .slice(0, 30),
-    difficulty: String(recipe.difficulty ?? "简单")
-      .trim()
-      .slice(0, 20),
-    servings: Math.min(8, Math.max(1, Math.round(Number(recipe.servings) || 2))),
-    ingredients,
-    steps,
-  };
 }
 
 function dietaryTerms(value: string) {
@@ -164,44 +105,8 @@ export const POST = withRoute("recipes", async (request: Request) => {
 5. 口味以家常中式、亚洲风味和简单西式为主，默认两人份，步骤简洁但足以实际做菜。
 6. reason 明确说明为什么适合当前库存或哪项 Flyer 优惠；origin 从给定枚举选择。
 7. 严格遵守家庭过敏、忌口和不喜欢的食物；即使库存或 Flyer 中存在这些食材也必须忽略，不得出现在菜名、食材或步骤中。`;
-    const ingredientSchema = {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        name: { type: "string" },
-        amount: { type: "string" },
-        source: { type: "string", enum: ingredientSources },
-      },
-      required: ["name", "amount", "source"],
-    };
-    const recipeSchema = {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        title: { type: "string" },
-        summary: { type: "string" },
-        reason: { type: "string" },
-        origin: { type: "string", enum: origins },
-        icon: { type: "string" },
-        cookTime: { type: "string" },
-        difficulty: { type: "string", enum: ["简单", "中等"] },
-        servings: { type: "integer" },
-        ingredients: { type: "array", items: ingredientSchema },
-        steps: { type: "array", items: { type: "string" } },
-      },
-      required: [
-        "title",
-        "summary",
-        "reason",
-        "origin",
-        "icon",
-        "cookTime",
-        "difficulty",
-        "servings",
-        "ingredients",
-        "steps",
-      ],
-    };
+    // 单道菜谱的形状和 /api/recipes/draft 共用，见 _shared/recipeShape.ts
+    const recipeSchema = RECIPE_SCHEMA;
     const schema = {
       type: "object",
       additionalProperties: false,

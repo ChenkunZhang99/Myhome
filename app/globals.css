@@ -2,7 +2,7 @@
 
 :root {
   --ink: #183029;
-  --muted: #718078;
+  --muted: #5b6d64;
   --paper: #f4f2eb;
   --card: #fffefa;
   --line: #e5e2d8;
@@ -10,8 +10,27 @@
   --green-dark: #204e3c;
   --green-soft: #deede2;
   --coral: #d86f55;
+  /* 同一个珊瑚色做文字时对比度不够，深一档专供文字使用 */
+  --coral-text: #b04a31;
   --amber: #d59a3f;
   --blue: #5a7d91;
+
+  /* 字号尺度。原来有 21 种字号、下限 7px，这里收敛成 9 档，正文不再小于 12px。 */
+  --text-2xs: 12px;
+  --text-xs: 13px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 26px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+
+  /* 圆角。原来有 14 种取值，收敛成三档加一个胶囊。 */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
 }
 
 * {
@@ -59,7 +78,7 @@ button {
   display: flex;
   align-items: center;
   gap: 11px;
-  font-size: 20px;
+  font-size: var(--text-xl);
   font-weight: 750;
   padding: 0 8px 34px;
   cursor: pointer;
@@ -67,7 +86,7 @@ button {
 .brand-mark {
   width: 34px;
   height: 34px;
-  border-radius: 10px 10px 14px 14px;
+  border-radius: var(--radius-md) 10px 14px 14px;
   background: #f3c86d;
   color: #234d3d;
   display: inline-grid;
@@ -85,7 +104,7 @@ button {
   border: 0;
   background: transparent;
   color: #c3d7cf;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 11px 13px;
   display: flex;
   align-items: center;
@@ -96,7 +115,7 @@ button {
 }
 .nav-item span {
   width: 20px;
-  font-size: 18px;
+  font-size: var(--text-lg);
   text-align: center;
 }
 .nav-item:hover,
@@ -133,16 +152,21 @@ button {
   gap: 2px;
 }
 .home-profile strong {
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .home-profile small {
   color: #a7c0b6;
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 
 .content {
   width: calc(100% - 230px);
   margin-left: 230px;
+}
+/* 大屏上不让内容一直拉宽：行太长会明显拖慢阅读速度。 */
+.content > * {
+  max-width: 1440px;
+  margin-inline: auto;
 }
 .topbar {
   height: 72px;
@@ -166,7 +190,7 @@ button {
   width: min(360px, 42vw);
   height: 40px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: #f7f5ef;
   display: flex;
   align-items: center;
@@ -185,7 +209,7 @@ button {
   width: 40px;
   height: 40px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: white;
   cursor: pointer;
   position: relative;
@@ -201,7 +225,7 @@ button {
 }
 .primary-button,
 .secondary-button {
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 11px 17px;
   font-weight: 700;
   cursor: pointer;
@@ -248,7 +272,7 @@ button {
 .eyebrow {
   margin: 0 0 7px;
   color: var(--green);
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -268,24 +292,24 @@ h1 {
 }
 h2 {
   font-family: Georgia, "Noto Serif SC", serif;
-  font-size: 23px;
+  font-size: var(--text-xl);
   margin-bottom: 0;
 }
 h3 {
-  font-size: 15px;
+  font-size: var(--text-md);
   margin-bottom: 4px;
 }
 .hero-copy {
   margin: 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 .sync-pill {
   border: 1px solid #d7e5da;
   background: #eef6f0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: #466356;
   white-space: nowrap;
 }
@@ -306,7 +330,7 @@ h3 {
   padding: 14px 16px;
   border: 1px dashed #d6b66f;
   background: #fff8e7;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   margin-bottom: 18px;
   color: #695632;
 }
@@ -315,7 +339,7 @@ h3 {
   gap: 3px;
 }
 .demo-banner span {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .demo-banner button {
   border: 0;
@@ -335,7 +359,7 @@ h3 {
 .summary-card {
   min-height: 116px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   padding: 18px;
   display: flex;
@@ -346,10 +370,10 @@ h3 {
 .summary-icon {
   width: 45px;
   height: 45px;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   display: grid;
   place-items: center;
-  font-size: 19px;
+  font-size: var(--text-lg);
   font-weight: 800;
 }
 .summary-card.green .summary-icon {
@@ -374,15 +398,15 @@ h3 {
 }
 .summary-card span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .summary-card strong {
   font-family: Georgia, serif;
-  font-size: 22px;
+  font-size: var(--text-xl);
 }
 .summary-card small {
-  color: #98a29d;
-  font-size: 10px;
+  color: var(--muted);
+  font-size: var(--text-xs);
 }
 .main-grid {
   display: grid;
@@ -398,7 +422,7 @@ h3 {
 .panel {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   padding: 22px;
   box-shadow: 0 8px 28px rgb(35 53 44 / 4%);
   scroll-margin-top: 92px;
@@ -420,11 +444,11 @@ h3 {
 }
 .mini-add-button {
   border: 1px solid #b9d3c2;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: #edf6ef;
   color: var(--green);
   padding: 8px 11px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
@@ -435,7 +459,7 @@ h3 {
 }
 .field-hint {
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 650;
   margin-top: -1px;
 }
@@ -443,7 +467,7 @@ h3 {
   border: 0;
   background: transparent;
   color: var(--green);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
 }
@@ -463,8 +487,8 @@ h3 {
   background: #f8f7f2;
   color: var(--muted);
   padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -482,7 +506,7 @@ h3 {
 .inventory-group {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: #fffefa;
 }
 .inventory-group-heading {
@@ -505,20 +529,20 @@ h3 {
   height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: white;
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 .inventory-group-heading h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .inventory-group-heading small {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 8px;
   background: #e2ede5;
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   white-space: nowrap;
 }
@@ -532,7 +556,7 @@ h3 {
   padding: 14px 0;
   border-top: 1px solid #ece9e1;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   transition:
     background 0.16s ease,
     box-shadow 0.16s ease;
@@ -553,11 +577,11 @@ h3 {
 .item-picture {
   width: 48px;
   height: 48px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: #f2efe7;
   display: grid;
   place-items: center;
-  font-size: 24px;
+  font-size: var(--text-2xl);
   flex: none;
 }
 .item-main {
@@ -575,15 +599,15 @@ h3 {
 .demo-tag {
   padding: 2px 5px;
   background: #fff1ce;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: #856322;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
 }
 .item-main p {
   margin: 3px 0 7px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .item-meta {
   display: flex;
@@ -593,9 +617,9 @@ h3 {
 .stock-tag,
 .expiry-tag,
 .purchase-tag {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 3px 7px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 .stock-tag.good {
@@ -616,7 +640,7 @@ h3 {
 }
 .expiry-tag.warning {
   background: #fff0d7;
-  color: #9b6816;
+  color: #7d520f;
 }
 .expiry-tag.danger {
   background: #f8dcd7;
@@ -635,11 +659,11 @@ h3 {
 .quantity-control button {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: white;
   cursor: pointer;
-  font-size: 16px;
+  font-size: var(--text-md);
 }
 .quantity-control button:hover {
   border-color: #9db9a7;
@@ -648,7 +672,7 @@ h3 {
 .quantity-control strong {
   min-width: 76px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -671,18 +695,18 @@ h3 {
   align-items: center;
   gap: 7px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .remaining-summary strong {
   color: var(--ink);
   text-align: right;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 .remaining-track {
   height: 7px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #e8e9e4;
 }
 .remaining-track i {
@@ -712,10 +736,10 @@ h3 {
 .remaining-actions button {
   min-height: 25px;
   border: 1px solid #d9ddd8;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: #fbfcf9;
   color: #426b58;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
@@ -734,7 +758,7 @@ h3 {
   color: var(--muted);
 }
 .empty-state > span {
-  font-size: 32px;
+  font-size: var(--text-3xl);
 }
 .empty-state h3 {
   color: var(--ink);
@@ -743,7 +767,7 @@ h3 {
 .empty-state p {
   max-width: 380px;
   margin: 0 auto 16px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 .quick-grid {
@@ -754,7 +778,7 @@ h3 {
 .quick-action {
   border: 1px solid var(--line);
   background: #f8f7f2;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   padding: 14px 8px;
   display: grid;
   gap: 4px;
@@ -771,16 +795,16 @@ h3 {
   display: grid;
   place-items: center;
   background: white;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: var(--green);
-  font-size: 17px;
+  font-size: var(--text-lg);
 }
 .quick-action strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .quick-action small {
-  color: #99a39d;
-  font-size: 9px;
+  color: var(--muted);
+  font-size: var(--text-xs);
 }
 .quick-action.ready {
   border-color: #b9d3c2;
@@ -788,9 +812,9 @@ h3 {
 }
 .status-badge,
 .soft-badge {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 5px 8px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
 }
 .status-badge {
@@ -804,18 +828,18 @@ h3 {
 .flyer-panel > h3,
 .recipe-panel > h3 {
   font-family: Georgia, "Noto Serif SC", serif;
-  font-size: 17px;
+  font-size: var(--text-lg);
   margin-top: 15px;
 }
 .flyer-panel > p,
 .recipe-panel > p {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.65;
 }
 .flyer-empty-art {
   height: 104px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: #edf3ef;
   position: relative;
   overflow: hidden;
@@ -827,7 +851,7 @@ h3 {
 .calendar-sheet {
   width: 64px;
   height: 70px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: white;
   box-shadow: 0 6px 14px rgb(44 83 65 / 12%);
   display: grid;
@@ -842,7 +866,7 @@ h3 {
   background: var(--coral);
   position: absolute;
   top: 0;
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--radius-md) 10px 0 0;
 }
 .calendar-sheet span {
   font:
@@ -850,7 +874,7 @@ h3 {
     serif;
 }
 .calendar-sheet small {
-  font-size: 8px;
+  font-size: var(--text-2xs);
   color: var(--muted);
 }
 .overlap-lines {
@@ -860,7 +884,7 @@ h3 {
 }
 .overlap-lines i {
   height: 10px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: #aac9b5;
 }
 .overlap-lines i:nth-child(2) {
@@ -898,25 +922,25 @@ h3 {
   margin: 0;
 }
 .flyer-rule strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .flyer-rule small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .recipe-visual {
   height: 74px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: #fff6e9;
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 9px;
-  font-size: 22px;
+  font-size: var(--text-xl);
 }
 .recipe-visual span:nth-child(even) {
   color: #b59a67;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .recipe-principles {
   display: flex;
@@ -926,15 +950,15 @@ h3 {
 }
 .recipe-principles span {
   padding: 5px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #eef4ef;
   color: #557363;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 .budget-amount {
   padding: 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: #e8f0f3;
   display: flex;
   align-items: end;
@@ -948,7 +972,7 @@ h3 {
 }
 .budget-amount span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .budget-split {
   display: grid;
@@ -958,16 +982,16 @@ h3 {
 }
 .budget-split span {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 9px;
   display: grid;
   gap: 3px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .budget-split b {
   color: var(--ink);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .location-line {
   display: flex;
@@ -991,11 +1015,11 @@ h3 {
   gap: 2px;
 }
 .location-line strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .location-line small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .store-head {
   display: flex;
@@ -1004,16 +1028,16 @@ h3 {
   margin-top: 6px;
 }
 .store-head strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .store-head button,
 .mini-primary {
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--green-soft);
   color: var(--green);
   padding: 6px 8px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -1028,9 +1052,9 @@ h3 {
   align-items: center;
   gap: 5px;
   background: #f1f2ed;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 5px 8px;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .store-chips button {
   border: 0;
@@ -1042,7 +1066,7 @@ h3 {
 .micro-empty,
 .panel-note {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.55;
   margin: 10px 0 0;
 }
@@ -1054,7 +1078,7 @@ h3 {
   height: 58px;
 }
 .overlap-card {
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   padding: 15px;
   background: linear-gradient(135deg, #e7f1e9, #f7f3e5);
   display: grid;
@@ -1062,7 +1086,7 @@ h3 {
 }
 .overlap-card span {
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -1073,7 +1097,7 @@ h3 {
 }
 .overlap-card small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .deal-list {
   display: grid;
@@ -1092,15 +1116,15 @@ h3 {
   gap: 2px;
 }
 .deal-row strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .deal-row small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .deal-row > span {
-  color: var(--coral);
-  font-size: 10px;
+  color: var(--coral-text);
+  font-size: var(--text-xs);
   font-weight: 800;
 }
 .deal-row > button {
@@ -1113,7 +1137,7 @@ h3 {
   border-top: 1px solid var(--line);
   padding-top: 11px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .savings-line strong {
   color: var(--green);
@@ -1126,7 +1150,7 @@ h3 {
 .flyer-sources article {
   border: 1px solid var(--line);
   background: #fbfaf6;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -1136,11 +1160,11 @@ h3 {
   gap: 3px;
 }
 .flyer-sources strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .flyer-sources small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   line-height: 1.4;
 }
 .source-actions {
@@ -1150,9 +1174,9 @@ h3 {
 }
 .source-actions a,
 .source-actions button {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
   text-decoration: none;
 }
@@ -1178,11 +1202,11 @@ h3 {
 }
 .sync-now {
   border: 1px solid #b8d0c0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: white;
   color: var(--green);
   padding: 6px 8px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
@@ -1194,7 +1218,7 @@ h3 {
 .flyer-automation {
   margin: -5px 0 12px;
   border: 1px solid #d9e6dc;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 10px;
   background: #f3f8f4;
   display: grid;
@@ -1231,11 +1255,11 @@ h3 {
   gap: 2px;
 }
 .flyer-automation strong {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .flyer-automation small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1245,21 +1269,21 @@ h3 {
   align-items: center;
   gap: 5px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .sync-frequency select {
   border: 1px solid #d1ddd5;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: white;
   color: var(--ink);
   padding: 5px 6px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .automation-toggle {
   width: 34px;
   height: 19px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #cbd1cd;
   padding: 2px;
   cursor: pointer;
@@ -1285,11 +1309,11 @@ h3 {
 }
 .deal-row strong em {
   margin-left: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 2px 5px;
   background: #e5f1e7;
   color: var(--green);
-  font-size: 7px;
+  font-size: var(--text-2xs);
   font-style: normal;
 }
 .deal-row small a {
@@ -1319,20 +1343,20 @@ h3 {
   gap: 2px;
 }
 .recommendation-heading strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .recommendation-heading small,
 .recommendation-empty {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   line-height: 1.5;
 }
 .recommendation-heading > span {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--green-soft);
   color: var(--green);
   padding: 4px 7px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
 }
 .recommendation-list {
@@ -1342,7 +1366,7 @@ h3 {
 }
 .recommendation-card {
   border: 1px solid #dce5de;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 10px;
   background: linear-gradient(135deg, #fbfdfb, #f4f8f5);
   display: grid;
@@ -1361,7 +1385,7 @@ h3 {
 }
 .recommendation-top span {
   color: var(--green);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 850;
   letter-spacing: 0.04em;
 }
@@ -1369,29 +1393,29 @@ h3 {
   color: #966c25;
 }
 .recommendation-top b {
-  color: var(--coral);
-  font-size: 8px;
+  color: var(--coral-text);
+  font-size: var(--text-2xs);
 }
 .recommendation-card > strong {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .recommendation-card > small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   line-height: 1.45;
 }
 .recommendation-meta > span {
   color: var(--ink);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 750;
 }
 .recommendation-meta button {
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--green);
   color: white;
   padding: 6px 8px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -1402,7 +1426,7 @@ h3 {
 }
 .recommendation-empty {
   margin: 9px 0 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 9px;
   background: #f6f5ef;
 }
@@ -1411,9 +1435,9 @@ h3 {
   border: 1px dashed #9db9a7;
   background: #eef6f0;
   color: var(--green);
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 10px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -1438,11 +1462,11 @@ h3 {
   gap: 2px;
 }
 .shopping-row strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .shopping-row small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .shopping-row > button {
   border: 0;
@@ -1457,7 +1481,7 @@ h3 {
 .shopping-progress {
   height: 5px;
   margin-top: 13px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: #ecece6;
   overflow: hidden;
 }
@@ -1471,7 +1495,7 @@ h3 {
 .shopping-summary {
   display: block;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   margin-top: 6px;
 }
 .recipe-list {
@@ -1484,7 +1508,7 @@ h3 {
   gap: 10px;
   border: 1px solid var(--line);
   background: #fbfaf5;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 10px;
 }
 .recipe-list article > span {
@@ -1492,7 +1516,7 @@ h3 {
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: #fff4dd;
 }
 .recipe-list article div {
@@ -1500,25 +1524,25 @@ h3 {
   gap: 2px;
 }
 .recipe-list strong {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recipe-list small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .recipe-disclaimer {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.5;
   margin: 12px 0 0;
 }
 .recipe-generate {
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: var(--green);
   color: white;
   padding: 8px 10px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
@@ -1535,7 +1559,7 @@ h3 {
   width: 100%;
   border: 1px solid var(--line);
   background: #fbfaf5;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 10px;
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -1555,9 +1579,9 @@ h3 {
   height: 38px;
   display: grid;
   place-items: center;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: #fff2d8;
-  font-size: 20px;
+  font-size: var(--text-xl);
 }
 .smart-recipe > div {
   min-width: 0;
@@ -1566,26 +1590,26 @@ h3 {
 }
 .recipe-origin {
   color: var(--green);
-  font-size: 7px;
+  font-size: var(--text-2xs);
   font-weight: 850;
   letter-spacing: 0.06em;
 }
 .smart-recipe strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .smart-recipe small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   line-height: 1.4;
 }
 .smart-recipe em {
   color: #8a958f;
-  font-size: 7px;
+  font-size: var(--text-2xs);
   font-style: normal;
 }
 .smart-recipe > b {
   color: #92a098;
-  font-size: 18px;
+  font-size: var(--text-lg);
   transition: transform 0.18s ease;
 }
 .smart-recipe.active > b {
@@ -1594,23 +1618,23 @@ h3 {
 .recipe-detail-inline {
   margin-top: 10px;
   border: 1px solid #dce6df;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   background: linear-gradient(145deg, #f8fbf8, #fffdf6);
   padding: 12px;
 }
 .recipe-reason {
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: #eef5ef;
   padding: 9px;
 }
 .recipe-reason strong,
 .recipe-detail-heading strong {
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .recipe-reason p {
   margin: 3px 0 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   line-height: 1.55;
 }
 .recipe-detail-heading {
@@ -1627,7 +1651,7 @@ h3 {
   justify-content: flex-end;
   gap: 4px;
   color: var(--muted);
-  font-size: 7px;
+  font-size: var(--text-2xs);
 }
 .recipe-detail-heading i {
   width: 6px;
@@ -1650,18 +1674,18 @@ h3 {
   gap: 5px;
 }
 .recipe-ingredients > span {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 6px 7px;
   display: grid;
   gap: 1px;
   border: 1px solid transparent;
 }
 .recipe-ingredients b {
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .recipe-ingredients small {
   color: var(--muted);
-  font-size: 7px;
+  font-size: var(--text-2xs);
 }
 .recipe-ingredients .inventory {
   background: #edf6ef;
@@ -1684,7 +1708,7 @@ h3 {
 .recipe-steps li {
   padding-left: 2px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   line-height: 1.55;
 }
 .recipe-steps li::marker {
@@ -1698,11 +1722,11 @@ h3 {
 }
 .recipe-favorite-count {
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 7px 10px;
   color: var(--muted);
   background: #f8f7f2;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   white-space: nowrap;
 }
@@ -1714,7 +1738,7 @@ h3 {
 .saved-recipes {
   margin-bottom: 18px;
   border: 1px solid #eadfd3;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(145deg, #fffaf2, #fffefa);
   padding: 16px;
 }
@@ -1733,22 +1757,22 @@ h3 {
   gap: 2px;
 }
 .recipe-section-label strong {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .recipe-section-label small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .recipe-section-label > span {
   min-width: 25px;
   height: 25px;
   padding: 0 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   display: grid;
   place-items: center;
   background: #f8e5dc;
   color: #a44c41;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 850;
 }
 .recipe-card-shell {
@@ -1776,7 +1800,7 @@ h3 {
   place-items: center;
   background: white;
   color: #89948e;
-  font-size: 17px;
+  font-size: var(--text-lg);
   cursor: pointer;
   transition: 0.18s ease;
 }
@@ -1816,7 +1840,7 @@ h3 {
   max-height: 92vh;
   overflow-y: auto;
   background: var(--card);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   padding: 25px;
   box-shadow: 0 30px 80px rgb(0 0 0 / 24%);
 }
@@ -1830,9 +1854,9 @@ h3 {
   width: 34px;
   height: 34px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: white;
-  font-size: 22px;
+  font-size: var(--text-xl);
   cursor: pointer;
 }
 .field-grid {
@@ -1849,7 +1873,7 @@ h3 {
   margin-bottom: 14px;
 }
 .field span {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 750;
 }
 .field input,
@@ -1858,7 +1882,7 @@ h3 {
   width: 100%;
   border: 1px solid #d9d7ce;
   background: white;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 10px 11px;
   outline: none;
   color: var(--ink);
@@ -1890,7 +1914,7 @@ h3 {
   top: 50%;
   transform: translateY(-50%);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   pointer-events: none;
 }
 .date-part input::-webkit-inner-spin-button {
@@ -1912,9 +1936,9 @@ h3 {
   z-index: 80;
   background: #183c31;
   color: white;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 11px 18px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   box-shadow: 0 10px 34px rgb(0 0 0 / 24%);
   animation: toast-in 0.25s ease-out;
 }
@@ -1938,11 +1962,11 @@ h3 {
 .detail-icon {
   width: 52px;
   height: 52px;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: #f1efe8;
   display: grid;
   place-items: center;
-  font-size: 27px;
+  font-size: var(--text-2xl);
 }
 .detail-facts {
   display: grid;
@@ -1951,7 +1975,7 @@ h3 {
 }
 .detail-facts > div {
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 10px;
   display: grid;
   gap: 3px;
@@ -1960,21 +1984,21 @@ h3 {
 .detail-note > span,
 .photo-heading span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 750;
 }
 .detail-facts strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .detail-note {
   margin-top: 10px;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: #f7f6f0;
   padding: 11px;
 }
 .detail-note p {
   margin: 4px 0 0;
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -1995,16 +2019,16 @@ h3 {
 }
 .photo-heading span {
   color: var(--ink);
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .photo-heading small,
 .upload-note {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .photo-heading b {
   color: var(--green);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .photo-grid {
   display: grid;
@@ -2013,7 +2037,7 @@ h3 {
 }
 .photo-grid figure {
   aspect-ratio: 1;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   margin: 0;
   position: relative;
@@ -2040,7 +2064,7 @@ h3 {
 .photo-empty {
   min-height: 92px;
   border: 1px dashed #cdd5cf;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   display: grid;
   place-items: center;
   align-content: center;
@@ -2048,12 +2072,12 @@ h3 {
   color: var(--muted);
 }
 .photo-empty span {
-  font-size: 23px;
+  font-size: var(--text-xl);
 }
 .photo-empty p,
 .photo-status {
   margin: 0;
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 .photo-upload {
@@ -2066,11 +2090,11 @@ h3 {
   border: 1px dashed #9db9a7;
   background: #eef6f0;
   color: var(--green);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 10px;
   display: grid;
   place-items: center;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -2108,10 +2132,10 @@ h3 {
   display: block;
   margin-top: 4px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .detail-edit-form {
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   background: #f8f7f2;
   padding: 14px;
 }
@@ -2128,7 +2152,7 @@ h3 {
   min-height: 230px;
   border: 1px dashed #a9c1b2;
   background: #f1f7f2;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   display: grid;
   justify-items: center;
   align-content: center;
@@ -2137,26 +2161,26 @@ h3 {
   padding: 24px;
 }
 .receipt-upload-box > span {
-  font-size: 34px;
+  font-size: var(--text-4xl);
   color: var(--green);
 }
 .receipt-upload-box strong {
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 .receipt-upload-box p {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.6;
   max-width: 410px;
   margin: 0 0 6px;
 }
 .receipt-upload-box label {
   position: relative;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 9px 13px;
   background: var(--green);
   color: white;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -2169,9 +2193,9 @@ h3 {
 .receipt-category-hint {
   color: var(--green);
   background: #edf5ef;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .receipt-summary {
   display: grid;
@@ -2181,7 +2205,7 @@ h3 {
 .receipt-summary label,
 .receipt-summary > div {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 9px;
   display: grid;
   gap: 4px;
@@ -2190,18 +2214,18 @@ h3 {
 .receipt-item-fields span,
 .merge-target > span {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 750;
 }
 .receipt-summary input {
   border: 0;
   outline: 0;
   padding: 0;
-  font-size: 11px;
+  font-size: var(--text-sm);
   background: transparent;
 }
 .receipt-summary strong {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .receipt-review-head {
   display: flex;
@@ -2214,11 +2238,11 @@ h3 {
   gap: 2px;
 }
 .receipt-review-head strong {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .receipt-review-head small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .receipt-items {
   display: grid;
@@ -2226,7 +2250,7 @@ h3 {
 }
 .receipt-items article {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 10px;
   background: #fbfaf6;
 }
@@ -2241,7 +2265,7 @@ h3 {
   border-bottom: 1px solid #d9d7ce;
   outline: 0;
   background: transparent;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 750;
   padding: 5px 2px;
 }
@@ -2250,12 +2274,12 @@ h3 {
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 17px;
+  font-size: var(--text-lg);
 }
 .confidence {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 7px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 750;
 }
 .confidence.good {
@@ -2283,23 +2307,23 @@ h3 {
   min-width: 0;
   width: 100%;
   border: 1px solid #d9d7ce;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 7px;
   background: white;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .merge-target {
   margin-top: 8px;
 }
 .merge-target small {
   color: var(--green);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .receipt-price {
   display: block;
-  color: var(--coral);
+  color: var(--coral-text);
   margin-top: 7px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 750;
 }
 .mobile-nav {
@@ -2341,7 +2365,7 @@ h3 {
   .mobile-brand .brand-mark {
     width: 30px;
     height: 30px;
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .global-search {
     display: none;
@@ -2359,7 +2383,7 @@ h3 {
     display: none;
   }
   h1 {
-    font-size: 31px;
+    font-size: var(--text-3xl);
   }
   .demo-banner {
     align-items: flex-start;
@@ -2379,14 +2403,14 @@ h3 {
     height: 38px;
   }
   .summary-card strong {
-    font-size: 17px;
+    font-size: var(--text-lg);
   }
   .summary-card small {
     display: none;
   }
   .panel {
     padding: 17px;
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
   }
   .right-column {
     grid-template-columns: 1fr;
@@ -2444,20 +2468,20 @@ h3 {
     align-content: center;
     gap: 2px;
     color: var(--muted);
-    font-size: 9px;
+    font-size: var(--text-xs);
   }
   .mobile-nav button span {
-    font-size: 18px;
+    font-size: var(--text-lg);
   }
   .mobile-nav .mobile-add {
     width: 45px;
     height: 45px;
     align-self: center;
     justify-self: center;
-    border-radius: 15px;
+    border-radius: var(--radius-md);
     background: var(--green);
     color: white;
-    font-size: 24px;
+    font-size: var(--text-2xl);
     box-shadow: 0 7px 18px rgb(46 106 82 / 28%);
   }
   .field-grid {
@@ -2490,7 +2514,7 @@ h3 {
   }
   .remaining-actions button {
     min-height: 30px;
-    font-size: 9px;
+    font-size: var(--text-xs);
   }
 }
 @media (max-width: 760px) {
@@ -2569,7 +2593,7 @@ h3 {
     height: 34px;
   }
   .hero-copy {
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .detail-facts {
     grid-template-columns: 1fr;
@@ -2649,25 +2673,25 @@ h3 {
 .sync-now,
 .mini-primary,
 .recipe-generate {
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 9px 13px;
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .flyer-automation {
   margin: -4px 0 18px;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   padding: 14px 16px;
   gap: 14px;
 }
 .flyer-automation strong {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .flyer-automation small {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .sync-frequency,
 .sync-frequency select {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .sync-frequency select {
   padding: 7px 9px;
@@ -2692,15 +2716,15 @@ h3 {
 }
 .flyer-sources article {
   min-height: 142px;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   padding: 16px;
   align-content: space-between;
 }
 .flyer-sources strong {
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 .flyer-sources small {
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 .source-actions {
@@ -2709,7 +2733,7 @@ h3 {
 .source-actions a,
 .source-actions button {
   padding: 8px 10px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .flyer-empty-art.small {
   height: 112px;
@@ -2724,15 +2748,15 @@ h3 {
   padding-top: 20px;
 }
 .recommendation-heading strong {
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 .recommendation-heading small,
 .recommendation-empty {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recommendation-heading > span {
   padding: 5px 9px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recommendation-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2741,36 +2765,36 @@ h3 {
 }
 .recommendation-card {
   min-height: 156px;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   padding: 16px;
   gap: 8px;
   align-content: start;
 }
 .recommendation-top span,
 .recommendation-top b {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recommendation-card > strong {
-  font-size: 16px;
+  font-size: var(--text-md);
 }
 .recommendation-card > small {
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 .recommendation-meta {
   margin-top: auto;
 }
 .recommendation-meta > span {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recommendation-meta button {
   padding: 8px 11px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .flyer-purchase-plan {
   margin: 18px 0 0;
   border: 1px solid #bdd4c4;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   padding: 17px 18px;
   background: linear-gradient(135deg, #eaf5ed, #fffaf0);
   display: flex;
@@ -2788,12 +2812,12 @@ h3 {
 }
 .flyer-purchase-plan span {
   color: var(--green);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 900;
   letter-spacing: 0.05em;
 }
 .flyer-purchase-plan strong {
-  font-size: 17px;
+  font-size: var(--text-lg);
 }
 .flyer-purchase-plan b {
   font:
@@ -2803,13 +2827,13 @@ h3 {
 }
 .flyer-purchase-plan small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .flyer-purchase-plan em {
   width: fit-content;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 8px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-style: normal;
   font-weight: 850;
 }
@@ -2837,23 +2861,23 @@ h3 {
   align-items: baseline;
   flex-wrap: wrap;
   gap: 7px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 8px 9px;
   background: rgb(255 255 255 / 70%);
 }
 .recommendation-price b {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--ink);
 }
 .recommendation-price span {
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
 }
 .recommendation-price em {
   margin-left: auto;
   color: #8a6b2d;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-style: normal;
   font-weight: 750;
 }
@@ -2864,11 +2888,11 @@ h3 {
 }
 .recommendation-evidence span,
 .recommendation-evidence a {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 7px;
   background: #f0f2ed;
   color: #617068;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   text-decoration: none;
 }
 .recommendation-evidence a {
@@ -2884,11 +2908,11 @@ h3 {
 }
 .recommendation-actions button {
   border: 1px solid #cad7ce;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 7px 8px;
   background: white;
   color: var(--green);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 850;
   cursor: pointer;
 }
@@ -2914,19 +2938,19 @@ h3 {
 }
 .deal-row > button:not([aria-label]) {
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 5px 7px;
   background: white;
   color: var(--green);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
 }
 .match-editor-note {
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 11px 12px;
   background: #eef5f0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 .match-editor-note strong {
@@ -2942,13 +2966,13 @@ h3 {
   padding: 12px 0;
 }
 .deal-row strong {
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .deal-row small {
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .deal-row > span {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 
 .smart-recipe-list {
@@ -2957,35 +2981,35 @@ h3 {
 }
 .smart-recipe {
   min-height: 112px;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   padding: 16px;
   gap: 14px;
 }
 .recipe-icon {
   width: 50px;
   height: 50px;
-  border-radius: 14px;
-  font-size: 25px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-2xl);
 }
 .smart-recipe > div {
   gap: 4px;
 }
 .recipe-origin {
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .smart-recipe strong {
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 .smart-recipe small {
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.5;
 }
 .smart-recipe em {
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .recipe-detail-inline {
   margin-top: 14px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   padding: 18px;
 }
 .recipe-reason {
@@ -2993,16 +3017,16 @@ h3 {
 }
 .recipe-reason strong,
 .recipe-detail-heading strong {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .recipe-reason p {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recipe-detail-heading {
   margin: 16px 0 10px;
 }
 .recipe-detail-heading small {
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .recipe-ingredients {
   gap: 8px;
@@ -3011,16 +3035,16 @@ h3 {
   padding: 8px 10px;
 }
 .recipe-ingredients b {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recipe-ingredients small {
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .recipe-steps {
   gap: 8px;
 }
 .recipe-steps li {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recipe-card-shell .smart-recipe {
   padding-right: 64px;
@@ -3030,7 +3054,7 @@ h3 {
   height: 36px;
   right: 16px;
   bottom: 16px;
-  font-size: 19px;
+  font-size: var(--text-lg);
 }
 .saved-recipes {
   padding: 18px;
@@ -3040,14 +3064,14 @@ h3 {
   margin-bottom: 14px;
 }
 .recipe-section-label strong {
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 .recipe-section-label small {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recipe-favorite-count {
   padding: 8px 11px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 @media (min-width: 761px) {
@@ -3093,7 +3117,7 @@ h3 {
   }
   .flyer-panel .section-head h2,
   .recipe-panel .section-head h2 {
-    font-size: 28px;
+    font-size: var(--text-3xl);
   }
   .flyer-sources,
   .recommendation-list,
@@ -3135,13 +3159,13 @@ h3 {
   }
   .recipe-favorite-count {
     padding: 6px 9px;
-    font-size: 9px;
+    font-size: var(--text-xs);
   }
   .saved-recipes {
     padding: 12px;
   }
   .recipe-section-label small {
-    font-size: 9px;
+    font-size: var(--text-xs);
   }
   .recipe-card-shell .smart-recipe {
     padding-right: 54px;
@@ -3151,7 +3175,7 @@ h3 {
     height: 32px;
     right: 12px;
     bottom: 12px;
-    font-size: 17px;
+    font-size: var(--text-lg);
   }
 }
 
@@ -3165,7 +3189,7 @@ h3 {
 .recipe-workspace-head > div:first-child > p:last-child {
   color: var(--muted);
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .recipe-workspace-actions {
   display: flex;
@@ -3176,9 +3200,9 @@ h3 {
 .recipe-workspace-actions button,
 .recipe-member-button,
 .recipe-secondary-action {
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 9px 12px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
@@ -3197,7 +3221,7 @@ h3 {
 .dietary-preference-bar {
   margin: -4px 0 18px;
   border: 1px dashed #cdd8d0;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   padding: 12px 14px;
   background: #f8f8f4;
   display: flex;
@@ -3219,21 +3243,21 @@ h3 {
   width: 34px;
   height: 34px;
   flex: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: grid;
   place-items: center;
   background: white;
-  font-size: 18px;
+  font-size: var(--text-lg);
 }
 .dietary-preference-bar strong {
   display: block;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 900;
 }
 .dietary-preference-bar p {
   margin: 3px 0 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.5;
   white-space: nowrap;
   overflow: hidden;
@@ -3242,11 +3266,11 @@ h3 {
 .dietary-preference-bar > button {
   flex: none;
   border: 1px solid #b8cfbf;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   padding: 7px 10px;
   background: white;
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 850;
   cursor: pointer;
 }
@@ -3255,18 +3279,18 @@ h3 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: #f2f2ec;
   margin-bottom: 20px;
 }
 .recipe-tabs button {
   min-width: 0;
   border: 0;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 11px 12px;
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 800;
   cursor: pointer;
 }
@@ -3282,10 +3306,10 @@ h3 {
   padding: 0 5px;
   display: inline-grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--green-soft);
   color: var(--green);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .recipe-library-tools {
   display: grid;
@@ -3294,7 +3318,7 @@ h3 {
 }
 .recipe-library-tools label {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: white;
   display: flex;
   align-items: center;
@@ -3311,11 +3335,11 @@ h3 {
 }
 .recipe-library-tools > button {
   border: 1px solid #e4d8cf;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: #fffaf6;
   color: #96675e;
   padding: 9px 12px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -3333,11 +3357,11 @@ h3 {
 }
 .recipe-tag-filter button {
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #faf9f5;
   color: var(--muted);
   padding: 6px 10px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -3372,10 +3396,10 @@ h3 {
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: #def0e3;
   color: var(--green);
-  font-size: 18px;
+  font-size: var(--text-lg);
   font-weight: 900;
 }
 .saved-library-section .recipe-library-section-head > div > span {
@@ -3384,21 +3408,21 @@ h3 {
 }
 .recipe-library-section-head h3 {
   margin: 0 0 3px;
-  font-size: 18px;
+  font-size: var(--text-lg);
   font-weight: 900;
 }
 .recipe-library-section-head p {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 .recipe-library-section-head > b {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 6px 10px;
   background: #edf3ef;
   color: var(--green);
-  font-size: 10px;
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 .recipe-catalog-grid {
@@ -3412,7 +3436,7 @@ h3 {
   align-self: start;
   align-content: start;
   border: 1px solid #dde2dc;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: #fffefa;
   padding: 15px;
   display: grid;
@@ -3436,7 +3460,7 @@ h3 {
   overflow: hidden;
   position: relative;
   border: 0;
-  border-radius: 15px 15px 0 0;
+  border-radius: var(--radius-md) 15px 0 0;
   background: #eef0e9;
   cursor: pointer;
 }
@@ -3454,11 +3478,11 @@ h3 {
   position: absolute;
   right: 10px;
   bottom: 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 5px 8px;
   background: rgb(20 48 39 / 82%);
   color: white;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 850;
   backdrop-filter: blur(6px);
 }
@@ -3471,11 +3495,11 @@ h3 {
 .catalog-recipe-top > span {
   width: 46px;
   height: 46px;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   display: grid;
   place-items: center;
   background: #fff0ce;
-  font-size: 24px;
+  font-size: var(--text-2xl);
   box-shadow: inset 0 -2px 0 rgb(133 94 28 / 8%);
 }
 .catalog-recipe-open {
@@ -3489,16 +3513,16 @@ h3 {
 }
 .catalog-recipe-open small {
   display: inline-flex;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 3px 7px;
   background: #e4f0e7;
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 900;
 }
 .catalog-recipe-open h3 {
   margin: 5px 0 4px;
-  font-size: 17px;
+  font-size: var(--text-lg);
   line-height: 1.25;
   font-weight: 900;
   letter-spacing: -0.01em;
@@ -3506,7 +3530,7 @@ h3 {
 .catalog-recipe-open p {
   margin: 0;
   color: #52635a;
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.5;
   font-weight: 600;
   display: -webkit-box;
@@ -3518,7 +3542,7 @@ h3 {
   display: block;
   margin-top: 5px;
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-style: normal;
   font-weight: 900;
 }
@@ -3533,7 +3557,7 @@ h3 {
   border-radius: 50%;
   background: white;
   color: #9da49f;
-  font-size: 17px;
+  font-size: var(--text-lg);
   cursor: pointer;
 }
 .catalog-heart.active {
@@ -3547,11 +3571,11 @@ h3 {
   gap: 4px;
 }
 .catalog-tags span {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 7px;
   background: #e8f2eb;
   color: #315e48;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 850;
 }
 .catalog-tags span.meal {
@@ -3562,7 +3586,7 @@ h3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   border: 1px solid #e1e5de;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 7px 3px;
   background: #f7f8f4;
   color: var(--muted);
@@ -3576,13 +3600,13 @@ h3 {
   gap: 3px;
 }
 .catalog-stats small {
-  color: #718078;
-  font-size: 8px;
+  color: var(--muted);
+  font-size: var(--text-2xs);
   font-weight: 750;
 }
 .catalog-stats b {
   color: var(--ink);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 900;
 }
 .catalog-card-actions {
@@ -3593,11 +3617,11 @@ h3 {
 .catalog-card-actions button {
   min-width: 0;
   border: 1px solid #c2d5c8;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: #edf6ef;
   color: var(--green);
   padding: 8px 7px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 900;
   cursor: pointer;
   white-space: nowrap;
@@ -3636,7 +3660,7 @@ h3 {
   height: 280px;
   display: block;
   object-fit: cover;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: #eef0ea;
 }
 .recipe-detail-photo-gallery.photos-2 img {
@@ -3651,21 +3675,21 @@ h3 {
   width: 68px;
   height: 68px;
   flex: none;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   display: grid;
   place-items: center;
   background: #ffefca;
-  font-size: 36px;
+  font-size: var(--text-4xl);
 }
 .recipe-detail-title h2 {
-  font-size: 30px;
+  font-size: var(--text-3xl);
   font-weight: 900;
 }
 .recipe-detail-title p:last-child {
   max-width: 620px;
   margin: 7px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 .recipe-detail-summary {
@@ -3676,7 +3700,7 @@ h3 {
 }
 .recipe-detail-summary > div {
   border: 1px solid #e0e4dd;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 11px;
   background: #f8f8f4;
   display: grid;
@@ -3684,11 +3708,11 @@ h3 {
 }
 .recipe-detail-summary small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 750;
 }
 .recipe-detail-summary strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 900;
 }
 .recipe-detail-reason {
@@ -3698,13 +3722,13 @@ h3 {
   background: #edf5ef;
 }
 .recipe-detail-reason strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 900;
 }
 .recipe-detail-reason p {
   margin: 4px 0 0;
   color: #56675e;
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.65;
 }
 .recipe-detail-section {
@@ -3727,15 +3751,15 @@ h3 {
   height: 29px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: var(--green);
   color: white;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 900;
 }
 .recipe-detail-section-head h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 900;
 }
 .recipe-detail-section-head > small {
@@ -3744,7 +3768,7 @@ h3 {
   align-items: center;
   gap: 5px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .recipe-detail-section-head i {
   width: 7px;
@@ -3759,7 +3783,7 @@ h3 {
 }
 .recipe-detail-ingredients article {
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 10px;
   display: grid;
   gap: 3px;
@@ -3777,16 +3801,16 @@ h3 {
   border-color: #e1e1db;
 }
 .recipe-detail-ingredients strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 900;
 }
 .recipe-detail-ingredients span {
   color: var(--ink);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .recipe-detail-ingredients small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .recipe-detail-steps {
   margin: 0;
@@ -3801,33 +3825,33 @@ h3 {
   align-items: start;
   gap: 11px;
   border: 1px solid #e1e4de;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 12px;
   background: #fffefa;
 }
 .recipe-detail-steps b {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   display: grid;
   place-items: center;
   background: #fff0ce;
   color: #805e22;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recipe-detail-steps p {
   margin: 3px 0 0;
   color: #4f6057;
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.65;
   font-weight: 600;
 }
 .recipe-detail-empty {
   border: 1px dashed #cbd5ce;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 15px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   text-align: center;
 }
 .recipe-detail-actions {
@@ -3845,7 +3869,7 @@ h3 {
 .recipe-workspace-empty {
   min-height: 180px;
   border: 1px dashed #ced8d1;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   display: grid;
   place-items: center;
   align-content: center;
@@ -3855,15 +3879,15 @@ h3 {
   padding: 24px;
 }
 .recipe-workspace-empty > span {
-  font-size: 32px;
+  font-size: var(--text-3xl);
 }
 .recipe-workspace-empty strong {
   color: var(--ink);
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 .recipe-workspace-empty p {
   margin: 0;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recipe-workspace-empty.compact {
   min-height: 130px;
@@ -3878,11 +3902,11 @@ h3 {
   gap: 3px;
 }
 .recipe-view-heading strong {
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 .recipe-view-heading small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .request-card-grid {
   display: grid;
@@ -3891,7 +3915,7 @@ h3 {
 }
 .request-card {
   border: 1px solid #dfddd4;
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: #fffdf8;
   padding: 14px;
   display: grid;
@@ -3909,31 +3933,31 @@ h3 {
   place-items: center;
   border-radius: 50%;
   background: #eaf3ec;
-  font-size: 19px;
+  font-size: var(--text-lg);
 }
 .request-card small {
   color: var(--green);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
 }
 .request-card strong {
   display: block;
   margin: 3px 0;
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 .request-card p {
   margin: 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .request-card em {
   display: block;
   margin-top: 7px;
   padding: 7px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: #f7f3e9;
   color: #786f5d;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-style: normal;
 }
 .request-card > div:last-child {
@@ -3942,11 +3966,11 @@ h3 {
 }
 .request-card > div:last-child button {
   border: 1px solid #cbd9d0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: white;
   color: var(--green);
   padding: 7px 9px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -3963,17 +3987,17 @@ h3 {
 }
 .plan-toolbar > div {
   display: flex;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: #f0f1eb;
   padding: 3px;
 }
 .plan-toolbar > div button {
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 8px 10px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -3986,24 +4010,24 @@ h3 {
   display: grid;
   gap: 3px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .plan-toolbar input {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: white;
   padding: 7px 8px;
   color: var(--ink);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .plan-shopping-button {
   margin-left: auto;
   border: 1px solid #b8d0c0;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: #edf6ef;
   color: var(--green);
   padding: 8px 10px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -4011,7 +4035,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 10px;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   background: #edf4ef;
   padding: 12px 14px;
   margin-bottom: 12px;
@@ -4023,16 +4047,16 @@ h3 {
 }
 .plan-summary span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .plan-summary button {
   margin-left: auto;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--green);
   color: white;
   padding: 7px 9px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -4042,7 +4066,7 @@ h3 {
 }
 .meal-plan-card {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   padding: 13px;
   display: grid;
   grid-template-columns: 115px auto 1fr auto;
@@ -4056,37 +4080,37 @@ h3 {
   border-right: 1px solid var(--line);
 }
 .meal-plan-date strong {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .meal-plan-date span {
   color: #9a6b27;
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .meal-plan-icon {
   width: 42px;
   height: 42px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: #fff1d8;
-  font-size: 21px;
+  font-size: var(--text-xl);
 }
 .meal-plan-card > div:nth-child(3) {
   min-width: 0;
 }
 .meal-plan-card > div:nth-child(3) strong {
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .meal-plan-card > div:nth-child(3) small {
   display: block;
   margin: 3px 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .meal-plan-card > div:nth-child(3) p {
   margin: 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4097,11 +4121,11 @@ h3 {
 }
 .meal-plan-actions button {
   border: 1px solid #c8d7ce;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: white;
   color: var(--green);
   padding: 6px 8px;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -4118,26 +4142,26 @@ h3 {
 .dietary-preference-bar > div > span {
   width: 40px;
   height: 40px;
-  font-size: 21px;
+  font-size: var(--text-xl);
 }
 .dietary-preference-bar strong {
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .dietary-preference-bar p {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .dietary-preference-bar > button {
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .recipe-tabs button {
   padding: 14px;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .recipe-tabs b {
   min-width: 23px;
   height: 23px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .plan-toolbar {
   gap: 12px;
@@ -4148,19 +4172,19 @@ h3 {
 }
 .plan-toolbar > div button {
   padding: 10px 14px;
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .plan-toolbar label {
   gap: 5px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .plan-toolbar input {
   padding: 9px 10px;
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .plan-shopping-button {
   padding: 10px 13px;
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .plan-summary {
   min-height: 66px;
@@ -4168,14 +4192,14 @@ h3 {
   margin-bottom: 15px;
 }
 .plan-summary strong {
-  font-size: 22px;
+  font-size: var(--text-xl);
 }
 .plan-summary span {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .plan-summary button {
   padding: 9px 12px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .meal-plan-list {
   gap: 12px;
@@ -4185,33 +4209,33 @@ h3 {
   padding: 17px;
   grid-template-columns: 145px auto 1fr auto;
   gap: 16px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
 }
 .meal-plan-date {
   gap: 5px;
 }
 .meal-plan-date strong {
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 .meal-plan-date span {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .meal-plan-icon {
   width: 52px;
   height: 52px;
-  border-radius: 14px;
-  font-size: 27px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-2xl);
 }
 .meal-plan-card > div:nth-child(3) strong {
-  font-size: 17px;
+  font-size: var(--text-lg);
   font-weight: 900;
 }
 .meal-plan-card > div:nth-child(3) small {
   margin: 5px 0;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .meal-plan-card > div:nth-child(3) p {
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.5;
 }
 .meal-plan-actions {
@@ -4219,7 +4243,7 @@ h3 {
 }
 .meal-plan-actions button {
   padding: 9px 11px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .popular-recipe-row {
   display: grid;
@@ -4229,7 +4253,7 @@ h3 {
 }
 .popular-recipe-row article {
   border: 1px solid #eadfca;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: #fffaf0;
   padding: 10px;
   display: grid;
@@ -4245,25 +4269,25 @@ h3 {
   border-radius: 50%;
   background: #f0c86c;
   color: #5d481d;
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 850;
 }
 .popular-recipe-row article > b {
-  font-size: 21px;
+  font-size: var(--text-xl);
 }
 .popular-recipe-row article div {
   min-width: 0;
 }
 .popular-recipe-row strong {
   display: block;
-  font-size: 10px;
+  font-size: var(--text-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .popular-recipe-row small {
   color: var(--muted);
-  font-size: 7px;
+  font-size: var(--text-2xs);
 }
 .history-list {
   display: grid;
@@ -4282,19 +4306,19 @@ h3 {
   height: 40px;
   display: grid;
   place-items: center;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: #fff1d8;
-  font-size: 20px;
+  font-size: var(--text-xl);
 }
 .history-list strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .history-list small,
 .history-list p {
   display: block;
   margin: 3px 0 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .history-list article > div:last-child {
   display: flex;
@@ -4302,11 +4326,11 @@ h3 {
 }
 .history-list button {
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: white;
   padding: 6px 8px;
   color: var(--green);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -4325,10 +4349,10 @@ h3 {
 }
 .meal-checkboxes label {
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   padding: 8px 11px;
   background: white;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .meal-checkboxes input {
   width: auto;
@@ -4339,20 +4363,20 @@ h3 {
   position: relative;
 }
 .rating-field input {
-  accent-color: var(--coral);
+  accent-color: var(--coral-text);
   padding: 0;
 }
 .rating-field output {
   position: absolute;
   right: 0;
   top: 0;
-  color: var(--coral);
+  color: var(--coral-text);
   font-weight: 850;
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .recipe-photo-editor {
   border: 1px solid #d7e2da;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   padding: 13px;
   background: #f5f9f6;
 }
@@ -4363,12 +4387,12 @@ h3 {
   gap: 10px;
 }
 .recipe-photo-editor-head > span {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 850;
 }
 .recipe-photo-editor-head small {
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
 }
 .recipe-photo-editor-grid {
@@ -4382,7 +4406,7 @@ h3 {
   margin: 0;
   position: relative;
   overflow: hidden;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: #e8ebe5;
 }
 .recipe-photo-editor-grid img {
@@ -4401,24 +4425,24 @@ h3 {
   border-radius: 50%;
   background: rgb(20 43 35 / 82%);
   color: white;
-  font-size: 17px;
+  font-size: var(--text-lg);
   cursor: pointer;
 }
 .recipe-photo-empty {
   min-height: 66px;
   margin-top: 9px;
   border: 1px dashed #b9cbbf;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: grid;
   place-items: center;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .recipe-photo-picker {
   margin-top: 9px;
   min-height: 56px;
   border: 1px dashed #8eaf99;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: #ebf5ed;
   color: var(--green);
   display: grid;
@@ -4428,11 +4452,11 @@ h3 {
   cursor: pointer;
 }
 .recipe-photo-picker strong {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recipe-photo-picker small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
 }
 .recipe-photo-picker input {
   position: absolute;
@@ -4451,7 +4475,7 @@ h3 {
   max-width: 500px;
   margin: 7px 0 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 .dietary-safety-note {
@@ -4478,16 +4502,16 @@ h3 {
 .dietary-safety-note p {
   margin: 0;
   color: #765d32;
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 .dietary-safety-note strong {
   display: block;
   color: #5e481e;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .dietary-preferences-modal textarea {
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.55;
 }
 .member-list {
@@ -4496,7 +4520,7 @@ h3 {
 }
 .member-list article {
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 10px;
   display: grid;
   grid-template-columns: auto 1fr auto auto;
@@ -4510,16 +4534,16 @@ h3 {
   place-items: center;
   border-radius: 50%;
   background: #edf4ef;
-  font-size: 18px;
+  font-size: var(--text-lg);
 }
 .member-list strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .member-list button {
   border: 0;
   background: transparent;
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -4527,11 +4551,11 @@ h3 {
   width: 100%;
   margin-top: 12px;
   border: 1px dashed #aac3b2;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: #edf6ef;
   color: var(--green);
   padding: 10px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
   cursor: pointer;
 }
@@ -4596,7 +4620,7 @@ h3 {
     align-items: flex-start;
   }
   .recipe-library-section-head p {
-    font-size: 10px;
+    font-size: var(--text-xs);
   }
   .catalog-card-actions {
     grid-template-columns: 1fr 1fr auto;
@@ -4613,11 +4637,11 @@ h3 {
   .recipe-detail-title > span {
     width: 52px;
     height: 52px;
-    border-radius: 15px;
-    font-size: 27px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-2xl);
   }
   .recipe-detail-title h2 {
-    font-size: 23px;
+    font-size: var(--text-xl);
   }
   .recipe-detail-summary {
     grid-template-columns: 1fr 1fr;
@@ -4716,7 +4740,7 @@ h3 {
 .stock-consumption {
   margin-top: 4px;
   border: 1px solid #d7e2da;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   padding: 13px;
   background: #f5f9f6;
 }
@@ -4726,12 +4750,12 @@ h3 {
   margin-bottom: 10px;
 }
 .stock-consumption-head strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 850;
 }
 .stock-consumption-head small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.5;
 }
 .stock-consumption-list {
@@ -4744,7 +4768,7 @@ h3 {
   align-items: center;
   gap: 9px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 9px 11px;
   background: white;
 }
@@ -4754,20 +4778,20 @@ h3 {
   min-width: 0;
 }
 .stock-consumption-row strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .stock-consumption-row small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .stock-consumption-row select {
   width: 100%;
   border: 1px solid #d9d7ce;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   padding: 8px 9px;
   background: white;
   color: var(--ink);
-  font-size: 10px;
+  font-size: var(--text-xs);
   outline: none;
 }
 .stock-consumption-row select:focus {
@@ -4777,14 +4801,14 @@ h3 {
 .stock-consumption-row em {
   grid-column: 1 / -1;
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-style: normal;
   font-weight: 750;
 }
 .stock-consumption-empty {
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 .restock-button {
@@ -4793,9 +4817,9 @@ h3 {
   border: 1px solid #b7cdbf;
   background: #eef6f0;
   color: var(--green);
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 11px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 850;
   cursor: pointer;
 }
@@ -4805,11 +4829,11 @@ h3 {
 }
 .stocked-tag {
   margin-left: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 1px 5px;
   background: #e4efe8;
   color: var(--green);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-style: normal;
   font-weight: 800;
 }
@@ -4830,7 +4854,7 @@ h3 {
   grid-template-columns: 1fr 208px;
   gap: 11px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 11px;
   background: white;
 }
@@ -4853,11 +4877,11 @@ h3 {
 .restock-row select {
   width: 100%;
   border: 1px solid #d9d7ce;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   padding: 8px 9px;
   background: white;
   color: var(--ink);
-  font-size: 10px;
+  font-size: var(--text-xs);
   outline: none;
 }
 .restock-row input:focus,
@@ -4870,7 +4894,7 @@ h3 {
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 .restock-skip input {
@@ -4884,14 +4908,14 @@ h3 {
   padding: 10px 12px;
   background: #f1f7f3;
   color: #33574a;
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 .history-consumption {
   display: block;
   margin-top: 3px;
   color: var(--green);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-style: normal;
 }
 @media (max-width: 760px) {
@@ -4909,7 +4933,7 @@ h3 {
 .locale-switch {
   display: inline-flex;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: white;
 }
@@ -4917,7 +4941,7 @@ h3 {
   border: 0;
   background: transparent;
   padding: 8px 13px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
   color: var(--muted);
   cursor: pointer;
@@ -4928,7 +4952,7 @@ h3 {
 }
 .locale-switch.compact button {
   padding: 7px 10px;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .icon-button.demo {
   position: relative;
@@ -4940,7 +4964,7 @@ h3 {
   right: 6px;
   width: 7px;
   height: 7px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: var(--coral);
 }
 .settings-modal {
@@ -4959,13 +4983,13 @@ h3 {
   padding-bottom: 0;
 }
 .settings-section > strong {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 850;
 }
 .settings-note {
   margin: 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.6;
 }
 .settings-status {
@@ -4974,14 +4998,14 @@ h3 {
   align-items: center;
   gap: 9px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   background: #faf9f5;
 }
 .settings-status > span {
   width: 9px;
   height: 9px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: var(--coral);
 }
 .settings-status.ok > span {
@@ -4993,11 +5017,11 @@ h3 {
   margin: 0;
 }
 .settings-status b {
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .settings-status small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
@@ -5021,7 +5045,7 @@ button.item-main {
 button.item-main:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 3px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 /* 小票预览：选好照片后先给用户看一眼，确认拍清楚了再识别。 */
@@ -5033,14 +5057,14 @@ button.item-main:focus-visible {
 .receipt-preview {
   max-width: 100%;
   max-height: 320px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   object-fit: contain;
   background: white;
   box-shadow: 0 6px 18px rgb(0 0 0 / 10%);
 }
 .receipt-file-meta {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
   word-break: break-all;
 }
@@ -5055,7 +5079,7 @@ button.item-main:focus-visible {
   padding: 8px 11px;
   background: #fdf6ea;
   color: #7a5320;
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 .budget-actual {
@@ -5063,21 +5087,21 @@ button.item-main:focus-visible {
   gap: 3px;
   margin: 11px 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   background: #f6faf7;
 }
 .budget-actual strong {
-  font-size: 17px;
+  font-size: var(--text-lg);
 }
 .budget-actual > span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 750;
 }
 .budget-actual small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
 .budget-actual.over {
@@ -5091,7 +5115,7 @@ button.item-main:focus-visible {
   display: block;
   margin-top: 2px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   text-decoration: line-through;
 }
 
@@ -5109,7 +5133,7 @@ button.item-main:focus-visible {
   display: grid;
   gap: 14px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   padding: 26px 24px;
   background: #fff;
   box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
@@ -5118,7 +5142,7 @@ button.item-main:focus-visible {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 18px;
+  font-size: var(--text-lg);
 }
 .login-card .settings-section {
   padding: 0;

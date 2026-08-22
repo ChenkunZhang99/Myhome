@@ -16,7 +16,7 @@ import test from "node:test";
  */
 
 /** 每完成一批就调低这个数字。它同时是进度指标和防回退的闸门。 */
-const REMAINING = 53;
+const REMAINING = 13;
 
 const TENANT_TABLES = [
   "inventory_items",

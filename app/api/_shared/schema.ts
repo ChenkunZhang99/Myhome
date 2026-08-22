@@ -219,11 +219,14 @@ const TABLES = [
     difficulty TEXT NOT NULL DEFAULT '简单', servings INTEGER NOT NULL DEFAULT 2, ingredients_json TEXT NOT NULL DEFAULT '[]',
     steps_json TEXT NOT NULL DEFAULT '[]', tags_json TEXT NOT NULL DEFAULT '[]', meal_types_json TEXT NOT NULL DEFAULT '[]',
     is_favorite INTEGER NOT NULL DEFAULT 0, is_custom INTEGER NOT NULL DEFAULT 0, cooked_count INTEGER NOT NULL DEFAULT 0,
-    last_cooked_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    last_cooked_at TEXT, household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS recipe_attachments (
     id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, object_key TEXT NOT NULL, file_name TEXT NOT NULL,
-    content_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    content_type TEXT NOT NULL, size INTEGER NOT NULL,
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS recipe_preferences (
     id INTEGER PRIMARY KEY, allergies TEXT NOT NULL DEFAULT '', avoid_foods TEXT NOT NULL DEFAULT '',
@@ -240,20 +243,24 @@ const TABLES = [
     id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, member_id TEXT NOT NULL, desired_from TEXT, desired_to TEXT,
     meal_type TEXT NOT NULL DEFAULT '', priority TEXT NOT NULL DEFAULT '想吃', servings INTEGER NOT NULL DEFAULT 2,
     notes TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'candidate', scheduled_date TEXT,
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS recipe_cook_history (
     id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, request_id TEXT, cooked_date TEXT NOT NULL, meal_type TEXT NOT NULL DEFAULT '',
     servings INTEGER NOT NULL DEFAULT 2, cook_member_id TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
     consumption_json TEXT NOT NULL DEFAULT '[]',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS recipe_ratings (
     id TEXT PRIMARY KEY, recipe_id TEXT NOT NULL, member_id TEXT NOT NULL, rating INTEGER NOT NULL,
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS recipe_activity_log (
     id TEXT PRIMARY KEY, recipe_id TEXT, member_id TEXT, action TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}',
+    household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
 ];
@@ -288,6 +295,12 @@ const INDEXES = [
  * 索引会先一步失败，整个建表流程随之中断，每个请求都报 no such column。
  */
 const INDEXES_ON_ADDED_COLUMNS = [
+  "CREATE INDEX IF NOT EXISTS idx_recipe_catalog_household ON recipe_catalog(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_recipe_attachments_household ON recipe_attachments(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_recipe_cook_history_household ON recipe_cook_history(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_recipe_ratings_household ON recipe_ratings(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_recipe_activity_log_household ON recipe_activity_log(household_id)",
+  "CREATE INDEX IF NOT EXISTS idx_meal_requests_household ON meal_requests(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_inventory_items_household ON inventory_items(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_inventory_attachments_household ON inventory_attachments(household_id, item_id)",
   "CREATE INDEX IF NOT EXISTS idx_purchase_records_household ON purchase_records(household_id, purchase_date)",
@@ -330,6 +343,18 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     column: "timezone",
     ddl: `ALTER TABLE household_settings ADD COLUMN timezone TEXT NOT NULL DEFAULT '${DEFAULT_TIME_ZONE}'`,
   },
+  ...[
+    "recipe_catalog",
+    "recipe_attachments",
+    "recipe_cook_history",
+    "recipe_ratings",
+    "recipe_activity_log",
+    "meal_requests",
+  ].map((table) => ({
+    table,
+    column: "household_id",
+    ddl: `ALTER TABLE ${table} ADD COLUMN household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}'`,
+  })),
   ...["inventory_items", "inventory_attachments", "purchase_records"].map((table) => ({
     table,
     column: "household_id",

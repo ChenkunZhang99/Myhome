@@ -231,6 +231,7 @@ function cleanRecipe(input: RecipeInput) {
 }
 
 async function logActivity(
+  household: string,
   action: string,
   recipeId?: string | null,
   memberId?: string | null,
@@ -238,9 +239,9 @@ async function logActivity(
 ) {
   await database()
     .prepare(
-      "INSERT INTO recipe_activity_log (id, recipe_id, member_id, action, details_json) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO recipe_activity_log (id, household_id, recipe_id, member_id, action, details_json) VALUES (?, ?, ?, ?, ?, ?)",
     )
-    .bind(crypto.randomUUID(), recipeId ?? null, memberId ?? null, action, JSON.stringify(details))
+    .bind(crypto.randomUUID(), household, recipeId ?? null, memberId ?? null, action, JSON.stringify(details))
     .run();
 }
 
@@ -254,8 +255,10 @@ async function readWorkspace(household: string) {
           `SELECT id, title, summary, reason, origin, icon, cook_time AS cookTime, difficulty, servings,
       ingredients_json AS ingredientsJson, steps_json AS stepsJson, tags_json AS tagsJson, meal_types_json AS mealTypesJson,
       is_favorite AS isFavorite, is_custom AS isCustom, cooked_count AS cookedCount, last_cooked_at AS lastCookedAt,
-      created_at AS createdAt, updated_at AS updatedAt FROM recipe_catalog ORDER BY is_favorite DESC, updated_at DESC`,
+      created_at AS createdAt, updated_at AS updatedAt FROM recipe_catalog
+      WHERE household_id = ? ORDER BY is_favorite DESC, updated_at DESC`,
         )
+        .bind(household)
         .all(),
       db
         .prepare(
@@ -267,25 +270,30 @@ async function readWorkspace(household: string) {
         .prepare(
           `SELECT id, recipe_id AS recipeId, member_id AS memberId, desired_from AS desiredFrom, desired_to AS desiredTo,
       meal_type AS mealType, priority, servings, notes, status, scheduled_date AS scheduledDate,
-      created_at AS createdAt, updated_at AS updatedAt FROM meal_requests ORDER BY updated_at DESC`,
+      created_at AS createdAt, updated_at AS updatedAt FROM meal_requests
+      WHERE household_id = ? ORDER BY updated_at DESC`,
         )
+        .bind(household)
         .all(),
       db
         .prepare(
           `SELECT id, recipe_id AS recipeId, request_id AS requestId, cooked_date AS cookedDate, meal_type AS mealType,
       servings, cook_member_id AS cookMemberId, notes, COALESCE(consumption_json, '[]') AS consumptionJson, created_at AS createdAt
-      FROM recipe_cook_history ORDER BY cooked_date DESC, created_at DESC LIMIT 100`,
+      FROM recipe_cook_history WHERE household_id = ? ORDER BY cooked_date DESC, created_at DESC LIMIT 100`,
         )
+        .bind(household)
         .all(),
       db
         .prepare(
-          "SELECT id, recipe_id AS recipeId, member_id AS memberId, rating, updated_at AS updatedAt FROM recipe_ratings ORDER BY updated_at DESC",
+          "SELECT id, recipe_id AS recipeId, member_id AS memberId, rating, updated_at AS updatedAt FROM recipe_ratings WHERE household_id = ? ORDER BY updated_at DESC",
         )
+        .bind(household)
         .all(),
       db
         .prepare(
-          "SELECT id, recipe_id AS recipeId, member_id AS memberId, action, details_json AS detailsJson, created_at AS createdAt FROM recipe_activity_log ORDER BY created_at DESC LIMIT 20",
+          "SELECT id, recipe_id AS recipeId, member_id AS memberId, action, details_json AS detailsJson, created_at AS createdAt FROM recipe_activity_log WHERE household_id = ? ORDER BY created_at DESC LIMIT 20",
         )
+        .bind(household)
         .all(),
       db
         .prepare(
@@ -295,8 +303,9 @@ async function readWorkspace(household: string) {
         .first(),
       db
         .prepare(
-          "SELECT id, recipe_id AS recipeId, file_name AS fileName, content_type AS contentType, size, created_at AS createdAt FROM recipe_attachments ORDER BY created_at ASC",
+          "SELECT id, recipe_id AS recipeId, file_name AS fileName, content_type AS contentType, size, created_at AS createdAt FROM recipe_attachments WHERE household_id = ? ORDER BY created_at ASC",
         )
+        .bind(household)
         .all(),
     ]);
   const ratingRows = ratings.results as Array<{ recipeId: string; memberId: string; rating: number }>;
@@ -384,7 +393,9 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
           cleanText(preferences.notes, "", 800),
         )
         .run();
-      await logActivity("更新忌口设置", null, null, { allergies: cleanText(preferences.allergies, "", 120) });
+      await logActivity(household, "更新忌口设置", null, null, {
+        allergies: cleanText(preferences.allergies, "", 120),
+      });
     } else if (action === "saveRecipe") {
       const input = (payload.recipe ?? {}) as RecipeInput;
       const id = cleanId(input.id) || `recipe-${crypto.randomUUID()}`;
@@ -392,9 +403,9 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       await db
         .prepare(
           `INSERT INTO recipe_catalog
-        (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json,
+        (household_id, id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json,
         tags_json, meal_types_json, is_favorite, is_custom, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET title = excluded.title, summary = excluded.summary, reason = excluded.reason,
         origin = excluded.origin, icon = excluded.icon, cook_time = excluded.cook_time, difficulty = excluded.difficulty,
         servings = excluded.servings, ingredients_json = excluded.ingredients_json, steps_json = excluded.steps_json,
@@ -402,6 +413,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         is_custom = excluded.is_custom, updated_at = CURRENT_TIMESTAMP`,
         )
         .bind(
+          household,
           id,
           recipe.title,
           recipe.summary,
@@ -419,9 +431,15 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
           Number(recipe.isCustom),
         )
         .run();
-      await logActivity(input.id ? "编辑菜谱" : "创建菜谱", id, cleanId(payload.memberId) || null, {
-        title: recipe.title,
-      });
+      await logActivity(
+        household,
+        input.id ? "编辑菜谱" : "创建菜谱",
+        id,
+        cleanId(payload.memberId) || null,
+        {
+          title: recipe.title,
+        },
+      );
     } else if (action === "importRecipes") {
       const recipes = Array.isArray(payload.recipes) ? (payload.recipes.slice(0, 8) as RecipeInput[]) : [];
       const inserts = [];
@@ -436,10 +454,11 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
           db
             .prepare(
               `INSERT OR IGNORE INTO recipe_catalog
-          (id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json,
-          tags_json, meal_types_json, is_favorite, is_custom) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
+          (household_id, id, title, summary, reason, origin, icon, cook_time, difficulty, servings, ingredients_json, steps_json,
+          tags_json, meal_types_json, is_favorite, is_custom) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
             )
             .bind(
+              household,
               id,
               recipe.title,
               recipe.summary,
@@ -457,31 +476,43 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         );
       }
       if (inserts.length) await db.batch(inserts);
-      await logActivity("导入智能推荐", null, null, { count: recipes.length });
+      await logActivity(household, "导入智能推荐", null, null, { count: recipes.length });
     } else if (action === "toggleFavorite") {
       const recipeId = cleanId(payload.recipeId);
       await db
-        .prepare("UPDATE recipe_catalog SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .bind(payload.favorite ? 1 : 0, recipeId)
+        .prepare(
+          "UPDATE recipe_catalog SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?",
+        )
+        .bind(payload.favorite ? 1 : 0, household, recipeId)
         .run();
-      await logActivity(payload.favorite ? "收藏菜谱" : "取消收藏", recipeId);
+      await logActivity(household, payload.favorite ? "收藏菜谱" : "取消收藏", recipeId);
     } else if (action === "deleteRecipe") {
       const recipeId = cleanId(payload.recipeId);
       const photos = await db
-        .prepare("SELECT object_key AS objectKey FROM recipe_attachments WHERE recipe_id = ?")
-        .bind(recipeId)
+        .prepare(
+          "SELECT object_key AS objectKey FROM recipe_attachments WHERE household_id = ? AND recipe_id = ?",
+        )
+        .bind(household, recipeId)
         .all<{ objectKey: string }>();
       for (const photo of photos.results) await env.UPLOADS.delete(photo.objectKey);
       await db.batch([
-        db.prepare("DELETE FROM meal_requests WHERE recipe_id = ?").bind(recipeId),
-        db.prepare("DELETE FROM recipe_ratings WHERE recipe_id = ?").bind(recipeId),
-        db.prepare("DELETE FROM recipe_cook_history WHERE recipe_id = ?").bind(recipeId),
+        db
+          .prepare("DELETE FROM meal_requests WHERE household_id = ? AND recipe_id = ?")
+          .bind(household, recipeId),
+        db
+          .prepare("DELETE FROM recipe_ratings WHERE household_id = ? AND recipe_id = ?")
+          .bind(household, recipeId),
+        db
+          .prepare("DELETE FROM recipe_cook_history WHERE household_id = ? AND recipe_id = ?")
+          .bind(household, recipeId),
         db.prepare("DELETE FROM recipe_favorites WHERE id = ?").bind(recipeId),
         db.prepare("DELETE FROM recipe_suggestions WHERE id = ?").bind(recipeId),
-        db.prepare("DELETE FROM recipe_attachments WHERE recipe_id = ?").bind(recipeId),
-        db.prepare("DELETE FROM recipe_catalog WHERE id = ?").bind(recipeId),
+        db
+          .prepare("DELETE FROM recipe_attachments WHERE household_id = ? AND recipe_id = ?")
+          .bind(household, recipeId),
+        db.prepare("DELETE FROM recipe_catalog WHERE household_id = ? AND id = ?").bind(household, recipeId),
       ]);
-      await logActivity("删除菜谱", recipeId);
+      await logActivity(household, "删除菜谱", recipeId);
     } else if (action === "saveMember") {
       const member = (payload.member ?? {}) as Record<string, unknown>;
       const id = cleanId(member.id) || `member-${crypto.randomUUID()}`;
@@ -494,7 +525,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         )
         .bind(id, household, name, avatar)
         .run();
-      await logActivity(member.id ? "编辑成员" : "添加成员", null, id, { name });
+      await logActivity(household, member.id ? "编辑成员" : "添加成员", null, id, { name });
     } else if (action === "deleteMember") {
       const memberId = cleanId(payload.memberId);
       const count = await db
@@ -504,11 +535,11 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       const used = await db
         .prepare(
           `SELECT
-        (SELECT COUNT(*) FROM meal_requests WHERE member_id = ?) +
-        (SELECT COUNT(*) FROM recipe_cook_history WHERE cook_member_id = ?) +
-        (SELECT COUNT(*) FROM recipe_ratings WHERE member_id = ?) AS count`,
+        (SELECT COUNT(*) FROM meal_requests WHERE household_id = ?1 AND member_id = ?2) +
+        (SELECT COUNT(*) FROM recipe_cook_history WHERE household_id = ?1 AND cook_member_id = ?2) +
+        (SELECT COUNT(*) FROM recipe_ratings WHERE household_id = ?1 AND member_id = ?2) AS count`,
         )
-        .bind(memberId, memberId, memberId)
+        .bind(household, memberId)
         .first<{ count: number }>();
       if (Number(count?.count) <= 1)
         return Response.json({ error: "家庭中至少需要保留一位成员" }, { status: 400 });
@@ -534,14 +565,15 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       await db
         .prepare(
           `INSERT INTO meal_requests
-        (id, recipe_id, member_id, desired_from, desired_to, meal_type, priority, servings, notes, status, scheduled_date, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (household_id, id, recipe_id, member_id, desired_from, desired_to, meal_type, priority, servings, notes, status, scheduled_date, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET recipe_id = excluded.recipe_id, member_id = excluded.member_id,
         desired_from = excluded.desired_from, desired_to = excluded.desired_to, meal_type = excluded.meal_type,
         priority = excluded.priority, servings = excluded.servings, notes = excluded.notes, status = excluded.status,
         scheduled_date = excluded.scheduled_date, updated_at = CURRENT_TIMESTAMP`,
         )
         .bind(
+          household,
           id,
           recipeId,
           memberId,
@@ -555,7 +587,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
           scheduledDate,
         )
         .run();
-      await logActivity(item.id ? "修改点菜" : "家庭点菜", recipeId, memberId, {
+      await logActivity(household, item.id ? "修改点菜" : "家庭点菜", recipeId, memberId, {
         status,
         scheduledDate,
         mealType,
@@ -563,11 +595,16 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
     } else if (action === "deleteRequest") {
       const requestId = cleanId(payload.requestId);
       const existing = await db
-        .prepare("SELECT recipe_id AS recipeId, member_id AS memberId FROM meal_requests WHERE id = ?")
+        .prepare(
+          "SELECT recipe_id AS recipeId, member_id AS memberId FROM meal_requests WHERE household_id = ? AND id = ?",
+        )
         .bind(requestId)
         .first<{ recipeId: string; memberId: string }>();
-      await db.prepare("DELETE FROM meal_requests WHERE id = ?").bind(requestId).run();
-      await logActivity("撤回点菜", existing?.recipeId, existing?.memberId);
+      await db
+        .prepare("DELETE FROM meal_requests WHERE household_id = ? AND id = ?")
+        .bind(household, requestId)
+        .run();
+      await logActivity(household, "撤回点菜", existing?.recipeId, existing?.memberId);
     } else if (action === "completeMeal" || action === "saveHistory") {
       const item = (payload.history ?? {}) as Record<string, unknown>;
       const historyId = cleanId(item.id) || `history-${crypto.randomUUID()}`;
@@ -577,20 +614,23 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       if (!recipeId || !memberId) return Response.json({ error: "请选择菜谱和制作成员" }, { status: 400 });
       const existing = item.id
         ? await db
-            .prepare("SELECT recipe_id AS recipeId FROM recipe_cook_history WHERE id = ?")
-            .bind(historyId)
+            .prepare(
+              "SELECT recipe_id AS recipeId FROM recipe_cook_history WHERE household_id = ? AND id = ?",
+            )
+            .bind(household, historyId)
             .first<{ recipeId: string }>()
         : null;
       await db
         .prepare(
           `INSERT INTO recipe_cook_history
-        (id, recipe_id, request_id, cooked_date, meal_type, servings, cook_member_id, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (household_id, id, recipe_id, request_id, cooked_date, meal_type, servings, cook_member_id, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET recipe_id = excluded.recipe_id, request_id = excluded.request_id,
         cooked_date = excluded.cooked_date, meal_type = excluded.meal_type, servings = excluded.servings,
         cook_member_id = excluded.cook_member_id, notes = excluded.notes`,
         )
         .bind(
+          household,
           historyId,
           recipeId,
           cleanId(item.requestId) || null,
@@ -604,44 +644,44 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       if (cleanId(item.requestId))
         await db
           .prepare(
-            "UPDATE meal_requests SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            "UPDATE meal_requests SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?",
           )
-          .bind(cleanId(item.requestId))
+          .bind(household, cleanId(item.requestId))
           .run();
       if (existing?.recipeId && existing.recipeId !== recipeId) {
         await db
           .prepare(
-            `UPDATE recipe_catalog SET cooked_count = (SELECT COUNT(*) FROM recipe_cook_history WHERE recipe_id = ?),
-          last_cooked_at = (SELECT MAX(cooked_date) FROM recipe_cook_history WHERE recipe_id = ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            `UPDATE recipe_catalog SET cooked_count = (SELECT COUNT(*) FROM recipe_cook_history WHERE household_id = ?1 AND recipe_id = ?2),
+          last_cooked_at = (SELECT MAX(cooked_date) FROM recipe_cook_history WHERE household_id = ?1 AND recipe_id = ?2), updated_at = CURRENT_TIMESTAMP WHERE household_id = ?1 AND id = ?2`,
           )
-          .bind(existing.recipeId, existing.recipeId, existing.recipeId)
+          .bind(household, existing.recipeId)
           .run();
       }
       await db
         .prepare(
-          `UPDATE recipe_catalog SET cooked_count = (SELECT COUNT(*) FROM recipe_cook_history WHERE recipe_id = ?),
-        last_cooked_at = (SELECT MAX(cooked_date) FROM recipe_cook_history WHERE recipe_id = ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          `UPDATE recipe_catalog SET cooked_count = (SELECT COUNT(*) FROM recipe_cook_history WHERE household_id = ?1 AND recipe_id = ?2),
+        last_cooked_at = (SELECT MAX(cooked_date) FROM recipe_cook_history WHERE household_id = ?1 AND recipe_id = ?2), updated_at = CURRENT_TIMESTAMP WHERE household_id = ?1 AND id = ?2`,
         )
-        .bind(recipeId, recipeId, recipeId)
+        .bind(household, recipeId)
         .run();
       const rating = cleanInt(item.rating, 0, 0, 10);
       if (rating)
         await db
           .prepare(
-            `INSERT INTO recipe_ratings (id, recipe_id, member_id, rating, updated_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET rating = excluded.rating, updated_at = CURRENT_TIMESTAMP`,
+            `INSERT INTO recipe_ratings (household_id, id, recipe_id, member_id, rating, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET rating = excluded.rating, updated_at = CURRENT_TIMESTAMP`,
           )
-          .bind(`rating-${recipeId}-${memberId}`, recipeId, memberId, rating)
+          .bind(household, `rating-${recipeId}-${memberId}`, recipeId, memberId, rating)
           .run();
       // 只有第一次记录完成时才扣库存，编辑旧记录不应该重复扣。
       const consumption = item.id ? [] : await consumeInventory(payload.consumption);
       if (consumption.length) {
         await db
-          .prepare("UPDATE recipe_cook_history SET consumption_json = ? WHERE id = ?")
-          .bind(JSON.stringify(consumption), historyId)
+          .prepare("UPDATE recipe_cook_history SET consumption_json = ? WHERE household_id = ? AND id = ?")
+          .bind(JSON.stringify(consumption), household, historyId)
           .run();
       }
-      await logActivity(item.id ? "修改制作记录" : "完成菜谱", recipeId, memberId, {
+      await logActivity(household, item.id ? "修改制作记录" : "完成菜谱", recipeId, memberId, {
         cookedDate,
         rating,
         consumed: consumption.length,
@@ -652,29 +692,33 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       const existing = await db
         .prepare(
           `SELECT recipe_id AS recipeId, request_id AS requestId,
-        COALESCE(consumption_json, '[]') AS consumptionJson FROM recipe_cook_history WHERE id = ?`,
+        COALESCE(consumption_json, '[]') AS consumptionJson FROM recipe_cook_history
+        WHERE household_id = ? AND id = ?`,
         )
-        .bind(historyId)
+        .bind(household, historyId)
         .first<{ recipeId: string; requestId: string | null; consumptionJson: string }>();
       if (existing) {
         // 先把这顿饭扣掉的库存还回去，再删记录。
         const { restored, skipped } = await restoreInventory(existing.consumptionJson);
-        await db.prepare("DELETE FROM recipe_cook_history WHERE id = ?").bind(historyId).run();
+        await db
+          .prepare("DELETE FROM recipe_cook_history WHERE household_id = ? AND id = ?")
+          .bind(household, historyId)
+          .run();
         if (existing.requestId)
           await db
             .prepare(
-              "UPDATE meal_requests SET status = 'scheduled', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+              "UPDATE meal_requests SET status = 'scheduled', updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?",
             )
-            .bind(existing.requestId)
+            .bind(household, existing.requestId)
             .run();
         await db
           .prepare(
-            `UPDATE recipe_catalog SET cooked_count = (SELECT COUNT(*) FROM recipe_cook_history WHERE recipe_id = ?),
-          last_cooked_at = (SELECT MAX(cooked_date) FROM recipe_cook_history WHERE recipe_id = ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            `UPDATE recipe_catalog SET cooked_count = (SELECT COUNT(*) FROM recipe_cook_history WHERE household_id = ?1 AND recipe_id = ?2),
+          last_cooked_at = (SELECT MAX(cooked_date) FROM recipe_cook_history WHERE household_id = ?1 AND recipe_id = ?2), updated_at = CURRENT_TIMESTAMP WHERE household_id = ?1 AND id = ?2`,
           )
-          .bind(existing.recipeId, existing.recipeId, existing.recipeId)
+          .bind(household, existing.recipeId)
           .run();
-        await logActivity("撤销完成", existing.recipeId, null, { restored, skipped });
+        await logActivity(household, "撤销完成", existing.recipeId, null, { restored, skipped });
         return Response.json({ ...(await readWorkspace(household)), restored, skipped });
       }
     } else if (action === "rateRecipe") {
@@ -683,12 +727,12 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       const rating = cleanInt(payload.rating, 0, 1, 10);
       await db
         .prepare(
-          `INSERT INTO recipe_ratings (id, recipe_id, member_id, rating, updated_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET rating = excluded.rating, updated_at = CURRENT_TIMESTAMP`,
+          `INSERT INTO recipe_ratings (household_id, id, recipe_id, member_id, rating, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET rating = excluded.rating, updated_at = CURRENT_TIMESTAMP`,
         )
-        .bind(`rating-${recipeId}-${memberId}`, recipeId, memberId, rating)
+        .bind(household, `rating-${recipeId}-${memberId}`, recipeId, memberId, rating)
         .run();
-      await logActivity("修改评分", recipeId, memberId, { rating });
+      await logActivity(household, "修改评分", recipeId, memberId, { rating });
     } else if (action === "generateShopping") {
       const from = cleanDate(payload.from) || (await today(household));
       const to = cleanDate(payload.to) || from;
@@ -696,9 +740,10 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         .prepare(
           `SELECT recipe_catalog.ingredients_json AS ingredientsJson
         FROM meal_requests JOIN recipe_catalog ON recipe_catalog.id = meal_requests.recipe_id
-        WHERE meal_requests.status = 'scheduled' AND meal_requests.scheduled_date >= ? AND meal_requests.scheduled_date <= ?`,
+        WHERE meal_requests.household_id = ? AND recipe_catalog.household_id = ?
+        AND meal_requests.status = 'scheduled' AND meal_requests.scheduled_date >= ? AND meal_requests.scheduled_date <= ?`,
         )
-        .bind(from, to)
+        .bind(household, household, from, to)
         .all<{ ingredientsJson: string }>();
       // 用量要拆成数量和单位分开存，否则「300克」会被当成单位，勾选入库时污染库存。
       await ensureSchema();
@@ -746,7 +791,7 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
         }
       if (inserts.length) await db.batch(inserts);
       const added = inserts.length;
-      await logActivity("从菜单生成采购清单", null, null, { from, to, added });
+      await logActivity(household, "从菜单生成采购清单", null, null, { from, to, added });
       return Response.json({ ...(await readWorkspace(household)), added });
     } else {
       return Response.json({ error: "不支持的菜谱操作" }, { status: 400 });

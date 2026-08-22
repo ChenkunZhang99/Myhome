@@ -66,7 +66,11 @@ const TABLES = [
     email TEXT NOT NULL,
     household_id TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_seen_at TEXT
+    last_seen_at TEXT,
+    -- 密码是可选的：不设就只能用邮箱链接登录，设了两种都行。
+    password_hash TEXT,
+    failed_logins INTEGER NOT NULL DEFAULT 0,
+    locked_until TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -318,6 +322,16 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     column: "opened_shelf_life_days",
     ddl: "ALTER TABLE inventory_items ADD COLUMN opened_shelf_life_days INTEGER",
   },
+  ...[
+    // 密码登录是后加的。老库里的 users 表没有这三列，补上；
+    // password_hash 为空就表示这个账号只用邮箱链接登录。
+    { column: "password_hash", ddl: "ALTER TABLE users ADD COLUMN password_hash TEXT" },
+    {
+      column: "failed_logins",
+      ddl: "ALTER TABLE users ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0",
+    },
+    { column: "locked_until", ddl: "ALTER TABLE users ADD COLUMN locked_until TEXT" },
+  ].map((entry) => ({ table: "users", ...entry })),
   {
     // 时区原先写死在代码里，改成按家庭设置，老库需要补上这一列。
     table: "household_settings",

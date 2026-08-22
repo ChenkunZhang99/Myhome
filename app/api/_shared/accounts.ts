@@ -45,3 +45,41 @@ export async function accountById(userId: string) {
 export async function touchAccount(userId: string) {
   await env.DB.prepare("UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?").bind(userId).run();
 }
+
+/**
+ * 密码登录的账号查询。
+ *
+ * 和 findOrCreateAccount 分开：那个「找不到就建」，用在邮箱链接上是对的
+ * （谁都可以注册）；用在密码登录上却会凭空造出一个没有密码的账号，
+ * 还顺带把邮箱是否存在泄露给了调用方。这里只查，不建。
+ */
+export async function accountByEmail(email: string) {
+  return env.DB.prepare(
+    `SELECT id, email, household_id AS householdId, password_hash AS passwordHash,
+            failed_logins AS failedLogins, locked_until AS lockedUntil
+       FROM users WHERE email = ?`,
+  )
+    .bind(email)
+    .first<Account & { passwordHash: string | null; failedLogins: number; lockedUntil: string | null }>();
+}
+
+export async function setAccountPassword(userId: string, passwordHash: string | null) {
+  // 改密码同时清掉失败计数：人已经证明了自己是账号主人。
+  await env.DB.prepare(
+    "UPDATE users SET password_hash = ?, failed_logins = 0, locked_until = NULL WHERE id = ?",
+  )
+    .bind(passwordHash, userId)
+    .run();
+}
+
+export async function recordLoginFailure(userId: string, lockedUntil: string | null) {
+  await env.DB.prepare("UPDATE users SET failed_logins = failed_logins + 1, locked_until = ? WHERE id = ?")
+    .bind(lockedUntil, userId)
+    .run();
+}
+
+export async function clearLoginFailures(userId: string) {
+  await env.DB.prepare("UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?")
+    .bind(userId)
+    .run();
+}

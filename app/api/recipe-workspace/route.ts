@@ -382,12 +382,27 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
     if (action === "savePreferences") {
       const preferences = (payload.preferences ?? {}) as Record<string, unknown>;
       await db
+        /**
+         * 这条语句在多住户改造时漏改了，而且错得比报错更难看：
+         *
+         *  - household_id 写的是字面量 1（旧的单行表 id=1 模式的残留），
+         *    于是每个家的忌口设置都存到了一个谁也不会去读的住户下面
+         *  - 冲突判据是 id，可 id 根本没在插入列里，SQLite 每次分配新 rowid，
+         *    永远不冲突，于是每次都试图插新行，最终撞上 household_id 的唯一索引
+         *
+         * 空库上它会「成功」但存错地方，第二次才报错。照 household_settings 的写法改。
+         *
+         * 注释必须留在 .prepare( 外面：几条守卫测试是靠「字符串紧跟在 .prepare( 后面」
+         * 来提取 SQL 的，夹一段注释进去，这条语句就对它们隐身了。
+         */
         .prepare(
           `INSERT INTO recipe_preferences (household_id, allergies, avoid_foods, dislikes, notes, updated_at)
-        VALUES (1, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET allergies = excluded.allergies,
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(household_id) DO UPDATE SET allergies = excluded.allergies,
         avoid_foods = excluded.avoid_foods, dislikes = excluded.dislikes, notes = excluded.notes, updated_at = CURRENT_TIMESTAMP`,
         )
         .bind(
+          household,
           cleanText(preferences.allergies, "", 500),
           cleanText(preferences.avoidFoods, "", 500),
           cleanText(preferences.dislikes, "", 500),

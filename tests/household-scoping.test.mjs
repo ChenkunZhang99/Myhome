@@ -92,3 +92,39 @@ test("住户解析器只有一处实现", async () => {
     .map((file) => file.name);
   assert.deepEqual(offenders, [], `默认住户 id 只应出现在 _shared/householdId.ts：\n${offenders}`);
 });
+
+/**
+ * 租户表的写入不能把 household_id 写成字面量。
+ *
+ * recipe_preferences 上就栽过：`VALUES (1, ?, ?, ?, ?)` 的第一列是 household_id，
+ * 于是每个家的忌口设置都存进了一个谁也不读的住户 `1`。空库上它甚至不报错——
+ * 存错地方然后返回成功，比直接失败更难发现。
+ *
+ * 已有的两条测试都抓不到：SQL 里确实出现了 household_id（作用域测试满意），
+ * 占位符数量也和绑定对得上（绑定测试满意）。错的是那个位置放了常量。
+ */
+test("租户表的 household_id 必须来自绑定，不能是字面量", async () => {
+  const offenders = [];
+  for (const file of await collectSources(API_DIR)) {
+    if (file.name.startsWith("_shared/schema")) continue; // 建表里的 DEFAULT 是另一回事
+    for (const sql of statements(file.code)) {
+      const insert = /INSERT(?:\s+OR\s+\w+)?\s+INTO\s+(\w+)\s*\(([^)]*)\)\s*VALUES\s*\(([^)]*)\)/i.exec(sql);
+      if (!insert) continue;
+      const [, table, columnList, valueList] = insert;
+      if (!TENANT_TABLES.includes(table)) continue;
+      const columns = columnList.split(",").map((c) => c.trim());
+      const values = valueList.split(",").map((v) => v.trim());
+      const at = columns.indexOf("household_id");
+      if (at === -1) continue;
+      const bound = values[at];
+      // 合法的只有 ? 或 ?1 这类编号占位符
+      if (bound && !/^\?\d*$/.test(bound))
+        offenders.push(`${file.name}: ${table} 的 household_id 写成了 ${bound}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `household_id 是常量的话，数据会静默写进别人的家：${"\n"}${offenders.join("\n")}`,
+  );
+});

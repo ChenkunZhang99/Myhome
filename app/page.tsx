@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { Icon } from "./Icon";
 import { PlannerPanel } from "./PlannerPanel";
 import {
   clampPercent,
@@ -929,29 +930,29 @@ export default function Home() {
             </button>
             <nav>
               <button className="nav-item active" onClick={() => scrollTo("overview")}>
-                <span>⌂</span>
+                <Icon name="home" />
                 {t("总览")}
               </button>
               <button className="nav-item" onClick={() => scrollTo("inventory")}>
-                <span>▦</span>
+                <Icon name="inventory" />
                 {t("家庭库存")}
               </button>
               <button className="nav-item" onClick={() => scrollTo("flyers")}>
-                <span>％</span>
+                <Icon name="deals" />
                 {t("Flyer 优惠")}
               </button>
               <button className="nav-item" onClick={() => scrollTo("recipes")}>
-                <span>♨</span>
+                <Icon name="recipes" />
                 {t("本周菜谱")}
               </button>
               <button className="nav-item" onClick={() => scrollTo("budget")}>
-                <span>◔</span>
+                <Icon name="budget" />
                 {t("预算记录")}
               </button>
             </nav>
             <div className="sidebar-spacer" />
             <button className="nav-item" onClick={() => scrollTo("budget")}>
-              <span>⚙</span>
+              <Icon name="settings" />
               {t("家庭设置")}
             </button>
             <div className="home-profile">
@@ -970,7 +971,7 @@ export default function Home() {
                 <strong>{t("家里有数")}</strong>
               </div>
               <label className="global-search">
-                <span>⌕</span>
+                <Icon name="search" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -996,7 +997,7 @@ export default function Home() {
                 aria-label={t("设置")}
                 title={demo ? t("演示模式") : t("已配置")}
               >
-                ⚙
+                <Icon name="settings" />
               </button>
               <button className="primary-button compact" onClick={() => setShowAdd(true)}>
                 ＋ {t("添加物品")}
@@ -1027,7 +1028,9 @@ export default function Home() {
 
               <section className="summary-grid" aria-label={t("库存摘要")}>
                 <article className="summary-card green">
-                  <div className="summary-icon">▦</div>
+                  <div className="summary-icon">
+                    <Icon name="inventory" />
+                  </div>
                   <div>
                     <span>{t("库存物品")}</span>
                     <strong>
@@ -1037,7 +1040,9 @@ export default function Home() {
                   </div>
                 </article>
                 <article className="summary-card amber">
-                  <div className="summary-icon">◷</div>
+                  <div className="summary-icon">
+                    <Icon name="expiring" />
+                  </div>
                   <div>
                     <span>{t("临期提醒")}</span>
                     <strong>{t("{count} 件", { count: expiringCount })}</strong>
@@ -1171,7 +1176,7 @@ export default function Home() {
                         className="quick-action"
                         onClick={() => setToast(t("照片识别将在下一阶段接入"))}
                       >
-                        <span>▧</span>
+                        <Icon name="camera" />
                         <strong>{t("拍照识别")}</strong>
                         <small>{t("下一阶段")}</small>
                       </button>
@@ -1182,7 +1187,7 @@ export default function Home() {
                           setReceiptOpen(true);
                         }}
                       >
-                        <span>▤</span>
+                        <Icon name="receipt" />
                         <strong>{t("上传小票")}</strong>
                         <small>{t("AI 自动识别")}</small>
                       </button>
@@ -1190,7 +1195,7 @@ export default function Home() {
                         className="quick-action"
                         onClick={() => setToast(t("条码扫描将在下一阶段接入"))}
                       >
-                        <span>▥</span>
+                        <Icon name="barcode" />
                         <strong>{t("扫描条码")}</strong>
                         <small>{t("下一阶段")}</small>
                       </button>
@@ -1207,22 +1212,22 @@ export default function Home() {
 
           <nav className="mobile-nav" aria-label={t("移动端导航")}>
             <button onClick={() => scrollTo("overview")}>
-              <span>⌂</span>
+              <Icon name="home" />
               {t("总览")}
             </button>
             <button onClick={() => scrollTo("inventory")}>
-              <span>▦</span>
+              <Icon name="inventory" />
               {t("库存")}
             </button>
             <button className="mobile-add" onClick={() => setShowAdd(true)}>
               ＋
             </button>
             <button onClick={() => scrollTo("flyers")}>
-              <span>％</span>
+              <Icon name="deals" />
               {t("优惠")}
             </button>
             <button onClick={() => scrollTo("recipes")}>
-              <span>♨</span>
+              <Icon name="recipes" />
               {t("菜谱")}
             </button>
           </nav>
@@ -1586,7 +1591,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="photo-empty">
-                    <span>▧</span>
+                    <Icon name="camera" />
                     <p>{selectedItem.demo ? t("示例物品不能上传图片") : t("还没有保存图片")}</p>
                   </div>
                 )}
@@ -1640,7 +1645,7 @@ export default function Home() {
                       </>
                     ) : (
                       <>
-                        <span>▤</span>
+                        <Icon name="receipt" />
                         <strong>{t("选择清晰的小票照片")}</strong>
                         <p>
                           {t(

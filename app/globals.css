@@ -5279,3 +5279,17 @@ button.item-main:focus-visible {
 .empty-state.calm span {
   color: var(--green);
 }
+
+/* 线条图标随字号缩放（size="1em"），并和相邻文字基线对齐。 */
+.nav-item svg,
+.icon-button svg,
+.summary-icon svg,
+.global-search svg,
+.quick-action svg {
+  flex-shrink: 0;
+  vertical-align: -0.14em;
+}
+.summary-icon svg {
+  width: 1em;
+  height: 1em;
+}

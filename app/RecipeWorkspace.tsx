@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Icon } from "./Icon";
 import { dayIn, detectTimeZone } from "./dateTime";
 import {
   applyConsumption,
@@ -702,7 +703,7 @@ export function RecipeWorkspace({
         <div className="recipe-library-view">
           <div className="recipe-library-tools">
             <label>
-              <span>⌕</span>
+              <Icon name="search" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -1081,7 +1082,7 @@ export function RecipeWorkspace({
             </div>
             <div>
               <small>{t("份量")}</small>
-              <strong>♨ {t("{n} 人份", { n: selectedRecipe.servings })}</strong>
+              <strong>{t("{n} 人份", { n: selectedRecipe.servings })}</strong>
             </div>
             <div>
               <small>{t("家庭记录")}</small>

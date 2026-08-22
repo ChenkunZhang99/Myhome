@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "./Icon";
 import { dayIn, detectTimeZone, resolveTimeZone, timeZoneChoices } from "./dateTime";
 import { buildFlyerPurchasePlan, recommendFlyerDeals } from "./flyerRecommendations";
 import { findInventoryMatch, rankInventoryMatches } from "./inventoryUsage";
@@ -654,7 +655,7 @@ export function PlannerPanel({
           </span>
         </div>
         <div className="location-line">
-          <span>⌖</span>
+          <Icon name="place" />
           <p>
             <strong>{data.settings.city || t("城市待填写")}</strong>
             <small>{data.settings.postalCode || t("填写邮编后可接入本地 Flyer")}</small>

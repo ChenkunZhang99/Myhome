@@ -7,9 +7,20 @@
  */
 
 export const RECIPE_ORIGINS = ["库存优先", "临期优先", "Flyer 搭配", "库存＋优惠"];
-export const INGREDIENT_SOURCES = ["inventory", "flyer", "pantry"];
+/**
+ * 食材从哪来。
+ *
+ * buy 是后加的：原先只有三种，等于规定「除了基础调料，只能用家里有的或者在打折的」。
+ * 那条规则会把模型逼去现编组合——库存里有姜和蛋，就给你端上一道姜汁蒸蛋。
+ * 允许补一两样常见食材之后，它才推得出真实存在的家常菜。
+ */
+export const INGREDIENT_SOURCES = ["inventory", "flyer", "pantry", "buy"];
 
-export type GeneratedIngredient = { name: string; amount: string; source: "inventory" | "flyer" | "pantry" };
+export type GeneratedIngredient = {
+  name: string;
+  amount: string;
+  source: "inventory" | "flyer" | "pantry" | "buy";
+};
 
 export type GeneratedRecipe = {
   title: string;

@@ -1,5 +1,5 @@
 import { resolveHousehold } from "../../_shared/household";
-import { failure, UserFacingError, withRoute } from "../../_shared/observability";
+import { failure, redact, UserFacingError, withRoute } from "../../_shared/observability";
 import { createOpenAIResponse, getOpenAIConfig } from "../../_shared/openai";
 import { cleanGeneratedRecipe, GeneratedRecipe, RECIPE_SCHEMA } from "../../_shared/recipeShape";
 import { isDemoMode } from "../../_shared/demo";
@@ -31,7 +31,7 @@ function outputText(response: Record<string, unknown>) {
 export const POST = withRoute("recipes.draft", async (request: Request) => {
   try {
     // 会调模型就是会花钱，必须先鉴权。见 tests/ai-endpoints-gated.test.mjs。
-    await resolveHousehold(request);
+    const household = await resolveHousehold(request);
 
     const payload = (await request.json()) as { description?: string };
     const description = String(payload.description ?? "")
@@ -39,7 +39,7 @@ export const POST = withRoute("recipes.draft", async (request: Request) => {
       .slice(0, 2000);
     if (description.length < 4) throw new UserFacingError("描述太短了，多写几个字");
 
-    const openAI = getOpenAIConfig(request);
+    const openAI = getOpenAIConfig(request, household);
     if (isDemoMode(request)) {
       // 演示模式不花钱，返回一个能看出形状的样例，走同一条清洗路径。
       return Response.json({
@@ -82,9 +82,17 @@ export const POST = withRoute("recipes.draft", async (request: Request) => {
     );
     const raw = (await response.json()) as Record<string, unknown>;
     if (!response.ok) {
-      // 服务商的原文留在日志里，对外只给安全文案。
+      // 只记状态码是不够的：400 有几十种原因，没有原文就只能靠猜。
+      // 原文进日志、不出接口——redact 会把 sk- 形态的东西抹掉。
+      const upstream = (raw.error as { message?: string; code?: string } | undefined) ?? {};
       console.error(
-        JSON.stringify({ at: new Date().toISOString(), scope: "recipes.draft", status: response.status }),
+        JSON.stringify({
+          at: new Date().toISOString(),
+          scope: "recipes.draft",
+          status: response.status,
+          code: upstream.code,
+          reason: redact(String(upstream.message ?? "")),
+        }),
       );
       throw new UserFacingError("菜谱补全暂时失败，请稍后再试", 502);
     }

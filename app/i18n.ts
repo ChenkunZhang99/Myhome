@@ -719,7 +719,6 @@ const ui: Record<string, string> = {
   "↻ 立即同步": "↻ Sync now",
   "✦ 根据库存推荐": "✦ Suggest from stock",
   "不喜欢：{list}": "Dislikes: {list}",
-  中: "EN",
   以后不再推荐此类商品: "This kind of item will no longer be suggested",
   价格历史正在积累: "Building price history",
   优惠已收藏: "Deal saved",

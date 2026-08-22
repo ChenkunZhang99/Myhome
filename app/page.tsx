@@ -1003,7 +1003,11 @@ export default function Home() {
                     aria-pressed={option === locale}
                     onClick={() => setLocale(option)}
                   >
-                    {option === "zh" ? t("中") : "EN"}
+                    {/* 语言开关上的字永远不翻译：切到英文后
+                        「中」被译成 EN，两个按钮就都写着 EN 了。
+                        每个选项显示它自己那门语言的名字，看不懂当前语言的人
+                        才找得到自己的那一个。 */}
+                    {option === "zh" ? "中" : "EN"}
                   </button>
                 ))}
               </div>

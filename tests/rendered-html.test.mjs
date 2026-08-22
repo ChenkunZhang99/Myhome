@@ -56,8 +56,11 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
   assert.match(page, /inventoryGroups/);
   assert.match(page, /inventory-group-heading/);
   assert.match(page, /剩余百分比/);
-  assert.match(page, /−20%/);
-  assert.match(page, /＋20%/);
+  // 卡片上的余量微调收敛成两档；四档细分留在详情弹窗里。
+  assert.match(page, /−25%/);
+  assert.match(page, /＋25%/);
+  // 已购买天数取代了存放位置：同样剩 40%，「买了 2 天」和「买了 45 天」含义完全不同。
+  assert.match(page, /买了 {days} 天/);
   assert.match(page, /remaining-track/);
   assert.match(page, /\["g", "ml"\]/);
   assert.match(page, /\["kg", "lb", "L"\]/);

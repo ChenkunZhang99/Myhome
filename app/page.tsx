@@ -455,7 +455,6 @@ export default function Home() {
   // 打开应用时想知道的是「什么快过期、什么快没了」，不是「我有哪 150 件东西」。
   // 所以默认只展示需要处理的，全部库存收进另一个视图。
   const [scope, setScope] = useState<"attention" | "all">("attention");
-  const [dense, setDense] = useState(true);
 
   const filteredItems = useMemo(
     () =>
@@ -568,7 +567,7 @@ export default function Home() {
     }
   }
 
-  async function changeRemaining(item: InventoryItem, delta: -30 | -20 | 20 | 30) {
+  async function changeRemaining(item: InventoryItem, delta: number) {
     if (item.demo) {
       setToast(t("这是示例物品，添加真实库存后即可调整"));
       return;
@@ -783,40 +782,64 @@ export default function Home() {
    * 这里把「剩余百分比微调」那四个按钮收进详情——它们是低频的精确操作，
    * 不该在每一行里常驻。整行可点开详情，加减数量留在行内因为它最常用。
    */
-  function renderCompactItem(item: InventoryItem) {
+  /**
+   * 物品卡片。
+   *
+   * 左侧是一个小仪表：图标在上，进度条和百分比在下面，一眼看出还剩多少。
+   * 中间是名称、已购买天数和到期提醒——天数比存放位置有用得多：
+   * 同样剩 40%，「买了 2 天」和「买了 45 天」是完全不同的消耗速度。
+   *
+   * 状态标签（偏少 / 充足）本来就是百分比的分档结果，同一个数字显示两遍，
+   * 所以只在「已用完」这个需要立刻行动的状态下才出现。
+   */
+  function renderItem(item: InventoryItem) {
     const expiry = getExpiryInfo(item, t);
+    const used = daysInUse(item);
+    const emptied = Number(item.quantity) <= 0 || Number(item.remainingPercent) <= 0;
     return (
-      <article className="inventory-row" key={item.id}>
+      <article className="item-card" key={item.id}>
         <button
           type="button"
-          className="row-main"
+          className="item-open"
           onClick={() => setSelectedItem(item)}
           aria-label={t("查看{name}详细资料", { name: item.name })}
         >
-          <span className="row-icon" aria-hidden="true">
-            {getItemIcon(item)}
-          </span>
-          <span className="row-name">
-            {tv(item.name)}
-            {item.demo && <span className="demo-tag">{t("示例")}</span>}
-          </span>
-          <span className="row-place">{tv(item.location)}</span>
-          <span
-            className={`stock-tag ${item.level === "即将用完" ? "low" : item.level === "偏少" ? "medium" : "good"}`}
-          >
-            {tv(item.level)}
-          </span>
-          <span className={`row-remaining ${remainingTone(item.remainingPercent)}`}>
-            <i style={{ width: `${item.remainingPercent}%` }} />
+          <span className={`item-gauge ${remainingTone(item.remainingPercent)}`}>
+            <span className="gauge-icon" aria-hidden="true">
+              {getItemIcon(item)}
+            </span>
+            <span className="gauge-bar" aria-hidden="true">
+              <i style={{ width: `${item.remainingPercent}%` }} />
+            </span>
             <b>{item.remainingPercent}%</b>
           </span>
-          {expiry ? (
-            <span className={`expiry-tag ${expiry.tone}`}>{expiry.label}</span>
-          ) : (
-            <span className="row-spacer" />
-          )}
+          <span className="item-info">
+            <span className="item-head">
+              <strong>{tv(item.name)}</strong>
+              {item.demo && <span className="demo-tag">{t("示例")}</span>}
+              {emptied && <span className="stock-tag low">{tv("已用完")}</span>}
+            </span>
+            <span className="item-sub">
+              {used === null ? tv(item.category) : t("买了 {days} 天", { days: used })}
+              {expiry && <span className={`expiry-tag ${expiry.tone}`}>{expiry.label}</span>}
+            </span>
+          </span>
         </button>
-        <div className="row-quantity">
+        <div className="item-tune">
+          <button
+            onClick={() => changeRemaining(item, -25)}
+            aria-label={t("减少{name}余量", { name: tv(item.name) })}
+          >
+            −25%
+          </button>
+          <button
+            onClick={() => changeRemaining(item, 25)}
+            aria-label={t("增加{name}余量", { name: tv(item.name) })}
+          >
+            ＋25%
+          </button>
+        </div>
+        <div className="item-qty">
           <button
             onClick={() => changeQuantity(item, -1)}
             aria-label={t("减少{name}数量", { name: tv(item.name) })}
@@ -830,87 +853,6 @@ export default function Home() {
           >
             ＋
           </button>
-        </div>
-      </article>
-    );
-  }
-
-  function renderItem(item: InventoryItem) {
-    return dense ? renderCompactItem(item) : renderInventoryItem(item);
-  }
-
-  function renderInventoryItem(item: InventoryItem) {
-    const expiry = getExpiryInfo(item, t);
-    return (
-      <article className="inventory-item" key={item.id}>
-        <div className="item-picture" aria-hidden="true">
-          {getItemIcon(item)}
-        </div>
-        <button
-          type="button"
-          className="item-main"
-          onClick={() => setSelectedItem(item)}
-          aria-label={t("查看{name}详细资料", { name: item.name })}
-        >
-          <div className="item-title">
-            <h3>{tv(item.name)}</h3>
-            {item.demo && <span className="demo-tag">{t("示例")}</span>}
-          </div>
-          <p>
-            {tv(item.category)} · {tv(item.location)}
-          </p>
-          <div className="item-meta">
-            <span
-              className={`stock-tag ${item.level === "即将用完" ? "low" : item.level === "偏少" ? "medium" : "good"}`}
-            >
-              {tv(item.level)}
-            </span>
-            {item.purchaseDate && (
-              <span className="purchase-tag">{t("购买于 {date}", { date: fmtDate(item.purchaseDate) })}</span>
-            )}
-            {expiry && <span className={`expiry-tag ${expiry.tone}`}>{expiry.label}</span>}
-          </div>
-        </button>
-        <div className="stock-controls">
-          <div
-            className="quantity-control"
-            title={t("每次调整 {step} {unit}", {
-              step: fmtNumber(getUnitStep(item)),
-              unit: tu(item.unit, getUnitStep(item)),
-            })}
-          >
-            <button
-              onClick={() => changeQuantity(item, -1)}
-              aria-label={t("减少{name}数量", { name: tv(item.name) })}
-            >
-              −
-            </button>
-            <strong>{formatQuantity(item, { fmtNumber, tu, tv, t })}</strong>
-            <button
-              onClick={() => changeQuantity(item, 1)}
-              aria-label={t("增加{name}数量", { name: tv(item.name) })}
-            >
-              ＋
-            </button>
-          </div>
-          <div
-            className={`remaining-control ${remainingTone(item.remainingPercent)}`}
-            aria-label={t("{name}剩余{percent}%", { name: tv(item.name), percent: item.remainingPercent })}
-          >
-            <div className="remaining-summary">
-              <span>{t("剩余")}</span>
-              <div className="remaining-track" aria-hidden="true">
-                <i style={{ width: `${item.remainingPercent}%` }} />
-              </div>
-              <strong>{item.remainingPercent}%</strong>
-            </div>
-            <div className="remaining-actions">
-              <button onClick={() => changeRemaining(item, -30)}>−30%</button>
-              <button onClick={() => changeRemaining(item, -20)}>−20%</button>
-              <button onClick={() => changeRemaining(item, 20)}>＋20%</button>
-              <button onClick={() => changeRemaining(item, 30)}>＋30%</button>
-            </div>
-          </div>
         </div>
       </article>
     );
@@ -1088,13 +1030,6 @@ export default function Home() {
                         </button>
                         <button
                           className="text-button"
-                          onClick={() => setDense((value) => !value)}
-                          aria-pressed={!dense}
-                        >
-                          {dense ? t("宽松视图") : t("紧凑视图")}
-                        </button>
-                        <button
-                          className="text-button"
                           onClick={() => setScope((value) => (value === "all" ? "attention" : "all"))}
                         >
                           {scope === "attention" ? t("查看全部") : t("只看需要处理")} <span>→</span>
@@ -1112,9 +1047,7 @@ export default function Home() {
                         </button>
                       ))}
                     </div>
-                    <div
-                      className={`inventory-list${category === "全部" ? " grouped" : ""}${dense ? " dense" : ""}`}
-                    >
+                    <div className={`inventory-list${category === "全部" ? " grouped" : ""}`}>
                       {visibleItems.length === 0 ? (
                         scope === "attention" && filteredItems.length > 0 ? (
                           // 没有需要处理的不是空状态，是好消息，不该催人添加物品。

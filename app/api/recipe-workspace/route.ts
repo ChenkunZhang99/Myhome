@@ -443,8 +443,33 @@ export const POST = withRoute("recipe.workspace", async (request: Request) => {
       );
     } else if (action === "importRecipes") {
       const recipes = Array.isArray(payload.recipes) ? (payload.recipes.slice(0, 8) as RecipeInput[]) : [];
+
+      /**
+       * 按菜名去重。
+       *
+       * INSERT OR IGNORE 只挡得住主键相同，而每次生成的 id 都是新的，
+       * 所以同一道「番茄牛腩煲」推荐几次就在库里躺几行。
+       *
+       * 这不只是难看：菜谱库同时是「不要重复推荐」的排除名单，
+       * 让它无限增长的话，几十次之后常见菜会被排干净，模型只能往冷门里找——
+       * 又绕回了当初那些没人做的怪菜。
+       */
+      const flatten = (title: string) =>
+        [...title]
+          .filter((ch) => ch.trim() !== "")
+          .join("")
+          .toLowerCase();
+      const known = await db
+        .prepare("SELECT title FROM recipe_catalog WHERE household_id = ?")
+        .bind(household)
+        .all<{ title: string }>();
+      const seen = new Set((known.results ?? []).map((row) => flatten(row.title)));
+
       const inserts = [];
       for (const input of recipes) {
+        const key = flatten(String(input.title ?? ""));
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
         const id = cleanId(input.id) || `recipe-${crypto.randomUUID()}`;
         const recipe = cleanRecipe({
           ...input,

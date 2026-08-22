@@ -118,6 +118,18 @@ export const POST = withRoute("recipes", async (request: Request) => {
       .bind(household)
       .all<{ title: string; cookedCount: number; rating: number | null }>();
 
+    /**
+     * 菜谱库里已经有的菜名。
+     *
+     * 上面那份「口味样本」有个副作用：喂进去之后模型会照着再生成一遍，
+     * 于是麻婆豆腐同时出现在推荐区和菜谱库里。样本是用来判断口味的，
+     * 不是用来抄的——所以已经有的必须单独列出来并明确说不要重复。
+     */
+    const existing = await env.DB.prepare("SELECT title FROM recipe_catalog WHERE household_id = ?")
+      .bind(household)
+      .all<{ title: string }>();
+    const existingTitles = (existing.results ?? []).map((row) => row.title);
+
     /** 明确说过不要的菜。没有这条，同一道怪菜会一次次回来。 */
     const rejected = await env.DB.prepare(
       `SELECT DISTINCT details_json AS details FROM recipe_activity_log
@@ -161,8 +173,9 @@ export const POST = withRoute("recipes", async (request: Request) => {
       `当前有效 Flyer 优惠：${JSON.stringify(usableDeals)}`,
       focusDeal ? `本次指定优惠（至少生成 2 道以它为核心的菜）：${JSON.stringify(focusDeal)}` : ``,
       liked.results?.length
-        ? `这家人做过或收藏过的菜（口味样本，越靠前越常做）：${JSON.stringify(liked.results)}`
+        ? `这家人做过或收藏过的菜（只作口味参考，用来判断他们的偏好，不要照抄）：${JSON.stringify(liked.results)}`
         : `这家人还没有做菜记录，按大众家常口味来。`,
+      existingTitles.length ? `菜谱库里已经有这些菜，一道都不要再推荐：${existingTitles.join("、")}` : ``,
       rejectedTitles.length ? `明确说过不要再推荐的菜：${rejectedTitles.join("、")}` : ``,
       `家庭过敏食材（绝对禁止）：${preferences?.allergies || "无"}`,
       `家庭忌口食材（绝对禁止）：${preferences?.avoidFoods || "无"}`,
@@ -242,15 +255,27 @@ export const POST = withRoute("recipes", async (request: Request) => {
     const restrictedTerms = dietaryTerms(
       `${preferences?.allergies ?? ""},${preferences?.avoidFoods ?? ""},${preferences?.dislikes ?? ""}`,
     );
+    // 提示词里说了不要重复，但那只是请求，不是保证。按菜名兜一道底——
+    // 比对去掉空白后的名字，「番茄 炒蛋」和「番茄炒蛋」是同一道。
+    // 不用正则：逐字符滤掉空白，全角空格和换行也一并处理。
+    const flatten = (title: string) =>
+      [...title]
+        .filter((ch) => ch.trim() !== "")
+        .join("")
+        .toLowerCase();
+    const seen = new Set(existingTitles.map(flatten));
     const recipes = generated.recipes
-      .slice(0, 4)
+      .slice(0, 6)
       .map(cleanRecipe)
-      .filter(
-        (recipe) =>
-          recipe.ingredients.length &&
-          recipe.steps.length &&
-          !containsRestrictedFood(recipe, restrictedTerms),
-      );
+      .filter((recipe) => {
+        if (!recipe.ingredients.length || !recipe.steps.length) return false;
+        if (containsRestrictedFood(recipe, restrictedTerms)) return false;
+        const key = flatten(recipe.title);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 4);
     if (!recipes.length) return Response.json({ error: "没有生成可用的菜谱" }, { status: 422 });
     // 记下这次推了什么、基于多少库存和优惠。
     // 不记的话，事后想找一个「怪菜」的例子只能靠人的记忆——而提示词要靠例子才改得动。

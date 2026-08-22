@@ -49,3 +49,21 @@ test("生成结果进日志——不然坏例子没处找", () => {
 test("判断一道菜正不正常需要推理，不能用最低档", () => {
   assert.match(route, /reasoning: \{ effort: "medium" \}/);
 });
+
+test("菜谱库里已经有的菜不会被再推一遍", async () => {
+  const code = await readFile(new URL("../app/api/recipes/route.ts", import.meta.url), "utf8");
+
+  // 提示词里要说，因为让模型别生成比生成完再丢掉更省
+  assert.match(code, /菜谱库里已经有这些菜，一道都不要再推荐/);
+
+  // 但提示词只是请求，不是保证——服务端必须兜底
+  assert.match(code, /const seen = new Set\(existingTitles\.map\(flatten\)\)/);
+  assert.match(code, /if \(seen\.has\(key\)\) return false;/);
+
+  // 口味样本的措辞不能诱导模型照抄，那正是重复的来源
+  assert.match(code, /只作口味参考.*不要照抄/, "写成「做过或收藏过的菜」会被当成范例复制");
+
+  // 去重会丢掉一些，所以先多要几道再截到 4 道
+  assert.match(code, /\.slice\(0, 6\)/, "只取 4 道的话，去重之后可能只剩一两道");
+  assert.match(code, /\.slice\(0, 4\);/);
+});

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { AccountSection } from "./AccountSection";
+import { HouseholdSection } from "./HouseholdSection";
 import { useAppSettings } from "./AppSettings";
 import { Modal } from "./Modal";
 import { clearAiSettings, maskKey, readAiSettings, writeAiSettings } from "./aiSettings";
@@ -43,6 +44,7 @@ export function SettingsPanel({
   return (
     <Modal className="settings-modal" eyebrow={t("设置")} title={t("账号与偏好")} onClose={onClose}>
       <AccountSection notify={notify} />
+      <HouseholdSection notify={notify} />
 
       <div className="settings-section">
         <strong>{t("语言")}</strong>

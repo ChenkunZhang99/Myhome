@@ -5384,3 +5384,35 @@ button.item-main:focus-visible {
     padding-right: 0;
   }
 }
+
+/* 登录方式切换。两个等宽的分段按钮，撑满卡片宽度——
+   语言开关那种收缩宽度在这里不合适：它是二选一的主路径，不是附属设置。 */
+.method-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: white;
+}
+.method-switch button {
+  border: 0;
+  background: transparent;
+  padding: 9px 12px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.method-switch button.active {
+  background: var(--green);
+  color: white;
+}
+
+/* 已登录后的密码区，和上面的账号信息用一条细线分开 */
+.password-block {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}

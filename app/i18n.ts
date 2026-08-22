@@ -621,6 +621,27 @@ const ui: Record<string, string> = {
   按余量记录: "By remaining %",
   日: "D",
   主要导航: "Main navigation",
+  登录方式: "Sign-in method",
+  密码登录: "Password",
+  邮箱链接: "Email link",
+  密码: "Password",
+  登录: "Sign in",
+  设置密码: "Set a password",
+  修改密码: "Change password",
+  保存密码: "Save password",
+  取消密码: "Remove password",
+  密码已保存: "Password saved",
+  密码保存失败: "Could not save the password",
+  已改为只用邮箱链接登录: "Switched to email-link sign-in only",
+  "至少 8 位": "At least 8 characters",
+  "第一次来，或者忘了密码，请用「邮箱链接」那一侧。":
+    "New here, or forgot your password? Use the Email link tab.",
+  "填写邮箱，我们会发一条一次性链接。第一次来也用这个，点开就算注册。":
+    "Enter your email and we will send a one-time link. First visit works the same way — opening the link signs you up.",
+  "设了密码之后仍然可以用邮箱链接登录，密码忘了就走那条路。":
+    "You can still sign in with an email link. That is also how you recover a forgotten password.",
+  "设一个密码，以后可以直接用邮箱加密码登录，不用每次去收邮件。":
+    "Set a password to sign in directly, without opening your inbox each time.",
   收起侧边栏: "Collapse sidebar",
   展开侧边栏: "Expand sidebar",
   返回首页: "Back to overview",

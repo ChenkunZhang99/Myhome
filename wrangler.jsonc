@@ -5,6 +5,15 @@
   "compatibility_date": "2026-05-22",
   "compatibility_flags": ["nodejs_compat"],
 
+  // 走 workers.dev 的免费子域。写在配置里而不是在面板上点开，
+  // 这样重新部署不会把它丢掉，换台机器部署也是同样的结果。
+  "workers_dev": true,
+
+  // 关掉每个版本各自的预览地址。它们和正式地址共用同一个 D1，
+  // 等于把同一份数据多开几个永久入口——个人项目用不到 PR 预览这类场景，
+  // 白送的攻击面不要也罢。
+  "preview_urls": false,
+
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS"

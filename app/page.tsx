@@ -12,6 +12,7 @@ import {
 } from "./inventoryUsage";
 import { withAiHeaders } from "./aiSettings";
 import { useAppSettings } from "./AppSettings";
+import { LoginLanding } from "./LoginLanding";
 import { SettingsPanel } from "./SettingsPanel";
 import { locales } from "./i18n";
 import { Modal } from "./Modal";
@@ -1744,6 +1745,7 @@ export default function Home() {
         </Modal>
       )}
 
+      <LoginLanding notify={setToast} />
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} notify={setToast} />}
       {toast && (
         <div className="toast" role="status">

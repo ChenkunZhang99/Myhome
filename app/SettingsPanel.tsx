@@ -1,13 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { AccountSection } from "./AccountSection";
 import { useAppSettings } from "./AppSettings";
 import { Modal } from "./Modal";
 import { clearAiSettings, maskKey, readAiSettings, writeAiSettings } from "./aiSettings";
 import { localeLabels, locales } from "./i18n";
 
 /**
- * 语言切换 + 自带密钥设置。
+ * 账号、语言切换与自带密钥设置。
  * 密钥输入框始终以密码形式呈现，已保存的密钥只显示掩码，永远不回填明文。
  */
 export function SettingsPanel({
@@ -40,7 +41,9 @@ export function SettingsPanel({
   }
 
   return (
-    <Modal className="settings-modal" eyebrow={t("设置")} title={t("语言与 AI")} onClose={onClose}>
+    <Modal className="settings-modal" eyebrow={t("设置")} title={t("账号与偏好")} onClose={onClose}>
+      <AccountSection notify={notify} />
+
       <div className="settings-section">
         <strong>{t("语言")}</strong>
         <div className="locale-switch" role="group" aria-label={t("语言")}>

@@ -56,6 +56,10 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
       if (delivered === "console" && link) {
         setDevLink(link);
         notify(t("本地未配置发信服务，登录链接显示在下方"));
+      } else if (delivered === "console") {
+        // 对外部署且没配发信：链接只在服务日志里，界面上拿不到，
+        // 说清楚去哪儿找，别让人对着一个没反应的按钮猜。
+        notify(t("这个部署还没配置发信服务，登录链接只写进了服务日志"));
       } else {
         notify(t("登录链接已发送，请查收邮件"));
       }

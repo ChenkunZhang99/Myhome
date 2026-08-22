@@ -5492,3 +5492,46 @@ button.item-main:focus-visible {
   word-break: break-all;
   user-select: all;
 }
+
+/* 导入按钮实际上是 <label> 包着一个隐藏的 file input：
+   浏览器自带的「选择文件」样式无法定制，而这两个按钮的后果差别很大，
+   必须和旁边的按钮长得一样、危险的那个看起来就危险。 */
+.transfer-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.transfer-actions label {
+  flex: 1;
+  text-align: center;
+  cursor: pointer;
+}
+.transfer-actions input[type="file"] {
+  display: none;
+}
+.snapshot-head {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.snapshot-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.snapshot-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: var(--text-xs);
+}
+.snapshot-list small {
+  margin-left: 8px;
+  color: var(--muted);
+}

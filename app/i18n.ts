@@ -621,6 +621,20 @@ const ui: Record<string, string> = {
   按余量记录: "By remaining %",
   日: "D",
   主要导航: "Main navigation",
+  数据: "Data",
+  "导出的是一个普通 JSON 文件，可以自己打开看。附件图片不在其中。":
+    "The export is a plain JSON file you can open yourself. Attached photos are not included.",
+  导出全部数据: "Export everything",
+  合并导入物品: "Merge items in",
+  整份还原: "Restore from file",
+  "合并只加物品，现有的一件不动；整份还原会先清空再重建。":
+    "Merge only adds items and touches nothing you already have. Restore wipes this household first, then rebuilds it from the file.",
+  "整份还原会先清空这个家现有的全部数据，再按文件重建。确定继续吗？":
+    "Restoring wipes everything in this household and rebuilds it from the file. Continue?",
+  "已导入 {count} 条记录": "Imported {count} records",
+  导入失败: "Import failed",
+  "自动备份（每 6 小时一份，保留最近 14 份）": "Automatic backups (every 6 hours, last 14 kept)",
+  下载: "Download",
   家庭账号: "Household accounts",
   "家人用自己的账号登录，看到的是同一份库存、菜谱和采购记录。":
     "Family members sign in with their own accounts and see the same inventory, recipes, and purchases.",
@@ -1021,6 +1035,26 @@ export function formatDate(locale: Locale, date?: string | null) {
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
   return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "short", day: "numeric" }).format(parsed);
+}
+
+/**
+ * 时刻（不只是日期）。formatDate 只吃 YYYY-MM-DD，喂它完整时间戳会得到
+ * 「2026年08月22T16:29:59.125Z日」这种东西。
+ *
+ * 这里用设备本地时区，不用家庭时区——保质期倒计时那类「对这个家有意义的日期」
+ * 才跟着家走；备份是系统事件，看的人关心的是「相对我现在是什么时候」。
+ */
+export function formatDateTime(locale: Locale, iso?: string | null) {
+  if (!iso) return "";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-CA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsed);
 }
 
 export const defaultLocale: Locale = "zh";

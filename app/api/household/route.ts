@@ -1,6 +1,17 @@
-import { env } from "cloudflare:workers";
-import { accountsInHousehold, moveAccountToHousehold, ownerCount } from "../_shared/accounts";
-import { currentAccount, ensureHouseholdMembers } from "../_shared/household";
+import {
+  accountsInHousehold,
+  addMembership,
+  createHousehold,
+  ensureHouseholdRow,
+  householdsForUser,
+  membershipRole,
+  ownerCount,
+  removeMembership,
+  renameHousehold,
+  setActiveHousehold,
+  setMembershipRole,
+} from "../_shared/accounts";
+import { currentAccount, ensureHouseholdMembers, repointToAnyHousehold } from "../_shared/household";
 import {
   createInvite,
   markInviteAccepted,
@@ -14,14 +25,17 @@ import { ensureSchema } from "../_shared/schema";
 import { normalizeEmail } from "../_shared/session";
 
 /**
- * 家庭成员账号。
+ * 家庭：谁能进，进哪一个。
  *
- * 一家人各用各的账号看同一份库存。做法是让多个 users 行指向同一个 household_id，
- * 而「加入哪个家」由已经在家里的人发邀请决定——不能让人在注册时自己填一个
- * household_id，那等于谁都能进别人家。
+ * 一个人可以属于多个家——自己家、爸妈家、合租的那个家。所以「谁能进哪个家」
+ * 是一张多对多的表（household_memberships），而 users.household_id 退化成
+ * 「我现在正在看哪个家」的指针。切换家庭就是改这个指针。
  *
- * 注意这里的「成员」和 household_members 表是两回事：那张表是做饭、点菜时
- * 用到的家庭成员称呼，家里的小孩和老人应该能被记进去，但不该因此必须注册邮箱。
+ * 这里每一个会碰到某个 household_id 的动作，第一步都是 membershipRole()。
+ * 少问一次，household_id 就成了请求里任填的参数，户与户之间那堵墙就没了。
+ *
+ * 注意「家庭成员账号」和 household_members 表是两回事：那张表是做饭、点菜时
+ * 用的称呼，家里的小孩老人应该能被记进去，但不该因此必须注册一个邮箱。
  */
 
 async function requireAccount(request: Request) {
@@ -30,17 +44,12 @@ async function requireAccount(request: Request) {
   return account;
 }
 
-/** 这个家里有没有攒下东西。换家之前要问一句，免得人稀里糊涂丢了自己的数据。 */
-async function householdHasData(householdId: string) {
-  const row = await env.DB.prepare(
-    `SELECT
-       (SELECT COUNT(*) FROM inventory_items WHERE household_id = ?1) +
-       (SELECT COUNT(*) FROM recipe_catalog WHERE household_id = ?1) +
-       (SELECT COUNT(*) FROM purchase_records WHERE household_id = ?1) AS total`,
-  )
-    .bind(householdId)
-    .first<{ total: number }>();
-  return Number(row?.total ?? 0) > 0;
+/** 当前这个家里，我是不是管理者。改设置、发邀请、请人出去都要过这一关。 */
+async function requireOwner(request: Request) {
+  const account = await requireAccount(request);
+  const role = await membershipRole(account.id, account.householdId);
+  if (role !== "owner") throw new UserFacingError("只有这个家的管理者可以做这件事", 403);
+  return account;
 }
 
 function inviteLink(request: Request, token: string) {
@@ -48,18 +57,30 @@ function inviteLink(request: Request, token: string) {
   return `${url.origin}/?invite=${encodeURIComponent(token)}`;
 }
 
-/** 谁在这个家里，还有哪些邀请挂着没被接受。 */
+function cleanName(value: unknown, fallback = "我们的家") {
+  const name = String(value ?? "").trim();
+  if (!name) return fallback;
+  return name.slice(0, 40);
+}
+
+/** 我能进哪些家、现在在哪个家、这个家里有谁、还有哪些邀请挂着。 */
 export const GET = withRoute("household", async (request: Request) => {
   try {
     await ensureSchema();
     const account = await requireAccount(request);
-    const [members, invites] = await Promise.all([
+    await ensureHouseholdRow(account.householdId);
+    const [households, members, invites] = await Promise.all([
+      householdsForUser(account.id),
       accountsInHousehold(account.householdId),
       pendingInvites(account.householdId),
     ]);
+    const active = households.find((household) => household.id === account.householdId);
     return Response.json({
-      role: account.role,
+      role: active?.role ?? account.role,
       me: account.id,
+      householdId: account.householdId,
+      householdName: active?.name ?? "我们的家",
+      households,
       members,
       // 只回哈希。明文令牌在签发的那一刻就送出去了，服务端自己也读不回来。
       invites: invites.map((invite) => ({
@@ -69,7 +90,7 @@ export const GET = withRoute("household", async (request: Request) => {
       })),
     });
   } catch (error) {
-    return failure("household", error, "家庭成员暂时读不出来", 500);
+    return failure("household", error, "家庭信息暂时读不出来", 500);
   }
 });
 
@@ -79,12 +100,16 @@ export const POST = withRoute("household", async (request: Request) => {
     const payload = (await request.json()) as {
       action?: string;
       email?: string;
+      name?: string;
       token?: string;
       tokenHash?: string;
+      householdId?: string;
       userId?: string;
-      confirm?: boolean;
     };
 
+    if (payload.action === "create") return await create(request, payload);
+    if (payload.action === "switch") return await switchTo(request, payload);
+    if (payload.action === "rename") return await rename(request, payload);
     if (payload.action === "invite") return await invite(request, payload);
     if (payload.action === "accept") return await accept(request, payload);
     if (payload.action === "revokeInvite") return await revoke(request, payload);
@@ -98,14 +123,47 @@ export const POST = withRoute("household", async (request: Request) => {
   }
 });
 
+/** 开一个新家，并且立刻切过去。空的，什么都没有——这正是新家该有的样子。 */
+async function create(request: Request, payload: { name?: string }) {
+  const account = await requireAccount(request);
+  const householdId = await createHousehold(account.id, cleanName(payload.name));
+  await ensureHouseholdMembers(householdId);
+  await setActiveHousehold(account.id, householdId);
+  return Response.json({ ok: true, householdId });
+}
+
+/**
+ * 换到另一个家。
+ *
+ * 先验 membership 再改指针，顺序不能反：这个 householdId 是请求里带上来的，
+ * 不验就等于让任何人填一个别人家的 id 就把那家的数据看个遍。
+ */
+async function switchTo(request: Request, payload: { householdId?: string }) {
+  const account = await requireAccount(request);
+  const householdId = String(payload.householdId ?? "").trim();
+  if (!householdId) throw new UserFacingError("没说要切到哪个家", 400);
+  if (!(await membershipRole(account.id, householdId))) throw new UserFacingError("你不在这个家里", 403);
+  await setActiveHousehold(account.id, householdId);
+  return Response.json({ ok: true, householdId });
+}
+
+async function rename(request: Request, payload: { name?: string }) {
+  const account = await requireOwner(request);
+  await renameHousehold(account.householdId, cleanName(payload.name));
+  return Response.json({ ok: true });
+}
+
 /**
  * 发一条邀请。
  *
  * 邮箱可以不填：不填就是「谁拿到链接谁能进」，方便直接发到家庭群里；
  * 填了就绑死，转错人也进不来。两种都有人需要，所以不替用户做选择。
+ *
+ * 只有管理者能发。让普通成员也能发，等于家里任何一个人都可以把外人领进来，
+ * 而这个家的库存、采购记录、菜谱对进来的人是全开的。
  */
 async function invite(request: Request, payload: { email?: string }) {
-  const account = await requireAccount(request);
+  const account = await requireOwner(request);
   await purgeExpiredInvites();
   const email = payload.email?.trim() ? normalizeEmail(payload.email) : null;
   const { token, expiresAt } = await createInvite(account.householdId, account.id, email);
@@ -115,42 +173,27 @@ async function invite(request: Request, payload: { email?: string }) {
 /**
  * 接受邀请，加入对方的家。
  *
- * 如果自己原来那个家已经攒了东西，先挡一次：换家之后那些库存不会跟着走，
- * 也不会消失，但这个账号从此看不到它们了。让人确认过再放行。
+ * 加入是「多一个家」，不是「换一个家」：原来那个家还在自己的列表里，数据一行不动。
+ * 以前这里要弹一个「换家之后就看不到原来的东西了」的确认框，现在不需要了——
+ * 那个后果本身已经不存在。
  */
-async function accept(request: Request, payload: { token?: string; confirm?: boolean }) {
+async function accept(request: Request, payload: { token?: string }) {
   const account = await requireAccount(request);
   const { householdId, hash } = await redeemInvite(String(payload.token ?? "").trim(), account.email);
 
-  if (householdId === account.householdId) throw new UserFacingError("你已经在这个家里了", 400);
+  if (await membershipRole(account.id, householdId)) throw new UserFacingError("你已经在这个家里了", 400);
 
-  if (!payload.confirm && (await householdHasData(account.householdId))) {
-    // 用一个专门的状态码让前端知道这不是失败，而是需要确认。
-    return Response.json(
-      {
-        needsConfirm: true,
-        error: "这个账号名下已经有库存和菜谱。加入新的家之后就看不到它们了，确定要继续吗？",
-      },
-      { status: 409 },
-    );
-  }
-
-  // 最后一个 owner 走了，原来那个家就没人管了。数据还在，但谁也进不去——
-  // 所以拦下来，让人先把家交给别人，或者用另一个账号接受邀请。
-  if (account.role === "owner" && (await ownerCount(account.householdId)) === 1) {
-    const others = await accountsInHousehold(account.householdId);
-    if (others.length > 1)
-      throw new UserFacingError("你是这个家目前唯一的管理者，先把管理权交给别人再离开", 400);
-  }
-
-  await moveAccountToHousehold(account.id, householdId, "member");
+  await ensureHouseholdRow(householdId);
+  await addMembership(account.id, householdId, "member");
   await markInviteAccepted(hash, account.id);
   await ensureHouseholdMembers(householdId);
-  return Response.json({ ok: true });
+  // 刚加进来的家直接切过去，省得人还要自己找一遍。
+  await setActiveHousehold(account.id, householdId);
+  return Response.json({ ok: true, householdId });
 }
 
 async function revoke(request: Request, payload: { tokenHash?: string }) {
-  const account = await requireAccount(request);
+  const account = await requireOwner(request);
   await revokeInvite(account.householdId, String(payload.tokenHash ?? ""));
   return Response.json({ ok: true });
 }
@@ -158,47 +201,53 @@ async function revoke(request: Request, payload: { tokenHash?: string }) {
 /**
  * 把另一个成员也变成管理者。
  *
- * 上面几处「先把管理权交给别人」指的就是这个。没有它，唯一的 owner 就被
+ * 下面几处「先把管理权交给别人」指的就是这个。没有它，唯一的 owner 就被
  * 永久困在这个家里——那是把安全检查变成了牢笼。
  */
 async function promote(request: Request, payload: { userId?: string }) {
-  const account = await requireAccount(request);
-  if (account.role !== "owner") throw new UserFacingError("只有管理者可以设置管理者", 403);
+  const account = await requireOwner(request);
   const userId = String(payload.userId ?? "");
-  const members = await accountsInHousehold(account.householdId);
-  if (!members.some((member) => member.id === userId)) throw new UserFacingError("这个人不在你的家里", 404);
-  await moveAccountToHousehold(userId, account.householdId, "owner");
+  if (!(await membershipRole(userId, account.householdId)))
+    throw new UserFacingError("这个人不在你的家里", 404);
+  await setMembershipRole(userId, account.householdId, "owner");
   return Response.json({ ok: true });
 }
 
 /**
- * 把一个成员请出去。他会拿到一个全新的空家，数据留在原处。
+ * 把一个成员请出去。
  *
- * 只有 owner 能做，而且不能踢自己——想走用 leave，那条路会检查这个家还有没有人管。
+ * 去掉的是他进这个家的资格，家里的数据一行不动。
+ * 还要把他的「当前正在看」挪走——那个指针如果还指着这里，
+ * 资格没了他照样读得到，墙就白砌了。
  */
 async function remove(request: Request, payload: { userId?: string }) {
-  const account = await requireAccount(request);
-  if (account.role !== "owner") throw new UserFacingError("只有管理者可以移除成员", 403);
+  const account = await requireOwner(request);
   const userId = String(payload.userId ?? "");
-  if (userId === account.id) throw new UserFacingError("不能移除自己", 400);
+  if (userId === account.id) throw new UserFacingError("不能移除自己，想走请用「退出这个家」", 400);
+  if (!(await membershipRole(userId, account.householdId)))
+    throw new UserFacingError("这个人不在你的家里", 404);
 
-  const members = await accountsInHousehold(account.householdId);
-  if (!members.some((member) => member.id === userId)) throw new UserFacingError("这个人不在你的家里", 404);
-
-  await moveAccountToHousehold(userId, `household-${crypto.randomUUID()}`, "owner");
+  await removeMembership(userId, account.householdId);
+  await repointToAnyHousehold(userId, account.householdId);
   return Response.json({ ok: true });
 }
 
-/** 自己退出这个家，拿一个全新的空家。原来的数据留给还在家里的人。 */
+/**
+ * 自己退出这个家。数据留给还在家里的人。
+ *
+ * 最后一个管理者走了，这个家就没人管了——数据还在，但谁也改不了设置、
+ * 再也发不出邀请。所以拦下来，先把管理权交给别人。
+ */
 async function leave(request: Request) {
   const account = await requireAccount(request);
+  const role = await membershipRole(account.id, account.householdId);
+  if (!role) throw new UserFacingError("你不在这个家里", 400);
+
   const members = await accountsInHousehold(account.householdId);
-  if (members.length === 1) throw new UserFacingError("这个家只有你一个人，不需要退出", 400);
-  if (account.role === "owner" && (await ownerCount(account.householdId)) === 1)
+  if (members.length > 1 && role === "owner" && (await ownerCount(account.householdId)) === 1)
     throw new UserFacingError("你是这个家目前唯一的管理者，先把管理权交给别人再离开", 400);
 
-  const householdId = `household-${crypto.randomUUID()}`;
-  await moveAccountToHousehold(account.id, householdId, "owner");
-  await ensureHouseholdMembers(householdId);
-  return Response.json({ ok: true });
+  await removeMembership(account.id, account.householdId);
+  const householdId = await repointToAnyHousehold(account.id, account.householdId);
+  return Response.json({ ok: true, householdId });
 }

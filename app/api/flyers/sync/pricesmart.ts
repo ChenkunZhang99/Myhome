@@ -1,5 +1,6 @@
 import { dayIn } from "../../../dateTime.ts";
 import { UserFacingError } from "../../_shared/observability.ts";
+import { categoryFromText, displayFlyerName } from "./flyerNaming.ts";
 
 export type PriceSmartDeal = {
   itemName: string;
@@ -62,49 +63,6 @@ function localDate(isoDate: string, timeZone: string) {
   return dayIn(timeZone, date);
 }
 
-function categoryFor(product: ProductCard) {
-  const context = [
-    product.name,
-    ...(product.categories ?? []).flatMap((entry) => [entry.category, entry.categoryBreadcrumb]),
-    ...(product.defaultCategory ?? []).flatMap((entry) => [entry.category, entry.categoryBreadcrumb]),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  if (/meat|seafood|fish|poultry|chicken|beef|pork|lamb|shrimp|prawn/.test(context)) return "肉类海鲜";
-  if (/dairy|milk|cheese|yogurt|egg/.test(context)) return "乳品蛋类";
-  if (/frozen|ice cream/.test(context)) return "冷冻食品";
-  if (/clean|dishwash|laundry|household|paper towel|toilet tissue/.test(context)) return "清洁用品";
-  if (/personal care|shampoo|conditioner|body wash|soap|skincare/.test(context)) return "洗护用品";
-  if (/condiment|sauce|spice|seasoning|vinegar/.test(context)) return "调味品";
-  if (/rice|pasta|noodle|flour|grain|oil|bakery|bread|cereal/.test(context)) return "米面粮油";
-  if (/fruit|vegetable|produce|lettuce|tomato|broccoli|corn|grape|orange|peach|apple/.test(context))
-    return "蔬菜水果";
-  if (/snack|beverage|drink|water|juice|coffee|tea|candy|chocolate/.test(context)) return "零食饮料";
-  return "其他";
-}
-
-function displayName(name: string) {
-  const translations: Array<[RegExp, string]> = [
-    [/broccoli/i, "西兰花"],
-    [/iceberg.*lettuce|lettuce.*iceberg/i, "冰山生菜"],
-    [/red seedless.*grape|grape.*red seedless/i, "无籽红葡萄"],
-    [/navel.*orange|orange.*navel/i, "脐橙"],
-    [/corn.*cob/i, "新鲜玉米"],
-    [/peach/i, "鲜桃"],
-    [/tomato/i, "番茄"],
-  ];
-  const translated = translations.find(([pattern]) => pattern.test(name));
-  return (
-    translated?.[1] ??
-    name
-      .replace(/\s+-\s+/g, " ")
-      .replace(/,\s*Fresh\b/gi, "")
-      .trim()
-  );
-}
-
 function unitFor(product: ProductCard) {
   const abbreviation = product.unitOfPrice?.abbreviation?.trim();
   if (abbreviation) return abbreviation;
@@ -130,8 +88,14 @@ function productToDeal(product: ProductCard, today: string, timeZone: string): P
   const weighted = Boolean(product.unitOfPrice?.abbreviation);
   const regularPrice = weighted ? null : numericPrice(product.wasPrice);
   return {
-    itemName: displayName(product.name).slice(0, 140),
-    category: categoryFor(product),
+    itemName: displayFlyerName(product.name).slice(0, 140),
+    // 分类的关键词表和 Flipp 那条路共用一份：同一件商品不该因为
+    // 来自哪个数据源而落到不同的分类里。
+    category: categoryFromText(
+      product.name,
+      ...(product.categories ?? []).flatMap((entry) => [entry.category, entry.categoryBreadcrumb]),
+      ...(product.defaultCategory ?? []).flatMap((entry) => [entry.category, entry.categoryBreadcrumb]),
+    ),
     price,
     regularPrice: regularPrice && regularPrice > price ? regularPrice : null,
     unit: unitFor(product),

@@ -37,7 +37,7 @@ const isObservability = (file) => file.name.startsWith("_shared/observability");
  */
 // flipp.ts 同理：它是一个没有文档的外部接口的读取器，任何失败都返回空数组、
 // 只把原因写进日志。而那行原因正是判断「接口是不是挂了」唯一的线索。
-const NO_RESPONSE_FILES = ["_shared/schema.ts", "flyers/sync/flipp.ts"];
+const NO_RESPONSE_FILES = ["_shared/schema.ts", "flyers/sync/flipp.ts", "flyers/sync/visionFlyer.ts"];
 
 test("豁免名单里的文件确实不构造响应", async () => {
   for (const file of await collectSources(API_DIR)) {

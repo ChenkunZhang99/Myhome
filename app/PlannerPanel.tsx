@@ -151,6 +151,9 @@ const confidenceLabels: Record<string, string> = {
   confirmed: "官方结构化核验",
   high: "官方来源核验",
   medium: "网页搜索核验",
+  // 看图读出来的。读得对不对不保证，所以标签直说要到店核对，
+  // 而不是给一个听起来很可靠的名字。
+  vision: "图片识别，到店核对",
   low: "需要确认",
 };
 

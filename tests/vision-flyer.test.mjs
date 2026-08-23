@@ -183,3 +183,28 @@ test("纯逻辑和取图分开，否则最该测的那部分测不到", () => {
   );
   assert.ok(shape.includes("export function cleanVisionDeals"), "校验逻辑没有留在可测的那一侧");
 });
+
+/**
+ * 读图读出来的价格不能装成官方核验过的。
+ * 实测同一张图跑两次，18 项里只有 6 项一致，还出现过一次 2.98 一次 2.68。
+ */
+test("可信度按来源算，不按「读没读出来」算", () => {
+  const at = route.indexOf("const confidence =");
+  assert.notEqual(at, -1, "找不到可信度赋值");
+  const body = route.slice(at, at + 420);
+  assert.ok(body.includes("found?.source"), "还在按 status 判断——读图那条路同样是 ok");
+  assert.ok(body.includes('"vision"'), "读图没有自己的可信度档位");
+  assert.ok(
+    !body.includes('found?.status === "ok"'),
+    "按 status 判断会把看图读出来的价格标成「官方来源核验」，那是在骗人",
+  );
+});
+
+test("每一条读取路径都要声明自己是哪来的", () => {
+  const constructions = route.split("foundByKey.set(").length - 1;
+  const declared = route.split("source: ").length - 1;
+  assert.ok(
+    declared >= constructions,
+    `有 ${constructions} 处构造但只有 ${declared} 处声明了来源——漏一处就会拿到一个错的可信度标签`,
+  );
+});

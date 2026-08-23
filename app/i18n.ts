@@ -102,6 +102,7 @@ const values: Record<string, string> = {
   官方结构化核验: "Verified from structured feed",
   官方来源核验: "Verified from official page",
   网页搜索核验: "Verified via web search",
+  "图片识别，到店核对": "Read from a picture — check in store",
   需要确认: "Needs confirmation",
   // 演示数据的物品名。用户自己录入的名字查不到，会原样显示。
   演示数据: "Demo data",

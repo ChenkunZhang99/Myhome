@@ -66,11 +66,24 @@ type ExtractedDeal = {
   validTo: string;
   sourceUrl: string;
 };
+/**
+ * 这一家的优惠是从哪条路读来的。
+ *
+ * 它决定界面上给用户看的可信度标签，而这四条路的可靠程度差得很远：
+ *   catalog  连锁官网的结构化数据，价格和有效期都是它自己发布的
+ *   flipp    连锁发到 Flipp 的结构化数据，同样是发布方给的
+ *   vision   模型看图读出来的。同一张图跑两次，18 项里只有 6 项一致，
+ *            还出现过同一件商品一次 2.98 一次 2.68——必须让用户知道要到店核对
+ *   search   模型搜网页读出来的，介于两者之间
+ */
+type DealSource = "catalog" | "flipp" | "vision" | "search";
+
 type ExtractedStore = {
   sourceKey: string;
   status: "ok" | "partial" | "unavailable";
   message: string;
   deals: ExtractedDeal[];
+  source: DealSource;
 };
 
 function safeSourceUrl(value: string, fallback: string, hosts: string[]) {
@@ -166,6 +179,7 @@ async function searchFallback(stores: StoreRow[], today: string, openAI: OpenAIC
       results.set(store.sourceKey, {
         sourceKey: store.sourceKey,
         status: "unavailable",
+        source: "search",
         message: "OpenAI API 未配置，无法使用网页搜索降级读取",
         deals: [],
       });
@@ -261,7 +275,13 @@ async function searchFallback(stores: StoreRow[], today: string, openAI: OpenAIC
   } catch (error) {
     const message = safeMessage("flyers.sync", error, "网页搜索读取失败");
     for (const store of stores)
-      results.set(store.sourceKey, { sourceKey: store.sourceKey, status: "unavailable", message, deals: [] });
+      results.set(store.sourceKey, {
+        sourceKey: store.sourceKey,
+        status: "unavailable",
+        source: "search",
+        message,
+        deals: [],
+      });
   }
   return results;
 }
@@ -360,6 +380,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
         foundByKey.set(store.sourceKey, {
           sourceKey: store.sourceKey,
           status: "ok",
+          source: "catalog",
           message: "演示数据（未配置 OPENAI_API_KEY）",
           deals: demoDeals(store.sourceKey, timeZone).map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
         });
@@ -375,6 +396,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
           foundByKey.set(store.sourceKey, {
             sourceKey: store.sourceKey,
             status: "ok",
+            source: "flipp",
             message: `已从 Flipp 读取 ${mine?.merchant ?? ""} 本周 flyer 的 ${flippDeals.length} 项优惠`,
             // 这里不走 selectDeals：它只按折扣排，会把 parseFlippItems 已经
             // 排好的「食品优先」再打乱一遍。那边排完直接取前若干条即可。
@@ -389,6 +411,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
           foundByKey.set(store.sourceKey, {
             sourceKey: store.sourceKey,
             status: "ok",
+            source: "vision",
             message: vision.message,
             deals: vision.deals.slice(0, 18).map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
           });
@@ -403,6 +426,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
         foundByKey.set(store.sourceKey, {
           sourceKey: store.sourceKey,
           status: directDeals.length ? "ok" : "unavailable",
+          source: "catalog",
           message: directDeals.length
             ? "已从 PriceSmart 官方结构化优惠页核对价格和有效期"
             : "PriceSmart 当前没有生效中的结构化优惠",
@@ -413,6 +437,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
         foundByKey.set(store.sourceKey, {
           sourceKey: store.sourceKey,
           status: "unavailable",
+          source: "catalog",
           message: safeMessage("flyers.sync", error, "PriceSmart 官方页面读取失败"),
           deals: [],
         });
@@ -442,11 +467,19 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
           const dealId = `auto-${store.id}-${dealFingerprint}`;
           const itemKey = normalizeFlyerName(deal.itemName);
           const pack = packageDetails(deal.itemName, deal.unit);
+          // 可信度按来源算，不按「读没读出来」算。
+          //
+          // 读图那条路读出来的东西同样是 status:"ok"，但它的可靠程度和
+          // 官方结构化数据差着量级：同一张图跑两次，18 项里只有 6 项一致，
+          // 还出现过同一件商品一次 2.98 一次 2.68。把它标成「官方来源核验」
+          // 是在骗人——人照着一个读错的价格跑一趟超市，比没有这条推荐更糟。
           const confidence =
-            store.sourceKey === "pricesmart-lougheed"
-              ? "confirmed"
-              : found?.status === "ok"
-                ? "high"
+            found?.source === "catalog" || found?.source === "flipp"
+              ? found.source === "catalog"
+                ? "confirmed"
+                : "high"
+              : found?.source === "vision"
+                ? "vision"
                 : "medium";
           statements.push(
             env.DB.prepare(

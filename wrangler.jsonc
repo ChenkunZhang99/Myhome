@@ -48,7 +48,10 @@
    */
   "vars": {
     "REQUIRE_HOUSEHOLD": "on",
-    "DEMO_MODE": "off"
+    "DEMO_MODE": "off",
+    // 对所有人开放注册。每个人注册完拿到的是自己的一个空家，
+    // 服务端那把模型密钥只对 AI_HOUSEHOLD 那一家有效，别人用不到。
+    "OPEN_SIGNUP": "on"
   },
 
   // 每 6 小时检查一次是否到了 flyer 自动同步时间。

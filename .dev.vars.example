@@ -12,3 +12,6 @@ LOGIN_FROM_EMAIL=
 # 10ms CPU 上限内。迁到付费版（单请求 30 秒）后调到 600000，
 # 那是 OWASP 的建议值。已存在的密码不受影响，哈希串自带轮数。
 PASSWORD_ITERATIONS=
+
+# 对所有人开放注册。关掉就只有「已有账号 / 第一个人 / 拿着邀请的人」进得来。
+OPEN_SIGNUP=on

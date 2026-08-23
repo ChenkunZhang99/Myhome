@@ -13,7 +13,7 @@ import {
   hashPassword,
   verifyPassword,
 } from "../_shared/password";
-import { currentAccount, loginRequired } from "../_shared/household";
+import { currentAccount, loginRequired, openSignup } from "../_shared/household";
 import { failure, UserFacingError, withRoute } from "../_shared/observability";
 import { ensureSchema } from "../_shared/schema";
 import {
@@ -122,7 +122,8 @@ export const POST = withRoute("auth", async (request: Request) => {
  *
  * 请求登录链接的那一刻账号就建出来了，所以闸门必须在这里，不能等到兑换的时候。
  *
- * 放行的三种情况：
+ * 放行的情况：
+ *  0. 站点开放注册——那就谁都能进，各自拿一个空的家
  *  1. 账号已经存在——那是登录，不是注册
  *  2. 一个账号都还没有——第一个人得能进来，否则部署完谁也开不了门
  *  3. 有一条还没被用掉的邀请在等他
@@ -134,6 +135,7 @@ export const POST = withRoute("auth", async (request: Request) => {
  */
 async function assertMayRegister(email: string) {
   if (!loginRequired()) return;
+  if (openSignup()) return;
   if (await accountByEmail(email)) return;
   if ((await accountCount()) === 0) return;
   if (await hasUsableInvite(email)) return;
@@ -187,6 +189,8 @@ async function registerWithPassword(payload: { email?: string; password?: string
  */
 async function assertInviteInHand(email: string, token: string) {
   if (!loginRequired()) return;
+  // 开放注册时不需要任何邀请：注册出来的是他自己的家，不是别人的。
+  if (openSignup()) return;
   // 第一个人手上不可能有邀请——没人能发给他。这条和 assertMayRegister 里那条是同一件事。
   if ((await accountCount()) === 0) return;
   if (await inviteMatches(token, email)) return;

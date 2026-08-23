@@ -141,7 +141,7 @@ export const POST = withRoute("receipts.analyze", async (request: Request) => {
     const demo = isDemoMode(request);
     const openAI = getOpenAIConfig(request, household);
     if (!demo && !openAI.apiKey)
-      return Response.json({ error: "OpenAI API 私钥尚未配置到网站" }, { status: 503 });
+      return Response.json({ error: "还没有可用的 OpenAI 密钥，请在设置里填上你自己的" }, { status: 503 });
     const form = await request.formData();
     const file = form.get("receipt");
     const preferredCategory = String(form.get("preferredCategory") ?? "").trim();

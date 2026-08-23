@@ -57,7 +57,8 @@ export const POST = withRoute("recipes", async (request: Request) => {
       const sample = demoRecipes().map(cleanRecipe);
       return Response.json({ recipes: sample, demo: true });
     }
-    if (!openAI.apiKey) return Response.json({ error: "OpenAI API 私钥尚未配置到网站" }, { status: 503 });
+    if (!openAI.apiKey)
+      return Response.json({ error: "还没有可用的 OpenAI 密钥，请在设置里填上你自己的" }, { status: 503 });
     await ensureSchema();
     const today = await localDate(household);
     const inventory = await env.DB.prepare(

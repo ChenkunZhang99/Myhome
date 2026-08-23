@@ -4,7 +4,7 @@ import { householdTimeZone, resolveHousehold } from "../../_shared/household";
 import { isInternalCall } from "../../_shared/internal";
 import { dayIn } from "../../../dateTime";
 import { ensureSchema } from "../../_shared/schema";
-import { createOpenAIResponse, getOpenAIConfig, type OpenAIConfig } from "../../_shared/openai";
+import { createOpenAIResponse, getOpenAIConfig, outputText, type OpenAIConfig } from "../../_shared/openai";
 import { demoDeals, isDemoMode } from "../../_shared/demo";
 import { fetchPriceSmartDeals } from "./pricesmart";
 import { normalizeFlyerName } from "../../../flyerRecommendations";
@@ -21,7 +21,27 @@ const categories = [
   "洗护用品",
   "其他",
 ] as const;
-const allowedHosts = ["hmart.ca", "pricesmartfoods.com", "walmart.ca"];
+/**
+ * 网页搜索允许落在哪些域名上。
+ *
+ * 原本是写死的三家。门店目录能按邮编长大之后，写死就等于「新搜出来的店
+ * 永远读不出优惠」——模型被限制在这三个域名里，怎么搜都搜不到 Save-On 的 flyer，
+ * 而 safeSourceUrl 还会把它给出的网址改写回默认值。
+ *
+ * 所以改成从这次要读的门店自己的 flyer 网址上取。它同时还是一道限制：
+ * 模型只能在这些店的官网里找，不能拿一个第三方聚合站来充数。
+ */
+function hostsOf(stores: StoreRow[]) {
+  const hosts = new Set<string>();
+  for (const store of stores) {
+    try {
+      hosts.add(new URL(store.flyerUrl).hostname.toLowerCase().replace(/^www\./, ""));
+    } catch {
+      // 网址存坏了的那一条跳过，不该拖累同一批的其他门店。
+    }
+  }
+  return [...hosts];
+}
 
 type StoreRow = { id: string; name: string; address: string; sourceKey: string; flyerUrl: string };
 type ExtractedDeal = {
@@ -41,21 +61,11 @@ type ExtractedStore = {
   deals: ExtractedDeal[];
 };
 
-function outputText(response: Record<string, unknown>) {
-  const output = Array.isArray(response.output)
-    ? (response.output as Array<{ content?: Array<{ type?: string; text?: string }> }>)
-    : [];
-  for (const item of output)
-    for (const content of item.content ?? [])
-      if (content.type === "output_text" && content.text) return content.text;
-  return typeof response.output_text === "string" ? response.output_text : "";
-}
-
-function safeSourceUrl(value: string, fallback: string) {
+function safeSourceUrl(value: string, fallback: string, hosts: string[]) {
   try {
     const url = new URL(value || fallback);
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    return allowedHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`))
+    return hosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`))
       ? url.toString()
       : fallback;
   } catch {
@@ -73,7 +83,7 @@ function fingerprint(storeId: string, deal: ExtractedDeal) {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-function cleanDeal(deal: ExtractedDeal, today: string, flyerUrl: string) {
+function cleanDeal(deal: ExtractedDeal, today: string, flyerUrl: string, hosts: string[]) {
   const itemName = String(deal.itemName ?? "")
     .trim()
     .slice(0, 140);
@@ -97,7 +107,7 @@ function cleanDeal(deal: ExtractedDeal, today: string, flyerUrl: string) {
     unit,
     validFrom,
     validTo,
-    sourceUrl: safeSourceUrl(deal.sourceUrl, flyerUrl),
+    sourceUrl: safeSourceUrl(deal.sourceUrl, flyerUrl, hosts),
   };
 }
 
@@ -205,7 +215,7 @@ async function searchFallback(stores: StoreRow[], today: string, openAI: OpenAIC
           {
             type: "web_search",
             search_context_size: "medium",
-            filters: { allowed_domains: allowedHosts },
+            filters: { allowed_domains: hostsOf(stores) },
             user_location: {
               type: "approximate",
               country: "CA",
@@ -271,11 +281,18 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
     const scheduled = new URL(request.url).searchParams.get("scheduled") === "1";
     const stores = await env.DB.prepare(
       // 目录是全局的：同一份 flyer 解析一次，所有订阅了这家店的住户共享。
+      //
+      // 但只读真的有人收藏的那些。目录能按邮编长大之后，「读遍目录」会随着
+      // 用户变多而线性膨胀——一个多伦多用户搜出来的店，没有任何人订阅，
+      // 却要在每次同步时花一次模型调用。
       `SELECT source_key AS id, name, address, source_key AS sourceKey, flyer_url AS flyerUrl
-      FROM flyer_sources WHERE flyer_format != 'manual' AND flyer_url != '' ORDER BY created_at ASC`,
+      FROM flyer_sources
+      WHERE flyer_format != 'manual' AND flyer_url != ''
+        AND EXISTS (SELECT 1 FROM household_stores WHERE household_stores.source_key = flyer_sources.source_key)
+      ORDER BY created_at ASC`,
     ).all<StoreRow>();
     if (!stores.results.length)
-      return Response.json({ error: "门店目录里还没有可自动读取的来源" }, { status: 400 });
+      return Response.json({ error: "还没有收藏任何可自动读取的门店" }, { status: 400 });
 
     const settings = await env.DB.prepare(
       "SELECT enabled, interval_hours AS intervalHours, next_sync_at AS nextSyncAt FROM flyer_sync_settings WHERE id = 1",
@@ -345,11 +362,13 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
     await env.DB.prepare("DELETE FROM flyer_deals WHERE source = 'auto' AND valid_to < ?").bind(today).run();
     let imported = 0;
     const summaries: Array<{ store: string; status: string; imported: number; message: string }> = [];
+    // 这一批门店的官网域名，算一次。它决定 sourceUrl 能不能被采信。
+    const hosts = hostsOf(stores.results);
 
     for (const store of stores.results) {
       const found = foundByKey.get(store.sourceKey);
       const deals = (found?.deals ?? [])
-        .map((deal) => cleanDeal(deal, today, store.flyerUrl))
+        .map((deal) => cleanDeal(deal, today, store.flyerUrl, hosts))
         .filter((deal): deal is NonNullable<typeof deal> => Boolean(deal));
       const unique = Array.from(new Map(deals.map((deal) => [fingerprint(store.id, deal), deal])).entries());
       if (unique.length) {

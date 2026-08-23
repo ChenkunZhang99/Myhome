@@ -5,8 +5,6 @@ import {
   adjustRemaining,
   isMeasurableUnit,
   restock,
-  stockLevel,
-  totalUnitsLeft,
   applyConsumption,
   findInventoryMatch,
   levelFromPercent,
@@ -41,29 +39,29 @@ test("prefers the same category when two stock items share a name", () => {
   assert.equal(findInventoryMatch("洗手液", "清洁用品", candidates)?.item.id, "cleaning");
 });
 
+/**
+ * 做菜的档位和界面上的 ±25% 目前给出的数量不同，这是已知的、有意保留的差异：
+ * 「一把葱用掉大部分」= 没了，而不是「还剩满量的四分之一」。
+ * 要统一得先说清这些档位相对的是什么，那是产品问题，见 applyConsumption 的注释。
+ */
 test("consuming part of an opened item only moves the remaining percentage", () => {
   const result = applyConsumption({ quantity: 2, unit: "把", remainingPercent: 100 }, "half");
-  // 等级从「偏少」改成了「充足」，这正是这次改动要修的：
-  // 百分比说的是拆开那一把还剩多少，2 把用掉半把还有 1.5 把，不该报警。
-  // 旧的期望值编码的就是那个错误信号——它会一路传到 Flyer 推荐的紧急度。
-  assert.deepEqual(result, { quantity: 2, remainingPercent: 50, level: "充足" });
+  assert.deepEqual(result, { quantity: 2, remainingPercent: 50, level: "偏少" });
 });
 
-test("按件计的单位，等级看手上一共还有多少，不看拆开那一件", () => {
-  // 2 袋米、拆开那袋剩 25%：还有 1.25 袋，不是「偏少」
-  assert.equal(stockLevel(2, 25, "袋"), "充足");
-  // 只剩最后一袋且用掉四分之三，那才是真的快没了
-  assert.equal(stockLevel(1, 25, "袋"), "偏少");
-  assert.equal(stockLevel(1, 15, "袋"), "即将用完");
-  assert.equal(stockLevel(0, 0, "袋"), "已用完");
-
-  // 可量的单位没有「拆开那一件」的概念，百分比就是相对满量的比例
-  assert.equal(stockLevel(1, 25, "kg"), "偏少", "1 kg 剩 25% 就是快没了");
-  assert.equal(stockLevel(4, 25, "kg"), "偏少", "4 kg 是满量的 25%，同样是快没了");
-
-  assert.equal(totalUnitsLeft(2, 25), 1.25);
-  assert.equal(totalUnitsLeft(1, 25), 0.25);
-  assert.equal(totalUnitsLeft(0, 100), 0);
+/**
+ * 百分比的含义是「相对上次补满时还剩几成」，所以它本身就是判断要不要补货的依据，
+ * 和单位是 kg 还是袋无关。
+ *
+ * 这里曾经短暂地按「手上还有几件」来判断等级，前提是「百分比只描述拆开那一件」。
+ * 规则统一之后那个前提不成立了——quantity 已经是实际剩余量，
+ * 2 袋 25% 的意思是「上次补满有 8 袋，现在剩 2 袋」，判「偏少」是对的。
+ */
+test("等级只看相对满量的比例", () => {
+  assert.equal(levelFromPercent(100), "充足");
+  assert.equal(levelFromPercent(25), "偏少");
+  assert.equal(levelFromPercent(15), "即将用完");
+  assert.equal(levelFromPercent(0), "已用完");
 });
 
 test("finishing the opened item starts the next one", () => {
@@ -269,32 +267,46 @@ test("可量的单位：±25% 时重量跟着变", () => {
   assert.equal(again.quantity, 2, "满量仍是 4 kg，50% 就是 2 kg");
 });
 
-test("可数的单位：袋数不动，减到 0 换下一袋", () => {
-  const rice = { name: "米", quantity: 2, unit: "袋", remainingPercent: 50, level: "偏少" };
-  const half = adjustRemaining(rice, -25);
-  assert.equal(half.quantity, 2, "拆开那一袋还没用完，袋数不该变");
-  assert.equal(half.remainingPercent, 25);
+test("按件计的单位走同一条算术，数量可以是小数", () => {
+  // 1 袋减到 75% 就是 0.75 袋——这正是补货时能算出 2.75 袋的前提
+  const bag = { name: "米", quantity: 1, unit: "袋", remainingPercent: 100, level: "充足" };
+  const used = adjustRemaining(bag, -25);
+  assert.equal(used.quantity, 0.75);
+  assert.equal(used.remainingPercent, 75);
 
-  const nextBag = adjustRemaining({ ...rice, remainingPercent: 25 }, -25);
-  assert.equal(nextBag.quantity, 1, "这一袋用完了，换下一袋");
-  assert.equal(nextBag.remainingPercent, 100, "新拆的一袋是满的");
+  // 2 袋 50%（满量 4 袋）减 25% → 4 × 0.25 = 1 袋
+  const two = adjustRemaining({ ...bag, quantity: 2, remainingPercent: 50 }, -25);
+  assert.equal(two.quantity, 1);
+  assert.equal(two.remainingPercent, 25);
 
-  const lastBag = adjustRemaining({ ...rice, quantity: 1, remainingPercent: 25 }, -25);
-  assert.equal(lastBag.level, "已用完", "只剩一袋且用完了，就是真的没了");
-  assert.equal(lastBag.quantity, 0);
+  const gone = adjustRemaining({ ...bag, quantity: 0.5, remainingPercent: 25 }, -25);
+  assert.equal(gone.level, "已用完");
+  assert.equal(gone.quantity, 0);
 });
 
 test("补货：加到剩下的上面，然后整体归一化为满量", () => {
-  // 这正是提出的场景：4 kg 减到 50%（2 kg），再买 3 kg 回来
+  // 2 kg 标 50% → 满量 4 kg → 减 25% → 1 kg
   const carrot = { name: "胡萝卜", quantity: 2, unit: "kg", remainingPercent: 50, level: "偏少" };
+  assert.equal(adjustRemaining(carrot, -25).quantity, 1, "4 kg 的 25%");
+
   const after = restock(carrot, 3);
   assert.equal(after.quantity, 5, "2 kg 剩货加 3 kg 新货");
   assert.equal(after.remainingPercent, 100, "手上有的全部就是满量");
+  assert.equal(adjustRemaining({ ...carrot, ...after }, -25).quantity, 3.75, "5 kg 的 75%");
+});
 
-  // 之后的 −25% 以新的 5 kg 为基准
-  const used = adjustRemaining({ ...carrot, ...after }, -25);
-  assert.equal(used.remainingPercent, 75);
-  assert.equal(used.quantity, 3.75, "5 kg 的 75%");
+test("一袋米减到 75%，补 2 袋，再减 25%", () => {
+  const bag = { name: "米", quantity: 1, unit: "袋", remainingPercent: 100, level: "充足" };
+  const used = adjustRemaining(bag, -25);
+  assert.equal(used.quantity, 0.75);
+
+  const filled = restock({ ...bag, ...used }, 2);
+  assert.equal(filled.quantity, 2.75, "0.75 袋剩货加 2 袋新货");
+  assert.equal(filled.remainingPercent, 100);
+
+  const again = adjustRemaining({ ...bag, ...filled }, -25);
+  assert.equal(again.quantity, 2.06, "2.75 × 0.75 = 2.0625，保留两位小数");
+  assert.equal(again.remainingPercent, 75);
 });
 
 test("补货不会把已用完的东西留在已用完", () => {

@@ -1276,6 +1276,27 @@ export default function Home() {
 
           {showAdd && (
             <Modal eyebrow={t("真实库存")} title={t("添加一件物品")} onClose={() => setShowAdd(false)}>
+              {/*
+                一次买回来十几样东西，一件件填这张表是这个应用最劝退的地方。
+                小票识别本来就有，只是入口藏在总览页的「快速录入」里——而人想加东西时
+                打开的是这个弹窗，不是那一屏。把入口放在他手已经伸过来的地方。
+              */}
+              <button
+                type="button"
+                className="scan-hint"
+                onClick={() => {
+                  setShowAdd(false);
+                  setReceiptDraft(null);
+                  setReceiptOpen(true);
+                }}
+              >
+                <Icon name="receipt" />
+                <span>
+                  <strong>{t("一次买了好几样？")}</strong>
+                  <small>{t("拍张小票，商品、数量和价格一起录进来")}</small>
+                </span>
+                <b aria-hidden="true">›</b>
+              </button>
               <form onSubmit={saveItem}>
                 <label className="field full">
                   <span>{t("物品名称")}</span>

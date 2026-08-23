@@ -5684,3 +5684,52 @@ button.item-main:focus-visible {
   color: var(--muted);
   font-size: var(--text-xs);
 }
+
+/*
+ * 「添加一件物品」弹窗顶部的小票入口。
+ *
+ * 做成一整条可点的横幅而不是一个小链接：一件件手填是这个应用最劝退的地方，
+ * 而这条捷径只有被看见才有用。
+ */
+.scan-hint {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f3f7f4;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.scan-hint:hover {
+  border-color: #9dc3ae;
+  background: #eaf3ee;
+}
+.scan-hint svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: #1c4a3a;
+}
+.scan-hint span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.scan-hint strong {
+  font-size: var(--text-md);
+}
+.scan-hint small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+.scan-hint b {
+  color: var(--muted);
+  font-size: var(--text-lg);
+}

@@ -364,6 +364,8 @@ const ui: Record<string, string> = {
   账号与偏好: "Account and preferences",
   时区: "Time zone",
   保质期倒计时和消费统计按这个时区计算: "Best-before countdowns and spending totals use this time zone",
+  "一次买了好几样？": "Bought several things?",
+  "拍张小票，商品、数量和价格一起录进来": "Photograph the receipt — items, quantities and prices all at once",
   上传小票: "Upload a receipt",
   下一阶段: "Coming later",
   "下面的物品都带有“示例”标记，不会写入你的真实库存。":

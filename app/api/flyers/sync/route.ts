@@ -6,7 +6,7 @@ import { dayIn } from "../../../dateTime";
 import { ensureSchema } from "../../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig, outputText, type OpenAIConfig } from "../../_shared/openai";
 import { demoDeals, isDemoMode } from "../../_shared/demo";
-import { fetchFlippDeals, merchantMatches, type FlippDeal } from "./flipp";
+import { fetchFlippFlyers, fetchFlyerDeals, merchantMatches, type FlippFlyer } from "./flipp";
 import { fetchPriceSmartDeals } from "./pricesmart";
 import { normalizeFlyerName } from "../../../flyerRecommendations";
 
@@ -334,19 +334,21 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
     const demo = isDemoMode(request);
 
     /*
-     * 先按片区把 Flipp 读一遍。
+     * 先按片区把这一带在发的 flyer 列一遍。
      *
-     * 每个片区一次 HTTP、零模型调用，而它一次就覆盖二十几家连锁——
-     * 剩下那条「让模型搜网页」的路只留给 Flipp 没有的店（多是亚洲超市，
-     * 它们的 flyer 是一整张图，网页里根本没有文字）。
+     * 每个片区一次 HTTP、零模型调用。真正取商品是下面按门店点名去取的，
+     * 没人订阅的店不会白读一份。
+     *
+     * 剩下那条「让模型搜网页」的路只留给 Flipp 上没有的店——多是亚洲超市，
+     * 它们的 flyer 是一整张图，网页里根本没有文字。
      *
      * 演示模式下不出网。
      */
-    const flippByArea = new Map<string, FlippDeal[]>();
+    const flyersByArea = new Map<string, FlippFlyer[]>();
     if (!demo) {
       const areas = [...new Set(stores.results.map((store) => store.area).filter(Boolean))] as string[];
       for (const area of areas) {
-        flippByArea.set(area, await fetchFlippDeals(area, today, timeZone));
+        flyersByArea.set(area, await fetchFlippFlyers(area));
       }
     }
 
@@ -363,15 +365,17 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
         continue;
       }
       if (store.sourceKey !== "pricesmart-lougheed") {
-        // Flipp 里有这家店的优惠就直接用，省掉一次模型调用。
-        const areaDeals = store.area ? (flippByArea.get(store.area) ?? []) : [];
-        const mine = areaDeals.filter((deal) => merchantMatches(deal.merchantName, store.name, store.chain));
-        if (mine.length) {
+        // Flipp 上有这家店的 flyer 就直接读，省掉一次模型调用。
+        const areaFlyers = store.area ? (flyersByArea.get(store.area) ?? []) : [];
+        const mine = areaFlyers.find((flyer) => merchantMatches(flyer.merchant, store.name, store.chain));
+        const flippDeals =
+          mine && store.area ? await fetchFlyerDeals(mine.id, store.area, today, timeZone) : [];
+        if (flippDeals.length) {
           foundByKey.set(store.sourceKey, {
             sourceKey: store.sourceKey,
             status: "ok",
-            message: `已从 Flipp 读取 ${mine.length} 项当周优惠`,
-            deals: selectDeals(mine.map((deal) => ({ ...deal, sourceUrl: store.flyerUrl }))),
+            message: `已从 Flipp 读取 ${mine?.merchant ?? ""} 本周 flyer 的 ${flippDeals.length} 项优惠`,
+            deals: selectDeals(flippDeals.map((deal) => ({ ...deal, sourceUrl: store.flyerUrl }))),
           });
           continue;
         }

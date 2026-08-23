@@ -28,7 +28,7 @@ import {
   sessionCookie,
   SESSION_COOKIE,
 } from "../_shared/session";
-import { deliverLoginLink } from "../_shared/mailer";
+import { canDeliverEmail, deliverLoginLink } from "../_shared/mailer";
 
 /** 谁登录了。前端靠它决定显示登录页还是应用本体。 */
 export const GET = withRoute("auth", async (request: Request) => {
@@ -41,6 +41,8 @@ export const GET = withRoute("auth", async (request: Request) => {
       email: account?.email ?? null,
       hasPassword: Boolean(detail?.passwordHash),
       required: loginRequired(),
+      // 发不出信的时候，「邮箱链接」那个入口不该出现在界面上。
+      canEmail: canDeliverEmail(),
     });
   } catch (error) {
     return failure("auth", error, "登录状态暂时无法读取", 500);
@@ -220,7 +222,12 @@ async function signInWithPassword(payload: { email?: string; password?: string |
   }
 
   if (account.lockedUntil && account.lockedUntil > new Date().toISOString()) {
-    throw new UserFacingError(`密码错误次数过多，请 ${LOCK_MINUTES} 分钟后再试，或改用邮箱链接登录`, 429);
+    throw new UserFacingError(
+      canDeliverEmail()
+        ? `密码错误次数过多，请 ${LOCK_MINUTES} 分钟后再试，或改用邮箱链接登录`
+        : `密码错误次数过多，请 ${LOCK_MINUTES} 分钟后再试`,
+      429,
+    );
   }
 
   if (!(await verifyPassword(password, account.passwordHash))) {

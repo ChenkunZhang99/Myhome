@@ -19,6 +19,17 @@ import { UserFacingError } from "./observability";
 
 type Delivery = { delivered: "email" | "console"; link?: string };
 
+/**
+ * 这个部署到底发不发得出邮件。
+ *
+ * 前端要靠它决定还要不要显示「邮箱链接」那个入口。没有发信服务时那个入口是
+ * 一扇打不开的门：点了之后链接只进服务日志，而「忘了密码走邮箱链接」正是
+ * 密码登录唯一的退路。把打不开的门画在墙上，比没有门更糟——人会一直敲。
+ */
+export function canDeliverEmail() {
+  return Boolean(config().apiKey);
+}
+
 function loginLink(request: Request, token: string) {
   const url = new URL(request.url);
   return `${url.origin}/?login=${encodeURIComponent(token)}`;

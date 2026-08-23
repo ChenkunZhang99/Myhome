@@ -253,6 +253,14 @@ export const DELETE = withRoute("inventory", async (request: Request) => {
     if (!id) return Response.json({ error: "缺少物品编号" }, { status: 400 });
     await ensureSchema();
 
+    // 先确认这件东西在这个家里。少了这一步，删一个别人家的编号也会回 ok——
+    // 数据是安全的（每条语句都带 household_id，删掉的是 0 行），
+    // 但接口在撒谎：真正的「删失败了」和「本来就不归你」长得一模一样。
+    const own = await env.DB.prepare("SELECT id FROM inventory_items WHERE household_id = ? AND id = ?")
+      .bind(household, id)
+      .first<{ id: string }>();
+    if (!own) return Response.json({ error: "物品不存在" }, { status: 404 });
+
     // 图片的字节在 R2、元数据在库里，两边都要清。先删 R2：
     // 万一失败，库里的记录还在，重试一次就能补上；反过来则会留下无人知晓的孤儿文件，
     // 既一直计费又仍可通过 object key 访问。

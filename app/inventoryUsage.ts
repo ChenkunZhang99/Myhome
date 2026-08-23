@@ -221,7 +221,8 @@ export function applyConsumption(
   const unchanged = {
     quantity,
     remainingPercent,
-    level: quantity <= 0 || remainingPercent <= 0 ? "已用完" : levelFromPercent(remainingPercent),
+    level:
+      quantity <= 0 || remainingPercent <= 0 ? "已用完" : stockLevel(quantity, remainingPercent, item.unit),
   };
 
   // 按实际用量扣：余量百分比按同比例下降，等于记录「相对上次买满时还剩多少」。
@@ -232,7 +233,11 @@ export function applyConsumption(
     if (nextQuantity <= 0) return emptied;
     const nextPercent = clampPercent(Math.round((remainingPercent * nextQuantity) / quantity), 0);
     if (nextPercent <= 0) return emptied;
-    return { quantity: nextQuantity, remainingPercent: nextPercent, level: levelFromPercent(nextPercent) };
+    return {
+      quantity: nextQuantity,
+      remainingPercent: nextPercent,
+      level: stockLevel(nextQuantity, nextPercent, item.unit),
+    };
   }
 
   if (!used) return unchanged;
@@ -241,15 +246,133 @@ export function applyConsumption(
   // 按余量记录的物品（单位是 %）：数量本身就是百分比，两个字段一起走。
   if (String(item.unit ?? "").trim() === "%") {
     const nextPercent = clampPercent(remainingPercent - used, 0);
-    return { quantity: nextPercent, remainingPercent: nextPercent, level: levelFromPercent(nextPercent) };
+    return {
+      quantity: nextPercent,
+      remainingPercent: nextPercent,
+      level: stockLevel(nextPercent, nextPercent, item.unit),
+    };
   }
 
   const nextPercent = remainingPercent - used;
   if (nextPercent > 0)
-    return { quantity, remainingPercent: nextPercent, level: levelFromPercent(nextPercent) };
+    return { quantity, remainingPercent: nextPercent, level: stockLevel(quantity, nextPercent, item.unit) };
 
   const nextQuantity = roundQuantity(quantity - 1);
   if (nextQuantity <= 0) return emptied;
+  return { quantity: nextQuantity, remainingPercent: 100, level: stockLevel(nextQuantity, 100, item.unit) };
+}
+
+/**
+ * 手上一共还有多少（按件计的单位）。
+ *
+ * 百分比说的只是「拆开那一件还剩多少」，所以 2 袋米、拆开那袋剩 25%，
+ * 实际还有 1.25 袋——而不是 25%。
+ */
+export function totalUnitsLeft(quantity: number, percent: number) {
+  const count = Number(quantity) || 0;
+  if (count <= 0) return 0;
+  return count - 1 + clampPercent(percent) / 100;
+}
+
+/**
+ * 库存等级。
+ *
+ * 可量的单位（kg、ml…）：百分比就是相对满量的比例，直接用。
+ *
+ * 可数的单位：**不能直接用百分比**。2 袋米、拆开那袋剩 25%，
+ * levelFromPercent(25) 会说「偏少」，可你手上还有 1.25 袋。
+ * 这个错误信号会一路传到 Flyer 推荐的紧急度和「需要处理」列表——
+ * 于是系统催你去买米，而你家有的是。改成按手上的总件数判断。
+ */
+export function stockLevel(quantity: number, percent: number, unit: unknown) {
+  const count = Number(quantity) || 0;
+  const remaining = clampPercent(percent);
+  if (count <= 0 || remaining <= 0) return "已用完";
+  if (isMeasurableUnit(unit)) return levelFromPercent(remaining);
+
+  const left = totalUnitsLeft(count, remaining);
+  if (left <= 0) return "已用完";
+  if (left <= 0.2) return "即将用完";
+  if (left < 1) return "偏少";
+  return "充足";
+}
+
+/**
+ * 这个单位是可以按比例分割的量（重量、体积），还是一件一件数的。
+ *
+ * 两者的百分比含义完全不同：
+ *  - 4 kg 的胡萝卜，60% 就是 2.4 kg，数量本身要跟着变
+ *  - 2 袋米，60% 说的是「拆开那一袋还剩六成」，袋数不动
+ *
+ * 分不清的自定义单位按可数处理：少改一个数字，比把重量算错安全。
+ */
+export function isMeasurableUnit(unit: unknown) {
+  const normalized = normalizeUnit(unit);
+  return normalized in massUnits || normalized in volumeUnits;
+}
+
+/**
+ * 满量是多少。
+ *
+ * 不额外存一列，而是从「现在还剩多少」和「还剩百分之几」倒推：
+ * 4.01 kg 是 65%，那么满量就是 6.17 kg。补货时会重新归一化，
+ * 所以这个推算只在两次补货之间有意义——而那正是它被用到的全部场合。
+ */
+function baselineQuantity(quantity: number, percent: number) {
+  if (!(quantity > 0) || !(percent > 0)) return 0;
+  return quantity / (percent / 100);
+}
+
+/**
+ * 手动调整余量（界面上的 ±25%）。
+ *
+ * 以前这里只改百分比，数量原地不动——于是卡片上会出现「4.01 kg · 65%」
+ * 这种自相矛盾的组合：按 65% 算应该是 2.6 kg，可它还写着 4.01。
+ *
+ * 现在按单位分两种走法，和做菜时的扣减（applyConsumption）保持一致：
+ *  - 可量的：数量按满量同比例变化
+ *  - 可数的：百分比说的是拆开那一件，减到 0 就换下一件；只剩一件时标记用完
+ */
+export function adjustRemaining(item: ConsumableStock, deltaPercent: number): StockChange {
+  const quantity = roundQuantity(Number(item.quantity) || 0);
+  const percent = clampPercent(item.remainingPercent);
+  const next = clampPercent(percent + deltaPercent, 0);
+
+  if (isMeasurableUnit(item.unit)) {
+    const baseline = baselineQuantity(quantity, percent);
+    // 推不出满量（数量或百分比为 0）时只动百分比，不要凭空造出一个重量。
+    const nextQuantity = baseline > 0 ? roundQuantity((baseline * next) / 100) : quantity;
+    if (next <= 0 || nextQuantity <= 0) return { quantity: 0, remainingPercent: 0, level: "已用完" };
+    return { quantity: nextQuantity, remainingPercent: next, level: levelFromPercent(next) };
+  }
+
+  if (next > 0) return { quantity, remainingPercent: next, level: stockLevel(quantity, next, item.unit) };
+
+  // 拆开的那一件用完了：还有别的就换下一件，没有了就是真的没了。
+  const remainingCount = roundQuantity(quantity - 1);
+  if (remainingCount <= 0) return { quantity: 0, remainingPercent: 0, level: "已用完" };
+  return {
+    quantity: remainingCount,
+    remainingPercent: 100,
+    level: stockLevel(remainingCount, 100, item.unit),
+  };
+}
+
+/**
+ * 买回来补进已有的那一项。
+ *
+ * 新买的加到「现在还剩的」上面，然后整体重新算作满量——
+ * 因为「满」的意思就是「现在手上有的全部」。之后再减 25%，是在这个新基准上减。
+ *
+ * 之前两条补货路径对这件事的处理并不一致：购物清单那条会回到 100%，
+ * 小票那条却保留旧的百分比，于是补完货还显示「剩 40%」。
+ */
+export function restock(item: ConsumableStock, addedQuantity: number): StockChange {
+  const added = Number(addedQuantity) || 0;
+  const quantity = roundQuantity(Number(item.quantity) || 0);
+  if (!(added > 0))
+    return { quantity, remainingPercent: clampPercent(item.remainingPercent), level: item.level ?? "充足" };
+  const nextQuantity = roundQuantity(quantity + added);
   return { quantity: nextQuantity, remainingPercent: 100, level: levelFromPercent(100) };
 }
 

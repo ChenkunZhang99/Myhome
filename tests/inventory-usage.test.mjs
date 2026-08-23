@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  adjustRemaining,
+  isMeasurableUnit,
+  restock,
+  stockLevel,
+  totalUnitsLeft,
   applyConsumption,
   findInventoryMatch,
   levelFromPercent,
@@ -38,7 +43,27 @@ test("prefers the same category when two stock items share a name", () => {
 
 test("consuming part of an opened item only moves the remaining percentage", () => {
   const result = applyConsumption({ quantity: 2, unit: "把", remainingPercent: 100 }, "half");
-  assert.deepEqual(result, { quantity: 2, remainingPercent: 50, level: "偏少" });
+  // 等级从「偏少」改成了「充足」，这正是这次改动要修的：
+  // 百分比说的是拆开那一把还剩多少，2 把用掉半把还有 1.5 把，不该报警。
+  // 旧的期望值编码的就是那个错误信号——它会一路传到 Flyer 推荐的紧急度。
+  assert.deepEqual(result, { quantity: 2, remainingPercent: 50, level: "充足" });
+});
+
+test("按件计的单位，等级看手上一共还有多少，不看拆开那一件", () => {
+  // 2 袋米、拆开那袋剩 25%：还有 1.25 袋，不是「偏少」
+  assert.equal(stockLevel(2, 25, "袋"), "充足");
+  // 只剩最后一袋且用掉四分之三，那才是真的快没了
+  assert.equal(stockLevel(1, 25, "袋"), "偏少");
+  assert.equal(stockLevel(1, 15, "袋"), "即将用完");
+  assert.equal(stockLevel(0, 0, "袋"), "已用完");
+
+  // 可量的单位没有「拆开那一件」的概念，百分比就是相对满量的比例
+  assert.equal(stockLevel(1, 25, "kg"), "偏少", "1 kg 剩 25% 就是快没了");
+  assert.equal(stockLevel(4, 25, "kg"), "偏少", "4 kg 是满量的 25%，同样是快没了");
+
+  assert.equal(totalUnitsLeft(2, 25), 1.25);
+  assert.equal(totalUnitsLeft(1, 25), 0.25);
+  assert.equal(totalUnitsLeft(0, 100), 0);
 });
 
 test("finishing the opened item starts the next one", () => {
@@ -224,4 +249,75 @@ test("已用完的物品不产生到期信息", async () => {
   const compute = body.indexOf("effectiveExpiry(item)");
   assert.ok(guard !== -1, "getExpiryInfo 里缺少「已用完」的闸门");
   assert.ok(guard < compute, "闸门要排在算到期日之前");
+});
+
+/**
+ * 百分比和数量必须讲同一个故事。
+ *
+ * 卡片上曾经出现「胡萝卜 4.01 kg · 65%」——按 65% 算应该是 2.6 kg，
+ * 可数量原地没动。因为 ±25% 只改了百分比，重量根本没参与。
+ */
+test("可量的单位：±25% 时重量跟着变", () => {
+  const carrot = { name: "胡萝卜", quantity: 4, unit: "kg", remainingPercent: 100, level: "充足" };
+  const after = adjustRemaining(carrot, -25);
+  assert.equal(after.remainingPercent, 75);
+  assert.equal(after.quantity, 3, "4 kg 的 75% 是 3 kg");
+
+  // 再减一次是在新基准上继续按满量算，不是在 3 kg 上再减 25%
+  const again = adjustRemaining({ ...carrot, ...after }, -25);
+  assert.equal(again.remainingPercent, 50);
+  assert.equal(again.quantity, 2, "满量仍是 4 kg，50% 就是 2 kg");
+});
+
+test("可数的单位：袋数不动，减到 0 换下一袋", () => {
+  const rice = { name: "米", quantity: 2, unit: "袋", remainingPercent: 50, level: "偏少" };
+  const half = adjustRemaining(rice, -25);
+  assert.equal(half.quantity, 2, "拆开那一袋还没用完，袋数不该变");
+  assert.equal(half.remainingPercent, 25);
+
+  const nextBag = adjustRemaining({ ...rice, remainingPercent: 25 }, -25);
+  assert.equal(nextBag.quantity, 1, "这一袋用完了，换下一袋");
+  assert.equal(nextBag.remainingPercent, 100, "新拆的一袋是满的");
+
+  const lastBag = adjustRemaining({ ...rice, quantity: 1, remainingPercent: 25 }, -25);
+  assert.equal(lastBag.level, "已用完", "只剩一袋且用完了，就是真的没了");
+  assert.equal(lastBag.quantity, 0);
+});
+
+test("补货：加到剩下的上面，然后整体归一化为满量", () => {
+  // 这正是提出的场景：4 kg 减到 50%（2 kg），再买 3 kg 回来
+  const carrot = { name: "胡萝卜", quantity: 2, unit: "kg", remainingPercent: 50, level: "偏少" };
+  const after = restock(carrot, 3);
+  assert.equal(after.quantity, 5, "2 kg 剩货加 3 kg 新货");
+  assert.equal(after.remainingPercent, 100, "手上有的全部就是满量");
+
+  // 之后的 −25% 以新的 5 kg 为基准
+  const used = adjustRemaining({ ...carrot, ...after }, -25);
+  assert.equal(used.remainingPercent, 75);
+  assert.equal(used.quantity, 3.75, "5 kg 的 75%");
+});
+
+test("补货不会把已用完的东西留在已用完", () => {
+  const empty = { name: "鸡腿肉", quantity: 0, unit: "包", remainingPercent: 0, level: "已用完" };
+  const after = restock(empty, 2);
+  assert.equal(after.quantity, 2);
+  assert.equal(after.remainingPercent, 100);
+  assert.notEqual(after.level, "已用完");
+});
+
+test("分不清的单位按可数处理", () => {
+  assert.equal(isMeasurableUnit("kg"), true);
+  assert.equal(isMeasurableUnit("斤"), true, "中文别名也要认");
+  assert.equal(isMeasurableUnit("ml"), true);
+  assert.equal(isMeasurableUnit("袋"), false);
+  assert.equal(isMeasurableUnit("把"), false);
+  assert.equal(isMeasurableUnit("坨"), false, "没见过的单位宁可当可数，少改一个数字比算错重量安全");
+});
+
+test("推不出满量时不要凭空造一个重量", () => {
+  // 百分比是 0：除下去是无穷大，绝不能拿它去乘
+  const broken = { name: "油", quantity: 5, unit: "ml", remainingPercent: 0, level: "已用完" };
+  const after = adjustRemaining(broken, 25);
+  assert.ok(Number.isFinite(after.quantity), "数量必须是有限数");
+  assert.equal(after.quantity, 5, "推不出满量就别动数量");
 });

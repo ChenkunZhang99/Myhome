@@ -3,6 +3,7 @@ import { resolveHousehold } from "../../_shared/household";
 import { failure, withRoute } from "../../_shared/observability";
 import { ensureSchema } from "../../_shared/schema";
 import { defaultLocation } from "../../_shared/inventory";
+import { restock } from "../../../inventoryUsage";
 
 const categories = [
   "蔬菜水果",
@@ -70,14 +71,18 @@ export const POST = withRoute("receipts.confirm", async (request: Request) => {
     const mergeIds = items
       .filter((raw) => raw.action === "merge" && text(raw.mergeItemId))
       .map((raw) => text(raw.mergeItemId));
-    const existingById = new Map<string, { id: string; quantity: number; level: string }>();
+    const existingById = new Map<
+      string,
+      { id: string; quantity: number; level: string; unit: string; remainingPercent: number }
+    >();
     if (mergeIds.length) {
       const placeholders = mergeIds.map(() => "?").join(", ");
       const rows = await env.DB.prepare(
-        `SELECT id, quantity, level FROM inventory_items WHERE household_id = ? AND id IN (${placeholders})`,
+        `SELECT id, quantity, level, unit, remaining_percent AS remainingPercent
+         FROM inventory_items WHERE household_id = ? AND id IN (${placeholders})`,
       )
         .bind(household, ...mergeIds)
-        .all<{ id: string; quantity: number; level: string }>();
+        .all<{ id: string; quantity: number; level: string; unit: string; remainingPercent: number }>();
       for (const row of rows.results) existingById.set(row.id, row);
     }
 
@@ -130,19 +135,30 @@ export const POST = withRoute("receipts.confirm", async (request: Request) => {
         raw.action === "merge" && text(raw.mergeItemId) ? existingById.get(text(raw.mergeItemId)) : undefined;
 
       if (existing) {
-        const nextQuantity = Number(existing.quantity) + quantity;
-        const nextLevel =
-          existing.level === "已用完" || Number(existing.quantity) <= 0 ? "充足" : existing.level;
+        /**
+         * 买回来的加到现在还剩的上面，然后整体重新算作满量。
+         *
+         * 之前这里保留旧的百分比（只有在 0 时才回到 100），于是往一件剩 40% 的
+         * 东西里补货，补完还显示「剩 40%」——数量涨了，百分比却说没涨。
+         * 而购物清单那条路径一直是回到 100% 的，两边对同一件事的说法不一样。
+         */
+        const next = restock(existing, quantity);
+        const nextQuantity = next.quantity;
+        const nextLevel = next.level;
         writes.push(
           env.DB.prepare(
-            `UPDATE inventory_items SET quantity = ?, level = ?,
-            remaining_percent = CASE WHEN remaining_percent <= 0 THEN 100 ELSE remaining_percent END,
+            `UPDATE inventory_items SET quantity = ?, level = ?, remaining_percent = ?,
             purchase_date = COALESCE(?, purchase_date),
             updated_at = CURRENT_TIMESTAMP WHERE household_id = ? AND id = ?`,
-          ).bind(nextQuantity, nextLevel, purchaseDate, household, existing.id),
+          ).bind(nextQuantity, nextLevel, next.remainingPercent, purchaseDate, household, existing.id),
         );
         // 同一张小票里有两行合并到同一物品时，第二行要接着第一行的数量继续加。
-        existingById.set(existing.id, { ...existing, quantity: nextQuantity, level: nextLevel });
+        existingById.set(existing.id, {
+          ...existing,
+          quantity: nextQuantity,
+          level: nextLevel,
+          remainingPercent: next.remainingPercent,
+        });
         recordPurchase(existing.id, name, category, quantity, unit, raw);
         merged += 1;
         continue;

@@ -4,11 +4,11 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { Icon } from "./Icon";
 import { PlannerPanel } from "./PlannerPanel";
 import {
+  adjustRemaining,
   clampPercent,
   daysInUse,
   defaultOpenedShelfLife,
   effectiveExpiry,
-  levelFromPercent,
   type ShelfLifeInput,
 } from "./inventoryUsage";
 import { withAiHeaders } from "./aiSettings";
@@ -608,19 +608,37 @@ export default function Home() {
       setToast(t("这是示例物品，添加真实库存后即可调整"));
       return;
     }
-    const nextPercent = clampPercent(item.remainingPercent + delta);
-    const nextLevel = levelFromPercent(nextPercent);
+    // 可量的单位（kg、ml…）数量要跟着一起变，可数的单位减到 0 就换下一件。
+    // 规则和做菜时的扣减共用一处，见 inventoryUsage.adjustRemaining。
+    const next = adjustRemaining(item, delta);
+    const nextPercent = next.remainingPercent;
+    const nextLevel = next.level;
+    const nextQuantity = next.quantity;
     setItems((current) =>
       current.map((entry) =>
-        entry.id === item.id ? { ...entry, remainingPercent: nextPercent, level: nextLevel } : entry,
+        entry.id === item.id
+          ? { ...entry, quantity: nextQuantity, remainingPercent: nextPercent, level: nextLevel }
+          : entry,
       ),
     );
     if (selectedItem?.id === item.id)
-      setSelectedItem({ ...item, remainingPercent: nextPercent, level: nextLevel });
+      setSelectedItem({
+        ...item,
+        quantity: nextQuantity,
+        remainingPercent: nextPercent,
+        level: nextLevel,
+      });
     const response = await fetch("/api/inventory", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: item.id, remainingPercent: nextPercent, level: nextLevel }),
+      // 数量也要一起传：可量单位的 ±25% 会改重量，只发百分比的话服务端还是旧重量。
+      body: JSON.stringify({
+        id: item.id,
+        name: item.name,
+        quantity: nextQuantity,
+        remainingPercent: nextPercent,
+        level: nextLevel,
+      }),
     });
     if (!response.ok) {
       setToast(t("余量更新失败，已恢复原记录"));

@@ -1,0 +1,17 @@
+# 仓库里一律存 LF，检出也一律 LF。
+#
+# 没有这个文件时，Windows 上的 core.autocrlf=true 会在每次检出时把 LF 换成 CRLF，
+# 而 Prettier 的 endOfLine 默认是 lf——于是 `format:check` 会在一次 rebase 或
+# reset 之后毫无征兆地全线飘红，明明谁也没改过那些文件。
+* text=auto eol=lf
+
+# 二进制不要碰
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

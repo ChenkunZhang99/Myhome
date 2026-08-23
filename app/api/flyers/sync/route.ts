@@ -6,6 +6,7 @@ import { dayIn } from "../../../dateTime";
 import { ensureSchema } from "../../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig, outputText, type OpenAIConfig } from "../../_shared/openai";
 import { demoDeals, isDemoMode } from "../../_shared/demo";
+import { fetchFlippDeals, merchantMatches, type FlippDeal } from "./flipp";
 import { fetchPriceSmartDeals } from "./pricesmart";
 import { normalizeFlyerName } from "../../../flyerRecommendations";
 
@@ -43,7 +44,17 @@ function hostsOf(stores: StoreRow[]) {
   return [...hosts];
 }
 
-type StoreRow = { id: string; name: string; address: string; sourceKey: string; flyerUrl: string };
+type StoreRow = {
+  id: string;
+  name: string;
+  address: string;
+  sourceKey: string;
+  flyerUrl: string;
+  /** 连锁品牌名。Flipp 给的是连锁而不是分店，靠它对上。 */
+  chain?: string | null;
+  /** 邮编前三位。Flipp 按邮编查，同一片区的门店查一次就够。 */
+  area?: string | null;
+};
 type ExtractedDeal = {
   itemName: string;
   category: string;
@@ -285,7 +296,9 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
       // 但只读真的有人收藏的那些。目录能按邮编长大之后，「读遍目录」会随着
       // 用户变多而线性膨胀——一个多伦多用户搜出来的店，没有任何人订阅，
       // 却要在每次同步时花一次模型调用。
-      `SELECT source_key AS id, name, address, source_key AS sourceKey, flyer_url AS flyerUrl
+      `SELECT flyer_sources.source_key AS id, flyer_sources.name, flyer_sources.address,
+      flyer_sources.source_key AS sourceKey, flyer_sources.flyer_url AS flyerUrl, flyer_sources.chain,
+      (SELECT MIN(area) FROM flyer_source_areas WHERE flyer_source_areas.source_key = flyer_sources.source_key) AS area
       FROM flyer_sources
       WHERE flyer_format != 'manual' AND flyer_url != ''
         AND EXISTS (SELECT 1 FROM household_stores WHERE household_stores.source_key = flyer_sources.source_key)
@@ -319,6 +332,24 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
     const fallbackStores: StoreRow[] = [];
 
     const demo = isDemoMode(request);
+
+    /*
+     * 先按片区把 Flipp 读一遍。
+     *
+     * 每个片区一次 HTTP、零模型调用，而它一次就覆盖二十几家连锁——
+     * 剩下那条「让模型搜网页」的路只留给 Flipp 没有的店（多是亚洲超市，
+     * 它们的 flyer 是一整张图，网页里根本没有文字）。
+     *
+     * 演示模式下不出网。
+     */
+    const flippByArea = new Map<string, FlippDeal[]>();
+    if (!demo) {
+      const areas = [...new Set(stores.results.map((store) => store.area).filter(Boolean))] as string[];
+      for (const area of areas) {
+        flippByArea.set(area, await fetchFlippDeals(area, today, timeZone));
+      }
+    }
+
     for (const store of stores.results) {
       // 演示模式既不抓官网也不调模型，给每家门店一份样例优惠，
       // 后面的去重、单位价格、历史价格和推荐排序逻辑照常执行。
@@ -332,6 +363,18 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
         continue;
       }
       if (store.sourceKey !== "pricesmart-lougheed") {
+        // Flipp 里有这家店的优惠就直接用，省掉一次模型调用。
+        const areaDeals = store.area ? (flippByArea.get(store.area) ?? []) : [];
+        const mine = areaDeals.filter((deal) => merchantMatches(deal.merchantName, store.name, store.chain));
+        if (mine.length) {
+          foundByKey.set(store.sourceKey, {
+            sourceKey: store.sourceKey,
+            status: "ok",
+            message: `已从 Flipp 读取 ${mine.length} 项当周优惠`,
+            deals: selectDeals(mine.map((deal) => ({ ...deal, sourceUrl: store.flyerUrl }))),
+          });
+          continue;
+        }
         fallbackStores.push(store);
         continue;
       }

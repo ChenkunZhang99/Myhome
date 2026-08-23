@@ -213,3 +213,10 @@ test("同步不对 Flipp 的结果二次排序", () => {
   );
   assert.ok(around.includes("flippDeals.slice(0, 18)"), "没有取前若干条");
 });
+
+test("fruit snacks 是零食，不是水果", () => {
+  assert.equal(categoryFromText("Betty Crocker fruit snacks"), "零食饮料");
+  assert.equal(categoryFromText("Bunch Carrots"), "蔬菜水果", "真的蔬菜不能被误伤");
+  assert.equal(categoryFromText("Fresh Strawberries"), "蔬菜水果");
+  assert.equal(categoryFromText("Orange juice"), "零食饮料", "橙汁是饮料不是橙子");
+});

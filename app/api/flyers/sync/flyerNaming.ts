@@ -30,8 +30,10 @@ export const FLYER_CATEGORIES = [
 /**
  * 按关键词归类。
  *
- * 顺序有讲究：冷冻和肉类会同时命中「frozen shrimp」，而对采购来说
- * 「这是海鲜」比「这是冷冻的」更有用，所以肉类海鲜排在前面。
+ * 顺序有讲究，而且是被真实数据逼出来的：
+ *  - 「frozen shrimp」同时命中冷冻和肉类，而对采购来说「这是海鲜」更有用
+ *  - 「Betty Crocker fruit snacks」里的 fruit 会让它变成蔬菜水果，
+ *    所以零食饮料必须先判——那是一盒软糖，不是水果
  */
 export function categoryFromText(...parts: Array<string | undefined | null>) {
   const context = parts.filter(Boolean).join(" ").toLowerCase();
@@ -51,14 +53,14 @@ export function categoryFromText(...parts: Array<string | undefined | null>) {
   if (/condiment|sauce|spice|seasoning|vinegar|soy sauce|oyster|ketchup|mayo|miso/.test(context))
     return "调味品";
   if (/rice|pasta|noodle|flour|grain|oil|bakery|bread|cereal|tortilla|bun\b/.test(context)) return "米面粮油";
+  if (/snack|beverage|drink|water|juice|coffee|tea|candy|chocolate|chip|cookie|soda|pop\b/.test(context))
+    return "零食饮料";
   if (
     /fruit|vegetable|produce|lettuce|tomato|broccoli|corn|grape|orange|peach|apple|banana|berry|berries|onion|potato|carrot|cabbage|cucumber|pepper|mushroom|spinach|melon|mango|pear|lemon|lime|avocado|garlic|ginger/.test(
       context,
     )
   )
     return "蔬菜水果";
-  if (/snack|beverage|drink|water|juice|coffee|tea|candy|chocolate|chip|cookie|soda|pop\b/.test(context))
-    return "零食饮料";
   return "其他";
 }
 

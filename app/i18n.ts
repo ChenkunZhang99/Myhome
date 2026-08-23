@@ -725,6 +725,11 @@ const ui: Record<string, string> = {
   注册失败: "Sign-up failed",
   再输一遍: "Repeat password",
   两次输入的密码不一样: "The two passwords do not match",
+  "用邮箱和一个自己定的密码开号。": "Create an account with your email and a password you choose.",
+  "这个站点还没有配置发信服务：密码丢了没法自助找回，同一个邮箱也不能重新注册。请把密码记牢。":
+    "This site has no email service configured: a lost password cannot be recovered, and the same address cannot register again. Keep your password somewhere safe.",
+  "第一次来请点「注册」。这个站点没有配置发信服务，密码丢了找不回来。":
+    "New here? Use Sign up. This site has no email service, so a lost password cannot be recovered.",
   "用邮箱和一个自己定的密码开号。需要一条有效的邀请链接才能注册。":
     "Create an account with your email and a password you choose. A valid invite link is required.",
   密码登录: "Password",

@@ -5058,6 +5058,14 @@ h3 {
   font-size: var(--text-xs);
   line-height: 1.6;
 }
+/* 「密码丢了找不回来」这种话必须被读到，灰色的小字会被跳过去。 */
+.settings-note.warn {
+  color: #8a4b18;
+  background: #fdf2e3;
+  border: 1px solid #f0d5ac;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
 .settings-status {
   display: grid;
   grid-template-columns: auto 1fr;

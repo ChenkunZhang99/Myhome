@@ -15,6 +15,13 @@ export type AccountState = {
   /** 有没有设过密码。只是布尔值——哈希不会离开服务端。 */
   hasPassword: boolean;
   required: boolean;
+  /**
+   * 这个部署发不发得出邮件。
+   *
+   * 发不出的时候「邮箱链接」是一扇打不开的门，而它正是忘记密码唯一的退路，
+   * 所以界面上要如实说清楚，而不是让人对着一个没反应的按钮猜。
+   */
+  canEmail: boolean;
 };
 
 export const signedOut: AccountState = {
@@ -22,6 +29,7 @@ export const signedOut: AccountState = {
   email: null,
   hasPassword: false,
   required: false,
+  canEmail: false,
 };
 
 export async function fetchAccount(): Promise<AccountState> {
@@ -33,6 +41,7 @@ export async function fetchAccount(): Promise<AccountState> {
     email: result.email ?? null,
     hasPassword: Boolean(result.hasPassword),
     required: Boolean(result.required),
+    canEmail: Boolean(result.canEmail),
   };
 }
 

@@ -25,6 +25,10 @@ import { peekStashedInvite } from "./householdAccounts";
  * 之所以没有单独的重置密码流程，是因为邮箱链接本来就是：能收到这个邮箱的信，
  * 就能登录，登录之后就能改密码。再造一条一模一样的路只是多一处会出错的地方。
  *
+ * 但这条退路依赖发信服务。没配的时候它不存在，界面上就必须承认这件事：
+ * 那种部署上密码一旦丢了就真的进不来了，而且同一个邮箱也不能重新注册。
+ * 与其画一扇打不开的门让人一直敲，不如提前说清楚。
+ *
  * 本地没有配置发信服务时后端会把链接原样返回，界面直接显示出来，
  * 这样 clone 下来的人不需要真实邮箱也能走完整个流程。
  */
@@ -218,21 +222,28 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
         >
           {t("密码登录")}
         </button>
-        <button
-          type="button"
-          className={method === "link" ? "active" : ""}
-          aria-pressed={method === "link"}
-          onClick={() => setMethod("link")}
-        >
-          {t("邮箱链接")}
-        </button>
+        {account.canEmail && (
+          <button
+            type="button"
+            className={method === "link" ? "active" : ""}
+            aria-pressed={method === "link"}
+            onClick={() => setMethod("link")}
+          >
+            {t("邮箱链接")}
+          </button>
+        )}
       </div>
 
       {method === "register" ? (
         <form onSubmit={register}>
-          <p className="settings-note">
-            {t("用邮箱和一个自己定的密码开号。需要一条有效的邀请链接才能注册。")}
-          </p>
+          <p className="settings-note">{t("用邮箱和一个自己定的密码开号。")}</p>
+          {!account.canEmail && (
+            <p className="settings-note warn">
+              {t(
+                "这个站点还没有配置发信服务：密码丢了没法自助找回，同一个邮箱也不能重新注册。请把密码记牢。",
+              )}
+            </p>
+          )}
           <label className="field full">
             <span>{t("邮箱")}</span>
             <input
@@ -291,7 +302,11 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
-          <p className="settings-note">{t("第一次来请点「注册」；忘了密码走「邮箱链接」。")}</p>
+          <p className="settings-note">
+            {account.canEmail
+              ? t("第一次来请点「注册」；忘了密码走「邮箱链接」。")
+              : t("第一次来请点「注册」。这个站点没有配置发信服务，密码丢了找不回来。")}
+          </p>
           <div className="modal-actions">
             <button className="primary-button" disabled={busy || !email.trim() || !password}>
               {busy ? t("处理中…") : t("登录")}

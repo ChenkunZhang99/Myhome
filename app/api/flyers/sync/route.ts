@@ -7,6 +7,7 @@ import { ensureSchema } from "../../_shared/schema";
 import { createOpenAIResponse, getOpenAIConfig, outputText, type OpenAIConfig } from "../../_shared/openai";
 import { demoDeals, isDemoMode } from "../../_shared/demo";
 import { fetchFlippFlyers, fetchFlyerDeals, merchantMatches, type FlippFlyer } from "./flipp";
+import { readFlyerImage } from "./visionFlyer";
 import { fetchPriceSmartDeals } from "./pricesmart";
 import { normalizeFlyerName } from "../../../flyerRecommendations";
 
@@ -381,6 +382,19 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
           });
           continue;
         }
+        // Flipp 上没有这家店。多半是亚洲超市——它们的 flyer 是一整张图，
+        // 页面里没有文字，让模型搜网页永远读不出东西。改成直接读那张图。
+        const vision = await readFlyerImage(store.name, store.flyerUrl, today, openAI);
+        if (vision.deals.length) {
+          foundByKey.set(store.sourceKey, {
+            sourceKey: store.sourceKey,
+            status: "ok",
+            message: vision.message,
+            deals: vision.deals.slice(0, 18).map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
+          });
+          continue;
+        }
+        // 连图都没有的页面（内容靠 JS 渲染那种）还是交给网页搜索，两者互补。
         fallbackStores.push(store);
         continue;
       }

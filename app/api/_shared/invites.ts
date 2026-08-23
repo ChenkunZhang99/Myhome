@@ -111,6 +111,29 @@ export async function purgeExpiredInvites() {
 }
 
 /**
+ * 手里这条邀请，能不能用来给这个邮箱开号。只看，不作废。
+ *
+ * 和下面的 hasUsableInvite 差一个字，但差别是致命的：那个问「有没有一条」，
+ * 这个问「这一条行不行」。不绑邮箱的邀请（发到家庭群里那种）对任何邮箱都成立，
+ * 所以只要家里还挂着一条没用掉的开放邀请，hasUsableInvite 对陌生人也会说「可以」。
+ *
+ * 邮箱链接那条路上这不致命——链接得寄到收件箱，陌生人拿不到。
+ * 密码注册没有那一层，凭据只能是令牌本身，所以它验的是这一个。
+ */
+export async function inviteMatches(token: string, email: string) {
+  if (!token) return false;
+  const row = await env.DB.prepare(
+    `SELECT email, expires_at AS expiresAt, accepted_at AS acceptedAt
+       FROM household_invites WHERE token_hash = ?`,
+  )
+    .bind(await hashToken(token))
+    .first<{ email: string | null; expiresAt: string; acceptedAt: string | null }>();
+  if (!row || row.acceptedAt) return false;
+  if (row.expiresAt <= new Date().toISOString()) return false;
+  return !row.email || row.email === email;
+}
+
+/**
  * 有没有一条还能用的邀请在等这个邮箱。
  *
  * 和 redeemInvite 不同：这里只看，不作废。注册时先问一句，

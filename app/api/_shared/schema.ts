@@ -129,6 +129,16 @@ const TABLES = [
     last_synced_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS flyer_source_areas (
+    -- 加拿大 FSA（邮编前三位，V3J）或美国 ZIP 前三位。一个片区大致就是一个街区，
+    -- 按它缓存刚好：同一片区的第二个人直接命中，不用再让模型搜一次。
+    area TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    discovered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- 谁把这家店带进目录的。目录是全局的，出了脏数据要追得回来。
+    discovered_by TEXT,
+    PRIMARY KEY (area, source_key)
+  )`,
   `CREATE TABLE IF NOT EXISTS household_stores (
     id TEXT PRIMARY KEY,
     household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
@@ -322,8 +332,25 @@ const INDEXES_ON_ADDED_COLUMNS = [
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_recipe_preferences_household ON recipe_preferences(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id)",
   // 切换家庭要按人查「我都属于哪些家」，成员列表要按家查「这家里都有谁」。
+  "CREATE INDEX IF NOT EXISTS idx_flyer_source_areas_area ON flyer_source_areas(area)",
   "CREATE INDEX IF NOT EXISTS idx_memberships_user ON household_memberships(user_id)",
   "CREATE INDEX IF NOT EXISTS idx_memberships_household ON household_memberships(household_id, role)",
+];
+
+const DISCOVERY_COLUMNS: Array<{ table: string; column: string; ddl: string }> = [
+  // 门店目录原本是代码里写死的三家，现在用户可以按邮编搜出新的来。
+  // 这三列是为了在目录长大之后还认得出每一行的来历。
+  { table: "flyer_sources", column: "chain", ddl: "ALTER TABLE flyer_sources ADD COLUMN chain TEXT" },
+  {
+    table: "flyer_sources",
+    column: "created_by",
+    ddl: "ALTER TABLE flyer_sources ADD COLUMN created_by TEXT",
+  },
+  {
+    table: "flyer_sources",
+    column: "verified_at",
+    ddl: "ALTER TABLE flyer_sources ADD COLUMN verified_at TEXT",
+  },
 ];
 
 /**
@@ -331,6 +358,7 @@ const INDEXES_ON_ADDED_COLUMNS = [
  * 只有在这些列出现之前就建好的库才需要补。
  */
 const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfill?: string }> = [
+  ...DISCOVERY_COLUMNS,
   {
     table: "inventory_items",
     column: "purchase_date",

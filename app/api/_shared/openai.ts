@@ -94,6 +94,22 @@ export function getOpenAIConfig(request: Request | undefined, householdId: strin
   };
 }
 
+/**
+ * 从 Responses API 的返回里取出那段文本。
+ *
+ * 结构比看上去绕：正文藏在 output[].content[] 里 type 为 output_text 的那一项，
+ * 而有些返回又直接给一个顶层 output_text。两种都要认。
+ */
+export function outputText(response: Record<string, unknown>) {
+  const output = Array.isArray(response.output)
+    ? (response.output as Array<{ content?: Array<{ type?: string; text?: string }> }>)
+    : [];
+  for (const item of output)
+    for (const content of item.content ?? [])
+      if (content.type === "output_text" && content.text) return content.text;
+  return typeof response.output_text === "string" ? response.output_text : "";
+}
+
 export async function createOpenAIResponse(body: Record<string, unknown>, config: OpenAIConfig) {
   // 没有密钥不是程序缺陷，而是使用者还没填，提示要能直接看懂。
   if (!config.apiKey) throw new UserFacingError("尚未配置 OpenAI API 密钥，请在设置里填写后再试", 503);

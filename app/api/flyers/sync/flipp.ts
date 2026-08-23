@@ -73,6 +73,25 @@ function unitFrom(text: string | null | undefined) {
 }
 
 /**
+ * 补成一个完整的六位邮编。
+ *
+ * 调用方给的是片区（FSA，邮编前三位）——缓存按片区分，因为一个 FSA 大致就是
+ * 一个街区。但 Flipp 只认完整邮编：只给 V3J 会回 422。
+ *
+ * 补成 V3J0A1 拿回来的结果和 V3J1N4 一模一样（实测都是 150 条），
+ * 所以补位不影响准确度，反而保住了「一个片区查一次」这件事。
+ */
+function fullPostalCode(value: string) {
+  const code = String(value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  if (code.length >= 6) return code.slice(0, 6);
+  // 加拿大邮编形如 A1A 1A1，前三位就是 FSA。
+  if (/^[A-Z][0-9][A-Z]$/.test(code)) return code + "0A1";
+  return "";
+}
+
+/**
  * 一条原始记录能不能用。
  *
  * 少数商家（Chong Lee、Pomme Produce 这类）返回 name 和 price 都是 null 的占位记录，
@@ -124,8 +143,8 @@ export function parseFlippItems(items: RawItem[], today: string, timeZone: strin
  * 每个片区一次 HTTP，没有模型调用。
  */
 export async function fetchFlippDeals(postalCode: string, today: string, timeZone: string) {
-  const code = postalCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (code.length < 3) return [];
+  const code = fullPostalCode(postalCode);
+  if (!code) return [];
   const url = `${ENDPOINT}?locale=en-ca&postal_code=${encodeURIComponent(code)}&q=`;
   try {
     const response = await fetch(url, {

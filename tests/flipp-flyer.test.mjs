@@ -163,3 +163,19 @@ test("演示模式不出网", () => {
   const around = route.slice(at, at + 400);
   assert.ok(around.includes("if (!demo)"), "演示模式下不该真的去请求 Flipp");
 });
+
+/**
+ * 片区（FSA，邮编前三位）要补成完整六位。
+ * Flipp 只给 V3J 会回 422——这个坑第一版就踩了，钉在这里。
+ */
+test("片区补成完整邮编", async () => {
+  const source = await readFile(new URL("../app/api/flyers/sync/flipp.ts", import.meta.url), "utf8");
+  const at = source.indexOf("function fullPostalCode");
+  assert.notEqual(at, -1, "找不到补位函数");
+  const body = source.slice(at, source.indexOf(String.fromCharCode(10) + "}", at));
+  assert.ok(body.includes('code + "0A1"'), "没有把 FSA 补成六位");
+  assert.ok(
+    body.includes("[0-9]") || body.includes("\d"),
+    "FSA 判断里的数字位被写坏了——[A-Z]d[A-Z] 只会匹配 VdJ 这种不存在的写法",
+  );
+});

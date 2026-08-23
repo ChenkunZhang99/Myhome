@@ -1937,13 +1937,15 @@ export default function Home() {
           )}
 
           {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} notify={setToast} />}
-          {toast && (
-            <div className="toast" role="status">
-              {toast}
-            </div>
-          )}
         </main>
       </LoginGate>
+      {/* 提示条也在门外。挂在门里的话，登录卡片上「密码不对」「邀请无效」这些
+          话一句都显示不出来——按钮点下去毫无反应，人只会以为页面坏了。 */}
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
     </>
   );
 }

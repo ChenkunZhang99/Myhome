@@ -453,6 +453,22 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
  */
 const SEEDS = [
   /*
+   * 代码里预设的那几家也要能被邮编搜到。
+   *
+   * 它们的地址里就带着邮编，取前三位当片区。不做这一步的话，Lougheed 一带的
+   * 用户搜出来的是一份不包含 PriceSmart 的列表——而那恰恰是这个项目里
+   * 唯一有结构化抓取、读得最准的一家。
+   *
+   * 正则在 SQLite 里没有，用 SUBSTR + INSTR 找地址里最后那个「字母数字 空格 数字」的邮编段。
+   * 写得笨一点没关系，这条只在建表时跑一次，而且是幂等的。
+   */
+  `INSERT OR IGNORE INTO flyer_source_areas (area, source_key, discovered_by)
+   SELECT UPPER(REPLACE(SUBSTR(address, LENGTH(address) - 6, 3), ' ', '')), source_key, 'preset'
+     FROM flyer_sources
+    WHERE created_by IS NULL
+      AND LENGTH(address) > 7
+      AND SUBSTR(address, LENGTH(address) - 6, 1) BETWEEN 'A' AND 'Z'`,
+  /*
    * 从「一人一家」迁到「一人多家」。
    *
    * users.household_id 没有消失，它的含义变了：从「我属于哪个家」变成

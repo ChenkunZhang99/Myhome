@@ -40,13 +40,29 @@ test("prefers the same category when two stock items share a name", () => {
 });
 
 /**
- * 做菜的档位和界面上的 ±25% 目前给出的数量不同，这是已知的、有意保留的差异：
- * 「一把葱用掉大部分」= 没了，而不是「还剩满量的四分之一」。
- * 要统一得先说清这些档位相对的是什么，那是产品问题，见 applyConsumption 的注释。
+ * 做菜的档位是「用掉现在剩余量的百分之多少」。
+ *
+ * 曾经是「从百分比里减掉这么多点」，于是剩得越少越容易被一下子清空：
+ * 3 盒 40% 用掉「一半」会变成全空。按比例缩放就没有这个问题。
  */
-test("consuming part of an opened item only moves the remaining percentage", () => {
+test("用掉一半：数量和百分比按同一个系数缩放", () => {
   const result = applyConsumption({ quantity: 2, unit: "把", remainingPercent: 100 }, "half");
-  assert.deepEqual(result, { quantity: 2, remainingPercent: 50, level: "偏少" });
+  assert.deepEqual(result, { quantity: 1, remainingPercent: 50, level: "偏少" });
+});
+
+test("剩得少的时候，用掉一半不会变成全空", () => {
+  // 只剩 2 lb（满量的一半），再用掉一半就是 1 lb
+  assert.deepEqual(applyConsumption({ quantity: 2, unit: "lb", remainingPercent: 50 }, "half"), {
+    quantity: 1,
+    remainingPercent: 25,
+    level: "偏少",
+  });
+  // 按点数减的旧算法会把这一条算成 0
+  assert.deepEqual(applyConsumption({ quantity: 3, unit: "盒", remainingPercent: 40 }, "half"), {
+    quantity: 1.5,
+    remainingPercent: 20,
+    level: "即将用完",
+  });
 });
 
 /**
@@ -64,14 +80,26 @@ test("等级只看相对满量的比例", () => {
   assert.equal(levelFromPercent(0), "已用完");
 });
 
-test("finishing the opened item starts the next one", () => {
-  const result = applyConsumption({ quantity: 3, unit: "盒", remainingPercent: 40 }, "half");
-  assert.deepEqual(result, { quantity: 2, remainingPercent: 100, level: "充足" });
+test("四个档位都是相对当前剩余量", () => {
+  const full = { quantity: 2, unit: "kg", remainingPercent: 100 };
+  assert.deepEqual(applyConsumption(full, "quarter"), { quantity: 1.5, remainingPercent: 75, level: "充足" });
+  assert.deepEqual(applyConsumption(full, "half"), { quantity: 1, remainingPercent: 50, level: "偏少" });
+  assert.deepEqual(applyConsumption(full, "most"), { quantity: 0.5, remainingPercent: 25, level: "偏少" });
+  assert.deepEqual(applyConsumption(full, "all"), { quantity: 0, remainingPercent: 0, level: "已用完" });
 });
 
-test("using up the last item marks it as finished", () => {
-  const result = applyConsumption({ quantity: 1, unit: "把", remainingPercent: 30 }, "most");
-  assert.deepEqual(result, { quantity: 0, remainingPercent: 0, level: "已用完" });
+test("「全部用完」才是唯一会清空的档位", () => {
+  // 用掉大部分之后还留一点，这是按比例缩放的必然结果——真用完了就选「全部」
+  assert.deepEqual(applyConsumption({ quantity: 1, unit: "把", remainingPercent: 30 }, "most"), {
+    quantity: 0.25,
+    remainingPercent: 8,
+    level: "即将用完",
+  });
+  assert.deepEqual(applyConsumption({ quantity: 1, unit: "把", remainingPercent: 30 }, "all"), {
+    quantity: 0,
+    remainingPercent: 0,
+    level: "已用完",
+  });
 });
 
 test("全部用完 empties the item regardless of how much was left", () => {
@@ -90,10 +118,11 @@ test("没有用到 leaves the item untouched", () => {
   });
 });
 
-test("percentage-tracked items keep quantity and remaining in sync", () => {
+test("单位是 % 的物品两个字段始终同步", () => {
+  // 不再需要为这种单位特判：两个字段按同一个系数缩放，本来就同步
   assert.deepEqual(applyConsumption({ quantity: 80, unit: "%", remainingPercent: 80 }, "quarter"), {
-    quantity: 55,
-    remainingPercent: 55,
+    quantity: 60,
+    remainingPercent: 60,
     level: "充足",
   });
 });

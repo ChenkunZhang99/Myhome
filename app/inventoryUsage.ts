@@ -242,32 +242,23 @@ export function applyConsumption(
   if (!used) return unchanged;
   if (portion === "all" || quantity <= 0) return emptied;
 
-  // 按余量记录的物品（单位是 %）：数量本身就是百分比，两个字段一起走。
-  if (String(item.unit ?? "").trim() === "%") {
-    const nextPercent = clampPercent(remainingPercent - used, 0);
-    return {
-      quantity: nextPercent,
-      remainingPercent: nextPercent,
-      level: levelFromPercent(nextPercent),
-    };
-  }
+  // 单位是 % 的物品不再需要特判：数量和百分比按同一个系数缩放，本来就同步。
 
   /**
-   * 做菜时的档位（少量／一半／大部分）说的是「这顿饭用掉了多少」，
-   * 和界面上按满量比例的 ±25% 不是一回事：一把葱用掉「大部分」就是没了，
-   * 而不是还剩满量的四分之一。所以这里保留原来的算法。
+   * 档位是「用掉现在剩余量的百分之多少」，不是「减掉满量的百分之多少」。
    *
-   * 代价是两条路对「2 把用掉一半」给出的数量不同（这里是 2 把 50%，
-   * ±25% 那边会算成 1 把）。要统一得先定义清楚这些档位到底相对什么，
-   * 那是一个产品问题，不是改几行代码的事。
+   * 差别在这里：只剩 2 lb（满量的 50%）时用掉一半，结果是 1 lb，
+   * 而不是把百分比从 50 减到 0。按点数减的话，剩得越少越容易被一下子清空——
+   * 那正是之前 3 盒 40% 用掉「一半」会变成全空的原因。
+   *
+   * 数量和百分比按同一个系数缩放，所以两者始终讲同一个故事。
+   * （界面上的 ±25% 是另一回事：那是相对满量的百分点，见 adjustRemaining。）
    */
-  const nextPercent = remainingPercent - used;
-  if (nextPercent > 0)
-    return { quantity, remainingPercent: nextPercent, level: levelFromPercent(nextPercent) };
-
-  const nextQuantity = roundQuantity(quantity - 1);
-  if (nextQuantity <= 0) return emptied;
-  return { quantity: nextQuantity, remainingPercent: 100, level: levelFromPercent(100) };
+  const keep = 1 - used / 100;
+  const nextQuantity = roundQuantity(quantity * keep);
+  const nextPercent = clampPercent(remainingPercent * keep, 0);
+  if (nextQuantity <= 0 || nextPercent <= 0) return emptied;
+  return { quantity: nextQuantity, remainingPercent: nextPercent, level: levelFromPercent(nextPercent) };
 }
 
 /**

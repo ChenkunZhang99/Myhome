@@ -1,99 +1,84 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { merchantMatches, parseFlippItems, toFlippDeal } from "../app/api/flyers/sync/flipp.ts";
+import {
+  fullPostalCode,
+  merchantMatches,
+  parseFlippItems,
+  toFlippDeal,
+} from "../app/api/flyers/sync/flipp.ts";
 import { categoryFromText, displayFlyerName } from "../app/api/flyers/sync/flyerNaming.ts";
 
 /**
  * Flipp 那条路的单元测试。
  *
- * 下面的原始记录都照抄实测返回的形状（V3J1N4，2026-08-23），
- * 包括 Chong Lee 那种 name 和 price 都是 null 的占位记录——它是真实存在的，
- * 不是我编出来凑测试的。
+ * 下面的原始记录照抄实测返回的形状（Walmart flyer 8082607，V3J0A1，2026-08-23），
+ * 包括 {"name":"Direct Link","price":""} 这种版面元素——387 条里有 37 条是这类，
+ * 是真实存在的，不是我编出来凑测试的。
  */
 
 const TZ = "America/Vancouver";
 const TODAY = "2026-08-23";
+const FROM = "2026-08-20T03:00:00-04:00";
+const TO = "2026-08-26T23:59:59-04:00";
 
 const REAL = [
+  { name: "Black Diamond Cheestrings 16s", price: "5.97", discount: 17, valid_from: FROM, valid_to: TO },
+  { name: "Pork Belly", price: "4.97", discount: 30, valid_from: FROM, valid_to: TO },
+  // 版面元素，不是商品
+  { name: "Direct Link", price: "", discount: null, valid_from: FROM, valid_to: TO },
+  // 没有折扣信息的那三分之一
+  { name: "Thai Coco coconut cream", price: "1.98", discount: null, valid_from: FROM, valid_to: TO },
+  // 已经过期
   {
-    merchant_name: "T&T Supermarket",
-    name: "PORK BELLY",
-    current_price: 4.97,
-    original_price: null,
-    post_price_text: "/lb",
-    valid_from: "2026-08-20T07:00:00+00:00",
-    valid_to: "2026-08-27T03:59:59+00:00",
-    _L1: "Food, Beverages & Tobacco",
-    _L2: "Meat & Seafood",
-  },
-  {
-    merchant_name: "No Frills",
-    name: "GREEN ONIONS",
-    current_price: 1.49,
-    original_price: 2.49,
-    post_price_text: null,
-    valid_from: "2026-08-20T07:00:00+00:00",
-    valid_to: "2026-08-27T03:59:59+00:00",
-    _L1: "Food, Beverages & Tobacco",
-    _L2: "Produce",
-  },
-  // 实测混在结果里的占位记录：没名字也没价格
-  {
-    merchant_name: "Chong Lee Market",
-    name: null,
-    current_price: null,
-    valid_from: "2026-08-20T07:00:00+00:00",
-    valid_to: "2026-08-27T03:59:59+00:00",
-  },
-  // 已经过期的，不该录入
-  {
-    merchant_name: "Safeway",
-    name: "COMPLIMENTS Whole Chicken",
-    current_price: 4.49,
-    post_price_text: "/lb",
-    valid_from: "2026-08-01T07:00:00+00:00",
-    valid_to: "2026-08-08T03:59:59+00:00",
+    name: "McCain Superfries",
+    price: "2.77",
+    discount: 20,
+    valid_from: "2026-08-01T03:00:00-04:00",
+    valid_to: "2026-08-08T23:59:59-04:00",
   },
 ];
 
-test("整理一批真实记录：丢掉占位的和过期的", () => {
+test("整理一份 flyer：丢掉版面元素和过期条目", () => {
   const deals = parseFlippItems(REAL, TODAY, TZ);
-  assert.equal(deals.length, 2, "应当只剩 T&T 和 No Frills 两条");
-  assert.deepEqual(deals.map((deal) => deal.merchantName).sort(), ["No Frills", "T&T Supermarket"]);
+  assert.equal(deals.length, 3, "应当只剩三条真商品");
+  assert.ok(!deals.some((deal) => deal.itemName === "Direct Link"), "版面元素混进来了");
+  assert.ok(!deals.some((deal) => /Superfries/.test(deal.itemName)), "过期的条目混进来了");
 });
 
-test("价格、原价和单位都取对了", () => {
-  const [pork] = parseFlippItems([REAL[0]], TODAY, TZ);
-  assert.equal(pork.price, 4.97);
-  assert.equal(pork.unit, "lb", "post_price_text 是 /lb");
-  assert.equal(pork.regularPrice, null, "没有原价时不能编一个出来");
-
-  const [onion] = parseFlippItems([REAL[1]], TODAY, TZ);
-  assert.equal(onion.regularPrice, 2.49);
-  assert.equal(onion.unit, "件", "没有计价单位就按件算");
+test("折扣大的排前面", () => {
+  const deals = parseFlippItems(REAL, TODAY, TZ);
+  assert.equal(deals[0].itemName, "五花肉", "30% 那条应该排第一");
+  assert.ok(
+    deals[0].discount >= deals[deals.length - 1].discount,
+    "一份 flyer 三百多条而下游只取十几条，不排序取到的是版面最靠前的，不是最划算的",
+  );
 });
 
-test("原价不高于现价时当作没有原价", () => {
-  const deal = toFlippDeal({ ...REAL[1], original_price: 1.0 }, TODAY, TZ);
-  assert.equal(deal.regularPrice, null, "原价比现价还低，那不是折扣，是脏数据");
+test("由折扣百分比反推原价", () => {
+  const [deal] = parseFlippItems([REAL[1]], TODAY, TZ);
+  assert.equal(deal.price, 4.97);
+  // 4.97 ÷ (1 - 0.30) = 7.10
+  assert.equal(deal.regularPrice, 7.1);
+});
+
+test("折扣离谱就不反推原价", () => {
+  const deal = toFlippDeal({ ...REAL[1], discount: 99 }, TODAY, TZ);
+  assert.equal(deal.regularPrice, null, "99% 折扣反推出来的原价会是个笑话");
+  const none = toFlippDeal({ ...REAL[1], discount: null }, TODAY, TZ);
+  assert.equal(none.regularPrice, null, "没有折扣信息时不能编一个原价出来");
 });
 
 test("有效期换算成门店当地的日期", () => {
-  const [pork] = parseFlippItems([REAL[0]], TODAY, TZ);
-  assert.match(pork.validFrom, /^\d{4}-\d{2}-\d{2}$/);
-  assert.match(pork.validTo, /^\d{4}-\d{2}-\d{2}$/);
-  assert.ok(pork.validFrom <= TODAY && pork.validTo >= TODAY, "今天必须落在有效期里");
+  const [deal] = parseFlippItems([REAL[1]], TODAY, TZ);
+  assert.match(deal.validFrom, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(deal.validFrom <= TODAY && deal.validTo >= TODAY, "今天必须落在有效期里");
 });
 
 test("商品名归到中文，分类归到中文枚举", () => {
-  const [pork] = parseFlippItems([REAL[0]], TODAY, TZ);
+  const [pork] = parseFlippItems([REAL[1]], TODAY, TZ);
   assert.equal(pork.itemName, "五花肉");
   assert.equal(pork.category, "肉类海鲜");
-
-  const [onion] = parseFlippItems([REAL[1]], TODAY, TZ);
-  assert.equal(onion.itemName, "小葱");
-  assert.equal(onion.category, "蔬菜水果");
 });
 
 test("对照表没覆盖的保留英文原名，不硬猜", () => {
@@ -105,13 +90,24 @@ test("对照表没覆盖的保留英文原名，不硬猜", () => {
   );
 });
 
-test("同一件商品在 flyer 里出现多次只留一条", () => {
-  const twice = [REAL[0], { ...REAL[0] }];
-  assert.equal(parseFlippItems(twice, TODAY, TZ).length, 1);
+test("同一件商品在版面上出现多次只留一条", () => {
+  assert.equal(parseFlippItems([REAL[1], { ...REAL[1] }], TODAY, TZ).length, 1);
 });
 
 test("肉类排在冷冻前面：frozen shrimp 是海鲜，不是「冷冻食品」", () => {
   assert.equal(categoryFromText("Frozen Black Tiger Shrimp"), "肉类海鲜");
+});
+
+/**
+ * 片区（FSA，邮编前三位）要补成完整六位。
+ * Flipp 只给 V3J 会回 422——这个坑第一版就踩了。
+ */
+test("片区补成完整邮编", () => {
+  assert.equal(fullPostalCode("V3J"), "V3J0A1");
+  assert.equal(fullPostalCode("v3j 1n4"), "V3J1N4");
+  assert.equal(fullPostalCode("V3J-1N4"), "V3J1N4");
+  assert.equal(fullPostalCode("XX"), "", "补不成六位就别去请求");
+  assert.equal(fullPostalCode("123"), "", "数字开头不是加拿大邮编");
 });
 
 /**
@@ -121,7 +117,7 @@ test("肉类排在冷冻前面：frozen shrimp 是海鲜，不是「冷冻食品
 test("连锁名能对上分店名", () => {
   assert.ok(merchantMatches("Safeway", "Safeway Metrotown", "Safeway"));
   assert.ok(merchantMatches("T&T Supermarket", "T&T Supermarket Metropolis", "T&T"));
-  assert.ok(merchantMatches("Save-On-Foods", "Save-On-Foods Austin", "Save-On-Foods"));
+  assert.ok(merchantMatches("Walmart", "Walmart Supercentre Lougheed", null));
   assert.ok(merchantMatches("PriceSmart foods", "PriceSmart Foods Lougheed", null), "大小写不该影响");
 });
 
@@ -139,43 +135,53 @@ test("不是一家店就不能对上", () => {
 const route = await readFile(new URL("../app/api/flyers/sync/route.ts", import.meta.url), "utf8");
 const flipp = await readFile(new URL("../app/api/flyers/sync/flipp.ts", import.meta.url), "utf8");
 
+const NEWLINE = String.fromCharCode(10);
+function functionBody(source, signature) {
+  const at = source.indexOf(signature);
+  assert.notEqual(at, -1, "找不到 " + signature);
+  return source.slice(at, source.indexOf(NEWLINE + "}", at));
+}
+
 test("Flipp 排在模型搜索之前", () => {
-  const useFlipp = route.indexOf("merchantMatches(deal.merchantName");
+  const useFlipp = route.indexOf("merchantMatches(flyer.merchant");
   const pushFallback = route.indexOf("fallbackStores.push(store)");
   assert.notEqual(useFlipp, -1, "同步里没有用上 Flipp");
   assert.ok(useFlipp < pushFallback, "先问 Flipp，问不到才交给模型搜网页");
 });
 
-test("每个片区只查一次，不是每家店查一次", () => {
-  assert.ok(route.includes("const flippByArea = new Map"), "没有按片区归拢");
+test("每个片区只列一次 flyer，不是每家店列一次", () => {
+  assert.ok(route.includes("const flyersByArea = new Map"), "没有按片区归拢");
   assert.ok(route.includes("[...new Set(stores.results.map((store) => store.area)"), "片区没有去重");
 });
 
-test("读不到就返回空数组，绝不抛异常", () => {
-  const at = flipp.indexOf("export async function fetchFlippDeals");
-  const body = flipp.slice(at);
-  assert.ok(body.includes("if (!response.ok) return [];"), "HTTP 失败要静默退回");
-  assert.ok(body.includes("} catch {"), "没有兜住异常——一个没有文档的接口挂了会拖垮整次同步");
+test("只取有人订阅的那几份 flyer 的内容", () => {
+  const at = route.indexOf("const flyersByArea = new Map");
+  const around = route.slice(at, at + 600);
+  assert.ok(!around.includes("fetchFlyerDeals"), "在列表阶段就把每份 flyer 都读了——没人订阅的店不该白读一份");
+  assert.ok(route.includes("await fetchFlyerDeals(mine.id"), "没有按门店点名去取那一份");
+});
+
+test("两个读取函数都不抛异常", () => {
+  for (const signature of [
+    "export async function fetchFlippFlyers",
+    "export async function fetchFlyerDeals",
+  ]) {
+    const body = functionBody(flipp, signature);
+    assert.ok(body.includes("} catch (error) {"), signature + " 没有兜住异常");
+    assert.ok(body.includes("return [];"), signature + " 失败时没有退回空数组");
+    assert.ok(!body.includes("throw"), "任何抛出都会连累已经能跑的 PriceSmart");
+  }
+});
+
+test("每次读取都留一行日志，失效不能悄无声息", () => {
+  const body = functionBody(flipp, "export async function fetchFlyerDeals");
+  assert.ok(body.includes("note({"), "读取路径上没有日志");
+  assert.ok(body.includes("raw: raw.length"), "没有记下拿到几条——分不清是接口挂了还是过滤过严");
+  assert.ok(body.includes("kept: deals.length"), "没有记下留下几条");
 });
 
 test("演示模式不出网", () => {
-  const at = route.indexOf("const flippByArea = new Map");
+  const at = route.indexOf("const flyersByArea = new Map");
   const around = route.slice(at, at + 400);
   assert.ok(around.includes("if (!demo)"), "演示模式下不该真的去请求 Flipp");
-});
-
-/**
- * 片区（FSA，邮编前三位）要补成完整六位。
- * Flipp 只给 V3J 会回 422——这个坑第一版就踩了，钉在这里。
- */
-test("片区补成完整邮编", async () => {
-  const source = await readFile(new URL("../app/api/flyers/sync/flipp.ts", import.meta.url), "utf8");
-  const at = source.indexOf("function fullPostalCode");
-  assert.notEqual(at, -1, "找不到补位函数");
-  const body = source.slice(at, source.indexOf(String.fromCharCode(10) + "}", at));
-  assert.ok(body.includes('code + "0A1"'), "没有把 FSA 补成六位");
-  assert.ok(
-    body.includes("[0-9]") || body.includes("\d"),
-    "FSA 判断里的数字位被写坏了——[A-Z]d[A-Z] 只会匹配 VdJ 这种不存在的写法",
-  );
 });

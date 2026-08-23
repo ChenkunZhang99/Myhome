@@ -35,7 +35,9 @@ const isObservability = (file) => file.name.startsWith("_shared/observability");
  * 豁免建立在一个可验证的前提上：这些文件里确实没有 Response。前提不成立时
  * 下面那条断言会先失败，而不是让豁免悄悄扩大。
  */
-const NO_RESPONSE_FILES = ["_shared/schema.ts"];
+// flipp.ts 同理：它是一个没有文档的外部接口的读取器，任何失败都返回空数组、
+// 只把原因写进日志。而那行原因正是判断「接口是不是挂了」唯一的线索。
+const NO_RESPONSE_FILES = ["_shared/schema.ts", "flyers/sync/flipp.ts"];
 
 test("豁免名单里的文件确实不构造响应", async () => {
   for (const file of await collectSources(API_DIR)) {

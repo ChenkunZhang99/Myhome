@@ -121,18 +121,22 @@ export function toFlippDeal(raw: RawItem, today: string, timeZone: string): Flip
 }
 
 /**
- * 把一份 flyer 整理成优惠，折扣大的排前面，并按「商品 + 价格」去重。
+ * 把一份 flyer 整理成优惠，认得出的品类排前面、其次折扣大的，并按「商品 + 价格」去重。
  *
  * 同一件商品会在版面上重复出现，不去重的话推荐列表里会连着好几条一模一样的。
- * 排序很重要：一份 flyer 有三百多条，而下游只取前十几条——不排序的话
- * 取到的是版面顺序上最靠前的那些（婴儿奶粉、芝士条），不是最划算的。
+ *
+ * 排序很重要，而且不能只看折扣：一份 flyer 有三百多条，下游只取前十几条。
+ * 纯按折扣排，Walmart 那份的头部是书、除臭剂、婴儿奶粉——都是打折力度大但
+ * 和「家里缺什么」毫无关系的东西。归不进任何食品或日用分类的（"其他"）
+ * 一律排到后面，让位给真的会出现在库存里的品类。
  */
 export function parseFlippItems(items: RawItem[], today: string, timeZone: string) {
   const deals = items
     .map((item) => toFlippDeal(item, today, timeZone))
     .filter((deal): deal is FlippDeal => Boolean(deal));
   const unique = Array.from(new Map(deals.map((deal) => [`${deal.itemName}|${deal.price}`, deal])).values());
-  return unique.sort((left, right) => right.discount - left.discount);
+  const known = (deal: FlippDeal) => (deal.category === "其他" ? 0 : 1);
+  return unique.sort((left, right) => known(right) - known(left) || right.discount - left.discount);
 }
 
 /** 这一带正在发的 flyer。一次 HTTP，带商家名和有效期。 */

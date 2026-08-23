@@ -185,3 +185,31 @@ test("演示模式不出网", () => {
   const around = route.slice(at, at + 400);
   assert.ok(around.includes("if (!demo)"), "演示模式下不该真的去请求 Flipp");
 });
+
+test("认得出品类的排在「其他」前面，哪怕折扣小一些", () => {
+  const deals = parseFlippItems(
+    [
+      // 折扣大但归不进任何食品分类：书、除臭剂这类
+      { name: "Distant Shores hardcover", price: "27", discount: 80, valid_from: FROM, valid_to: TO },
+      // 折扣小，但是真的会出现在库存里的东西
+      { name: "Pork Belly", price: "4.97", discount: 10, valid_from: FROM, valid_to: TO },
+    ],
+    TODAY,
+    TZ,
+  );
+  assert.equal(
+    deals[0].itemName,
+    "五花肉",
+    "纯按折扣排，头部会是书和除臭剂——打折力度大，但和「家里缺什么」毫无关系",
+  );
+});
+
+test("同步不对 Flipp 的结果二次排序", () => {
+  const at = route.indexOf("await fetchFlyerDeals(mine.id");
+  const around = route.slice(at, at + 500);
+  assert.ok(
+    !around.includes("selectDeals("),
+    "selectDeals 只按折扣排，会把 parseFlippItems 排好的「食品优先」再打乱一遍",
+  );
+  assert.ok(around.includes("flippDeals.slice(0, 18)"), "没有取前若干条");
+});

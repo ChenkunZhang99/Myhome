@@ -375,7 +375,9 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
             sourceKey: store.sourceKey,
             status: "ok",
             message: `已从 Flipp 读取 ${mine?.merchant ?? ""} 本周 flyer 的 ${flippDeals.length} 项优惠`,
-            deals: selectDeals(flippDeals.map((deal) => ({ ...deal, sourceUrl: store.flyerUrl }))),
+            // 这里不走 selectDeals：它只按折扣排，会把 parseFlippItems 已经
+            // 排好的「食品优先」再打乱一遍。那边排完直接取前若干条即可。
+            deals: flippDeals.slice(0, 18).map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
           });
           continue;
         }

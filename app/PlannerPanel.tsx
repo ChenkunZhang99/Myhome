@@ -100,7 +100,21 @@ type SyncSettings = {
   dealsImported: number;
 };
 type Spending = { since: string; food: number; household: number };
+/** 目录里已知的一家店。按邮编搜出来的，和代码里预设的那三家，形状一样。 */
+type NearbyStore = {
+  sourceKey: string;
+  name: string;
+  address: string;
+  chain: string;
+  flyerUrl: string;
+  flyerFormat: string;
+  cached: boolean;
+};
 type PlannerData = {
+  /** 当前邮编所在的片区（加拿大 FSA，邮编前三位）。 */
+  area?: string;
+  /** 这个片区目录里已经有的店。全局共享，所以往往一打开就有得选。 */
+  nearby?: NearbyStore[];
   settings: Settings;
   stores: Store[];
   deals: Deal[];
@@ -131,29 +145,6 @@ const foodCategorySet = new Set([
   "冷冻食品",
   "零食饮料",
 ]);
-const lougheedSources = [
-  {
-    key: "hmart-coquitlam",
-    name: "H Mart Coquitlam",
-    address: "329 North Road",
-    detail: "Metro Vancouver 官方 PDF Flyer",
-    url: "https://hmart.ca/index.php?pn=flyer",
-  },
-  {
-    key: "pricesmart-lougheed",
-    name: "PriceSmart Foods Lougheed",
-    address: "9899 Austin Road",
-    detail: "Lougheed 门店每周优惠",
-    url: "https://www.pricesmartfoods.com/sm/pickup/rsid/2280/weekly-specials",
-  },
-  {
-    key: "walmart-lougheed",
-    name: "Walmart Lougheed",
-    address: "9855 Austin Road",
-    detail: "选择 Lougheed 门店后的官方 Flyer",
-    url: "https://www.walmart.ca/en/flyer",
-  },
-];
 const tierLabels = { must: "必须补货", recommended: "建议补货", opportunity: "机会购买" } as const;
 const matchLabels = { targeted: "精准匹配", substitute: "替代补货", category: "大类机会" } as const;
 const confidenceLabels: Record<string, string> = {
@@ -294,13 +285,21 @@ export function PlannerPanel({
     },
     matchRules: [],
     spending: { since: "", food: 0, household: 0 },
+    area: "",
+    nearby: [],
   });
   const timeZone = data.settings.timezone || detectTimeZone();
+  // 界面一打开就有得选：GET 已经按这户填的邮编把片区里已知的店带回来了。
+  const nearby = data.nearby ?? [];
   const [modal, setModal] = useState<"settings" | "store" | "deal" | "shopping" | "match" | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [restockRows, setRestockRows] = useState<RestockRow[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // 找附近超市：邮编输入、搜索中、以及勾了哪几家
+  const [areaCode, setAreaCode] = useState("");
+  const [finding, setFinding] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
   const autoSyncing = useRef(false);
 
   async function load() {
@@ -345,6 +344,69 @@ export function PlannerPanel({
       return result;
     } catch (error) {
       notify(error instanceof Error ? error.message : t("保存失败"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * 按邮编找附近的超市。
+   *
+   * 目录是全局的：这个片区别人搜过就直接命中，一个 token 都不花。
+   * 所以这个按钮点下去往往是瞬间返回的，而不是每次都去调模型。
+   */
+  async function findNearby(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const postalCode = areaCode.trim() || data.settings.postalCode;
+    if (!postalCode) {
+      notify(t("请先填写邮编"));
+      return;
+    }
+    setFinding(true);
+    try {
+      const response = await fetch("/api/planner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...withAiHeaders() },
+        body: JSON.stringify({ type: "discoverStores", postalCode }),
+      });
+      const result = await readJson<{ area?: string; stores?: NearbyStore[]; fromCache?: boolean }>(response);
+      if (!response.ok) throw new Error(result.error || t("附近门店搜索失败"));
+      const found = result.stores ?? [];
+      setData((current) => ({ ...current, area: result.area ?? "", nearby: found }));
+      notify(
+        found.length === 0
+          ? t("这个片区暂时没搜到会发 Flyer 的超市")
+          : result.fromCache
+            ? t("从目录里找到 {count} 家（没有花费）", { count: found.length })
+            : t("搜到 {count} 家，勾选你常去的", { count: found.length }),
+      );
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("附近门店搜索失败"));
+    } finally {
+      setFinding(false);
+    }
+  }
+
+  /** 把勾中的几家一次性收藏，然后立刻读一次它们的 Flyer。 */
+  async function savePickedAndSync() {
+    if (!picked.length) return;
+    setBusy(true);
+    try {
+      for (const sourceKey of picked) {
+        const response = await fetch("/api/planner", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "storePreset", sourceKey }),
+        });
+        const result = await readJson<Record<string, never>>(response);
+        if (!response.ok) throw new Error(result.error || t("收藏失败"));
+      }
+      setPicked([]);
+      await load();
+      notify(t("已收藏，正在读取它们的 Flyer…"));
+      await syncFlyers();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("收藏失败"));
     } finally {
       setBusy(false);
     }
@@ -510,9 +572,7 @@ export function PlannerPanel({
     const form = new FormData(event.currentTarget);
     post({ type: "store", name: form.get("name"), address: form.get("address") }, "收藏门店已添加");
   }
-  async function addPreset(sourceKey: string) {
-    await post({ type: "storePreset", sourceKey }, "Lougheed 门店已加入收藏");
-  }
+
   function saveDeal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -760,31 +820,85 @@ export function PlannerPanel({
             <i />
           </button>
         </div>
-        <div className="flyer-sources" aria-label={t("Lougheed 附近的 Flyer 来源")}>
-          {lougheedSources.map((source) => {
-            const saved = data.stores.some(
-              (store) => store.sourceKey === source.key || store.id === `store-${source.key}`,
-            );
-            return (
-              <article key={source.key}>
-                <div>
-                  <strong>{source.name}</strong>
-                  <small>
-                    {source.address} · {t(source.detail)}
-                  </small>
-                </div>
-                <div className="source-actions">
-                  <a href={source.url} target="_blank" rel="noreferrer">
-                    {t("查看官方 Flyer")}
-                  </a>
-                  <button disabled={saved || busy} onClick={() => addPreset(source.key)}>
-                    {saved ? t("已收藏") : t("收藏")}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        {/*
+          原来这里是写死的三家 Lougheed 门店，不管用户住在哪都显示同样的三家。
+          现在按邮编搜：结果进全局目录并按片区索引，同一片区的下一个人直接命中，
+          不用再花一次模型调用。
+        */}
+        <form className="store-finder" onSubmit={findNearby}>
+          <label className="field">
+            <span>{t("邮编")}</span>
+            <input
+              type="text"
+              value={areaCode}
+              maxLength={20}
+              placeholder={data.settings.postalCode || "V3J 1N4"}
+              autoComplete="postal-code"
+              spellCheck={false}
+              onChange={(event) => setAreaCode(event.target.value)}
+            />
+          </label>
+          <button className="mini-primary" disabled={finding || busy}>
+            {finding ? t("搜索中…") : t("找附近的超市")}
+          </button>
+        </form>
+
+        {nearby.length > 0 && (
+          <div className="flyer-sources" aria-label={t("附近的 Flyer 来源")}>
+            {nearby.map((source) => {
+              const saved = data.stores.some((store) => store.sourceKey === source.sourceKey);
+              const checked = picked.includes(source.sourceKey);
+              return (
+                <article key={source.sourceKey}>
+                  <label className="source-pick">
+                    <input
+                      type="checkbox"
+                      aria-label={t("收藏 {name}", { name: source.name })}
+                      checked={checked}
+                      disabled={saved || busy}
+                      onChange={(event) =>
+                        setPicked((current) =>
+                          event.target.checked
+                            ? [...current, source.sourceKey]
+                            : current.filter((key) => key !== source.sourceKey),
+                        )
+                      }
+                    />
+                    <span>
+                      <strong>{source.name}</strong>
+                      <small>
+                        {source.address}
+                        {source.chain ? ` · ${source.chain}` : ""}
+                      </small>
+                    </span>
+                  </label>
+                  <div className="source-actions">
+                    <a href={source.flyerUrl} target="_blank" rel="noreferrer">
+                      {t("查看官方 Flyer")}
+                    </a>
+                    {saved && <span className="source-saved">{t("已收藏")}</span>}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {picked.length > 0 && (
+          <div className="modal-actions">
+            <button className="primary-button" disabled={busy || syncing} onClick={savePickedAndSync}>
+              {busy || syncing
+                ? t("处理中…")
+                : t("收藏这 {count} 家并立即读取 Flyer", { count: picked.length })}
+            </button>
+          </div>
+        )}
+
+        {nearby.length === 0 && (
+          <p className="settings-note">
+            {t("填邮编找一次，附近会发 Flyer 的超市就会列在这里，勾上常去的几家。")}
+          </p>
+        )}
         {overlap ? (
           <div className="overlap-card">
             <span>{t("最佳重叠窗口")}</span>

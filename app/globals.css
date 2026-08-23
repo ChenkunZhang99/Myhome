@@ -1233,6 +1233,44 @@ h3 {
   font-size: var(--text-2xs);
   line-height: 1.4;
 }
+/*
+ * 按邮编找超市。原来这一块是写死的三家 Lougheed 门店，
+ * 不管用户住在哪都是同样三家；现在是一个真的搜索框。
+ */
+.store-finder {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.store-finder .field {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+/* 整行都能点中那个勾选框，手指比鼠标粗。 */
+.source-pick {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.source-pick input {
+  margin-top: 2px;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  accent-color: var(--brand, #1c4a3a);
+}
+.source-pick span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.source-saved {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}
 .source-actions {
   display: flex;
   gap: 7px;

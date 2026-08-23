@@ -27,12 +27,14 @@ npx wrangler r2 bucket create home-stock-uploads
 只有真正的机密走 `secret put`，它们不会出现在版本库里：
 
 ```bash
-npx wrangler secret put RESEND_API_KEY     # 不配则登录链接只打到日志
+npx wrangler secret put RESEND_API_KEY     # 可选。不配则登录链接只打到日志，注册走「邮箱+密码」那条路
 npx wrangler secret put LOGIN_FROM_EMAIL
 npx wrangler secret put OPENAI_API_KEY     # 不配则小票识别等功能不可用
 ```
 
-`REQUIRE_HOUSEHOLD=on` 和 `DEMO_MODE=off` 已经写在 `wrangler.jsonc` 的 `vars` 里。
+`REQUIRE_HOUSEHOLD=on`、`DEMO_MODE=off` 和 `OPEN_SIGNUP=on` 已经写在 `wrangler.jsonc` 的 `vars` 里。
+`OPEN_SIGNUP=on` 表示谁都能自己注册，各自拿到一个空的家；服务端那把 `OPENAI_API_KEY`
+只对 `AI_HOUSEHOLD`（默认是第一个账号接管的默认住户）有效，别人要用模型功能得填自己的。
 放在提交进版本库的配置里而不是留成手工步骤，是因为忘记设 `REQUIRE_HOUSEHOLD`
 的后果是任何人都能读到这个家的全部库存——那种错误不该靠记性来防。
 

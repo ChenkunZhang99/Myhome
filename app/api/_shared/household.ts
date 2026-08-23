@@ -1,6 +1,13 @@
 import { env } from "cloudflare:workers";
 import { resolveTimeZone } from "../../dateTime";
-import { accountById, touchAccount } from "./accounts";
+import {
+  accountById,
+  createHousehold,
+  householdsForUser,
+  membershipRole,
+  setActiveHousehold,
+  touchAccount,
+} from "./accounts";
 import { DEFAULT_HOUSEHOLD_ID } from "./householdId";
 import { UserFacingError } from "./observability";
 import { ensureSchema } from "./schema";
@@ -39,6 +46,20 @@ function strictMode() {
   return (env as typeof env & { REQUIRE_HOUSEHOLD?: string }).REQUIRE_HOUSEHOLD?.trim() === "on";
 }
 
+/**
+ * 谁都能自己注册。
+ *
+ * 关着的时候只有三种人进得来：已有账号、部署上的第一个人、手里攥着邀请的人。
+ * 开着就是一个对所有人开放的站点，注册完各自拿到一个空的家。
+ *
+ * 开了之后要记得的事：服务端那把 OPENAI_API_KEY 只对 AI_HOUSEHOLD 指定的那一家
+ * 有效（见 _shared/openai.ts）。别人注册进来是自己的家，用不到它，
+ * 想用模型功能得填自己的密钥。这个约束不是附带的，是开放注册的前提。
+ */
+export function openSignup() {
+  return (env as typeof env & { OPEN_SIGNUP?: string }).OPEN_SIGNUP?.trim() === "on";
+}
+
 function readCookie(request: Request, name: string) {
   const header = request.headers.get("cookie");
   if (!header) return "";
@@ -49,7 +70,17 @@ function readCookie(request: Request, name: string) {
   return "";
 }
 
-/** 当前登录的账号，没登录返回 null。 */
+/**
+ * 当前登录的账号，没登录返回 null。
+ *
+ * 里面多做了一件事：如果这个人的「当前正在看」指着一个他已经进不去的家
+ * （被请出去了，或者自己退了），就地把指针挪到他还进得去的某个家。
+ *
+ * 这一步是户与户之间那堵墙的最后一道砖。resolveHousehold 直接拿这个指针
+ * 去查数据，谁也不会再问一遍「他还有资格吗」；踢人那条路上确实也会挪指针，
+ * 但那要求每一条踢人的路径都记得挪。少记一次，被踢的人就一直读得到。
+ * 放在这里，所有路径都被兜住。
+ */
 export async function currentAccount(request?: Request) {
   if (!request) return null;
   const token = readCookie(request, SESSION_COOKIE);
@@ -58,8 +89,37 @@ export async function currentAccount(request?: Request) {
   const userId = await readSession(token);
   if (!userId) return null;
   const account = await accountById(userId);
-  if (account) await touchAccount(userId);
-  return account;
+  if (!account) return null;
+  await touchAccount(userId);
+  if (account.memberRole) return { ...account, role: account.memberRole };
+
+  const householdId = await repointToAnyHousehold(userId, account.householdId);
+  return { ...account, householdId, role: (await membershipRole(userId, householdId)) ?? "owner" };
+}
+
+/**
+ * 把某个人的「当前正在看」挪离某个家。
+ *
+ * 挪到他还进得去的另一个家；一个都没有就给他开一个新的空家——
+ * 总得有个地方可去，否则登录之后是一屏什么也读不出来的错误。
+ *
+ * 指针本来就不在那个家上就什么都不做，免得无谓地把人从正在看的地方弹走。
+ */
+export async function repointToAnyHousehold(userId: string, awayFrom: string) {
+  const account = await accountById(userId);
+  if (account && account.householdId !== awayFrom) return account.householdId;
+
+  const mine = await householdsForUser(userId);
+  const next = mine.find((household) => household.id !== awayFrom);
+  if (next) {
+    await setActiveHousehold(userId, next.id);
+    return next.id;
+  }
+
+  const householdId = await createHousehold(userId, "我的家");
+  await ensureHouseholdMembers(householdId);
+  await setActiveHousehold(userId, householdId);
+  return householdId;
 }
 
 /**

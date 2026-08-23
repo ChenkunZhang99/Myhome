@@ -75,6 +75,21 @@ const TABLES = [
     -- 区别只在能不能把别人请出去。
     role TEXT NOT NULL DEFAULT 'owner'
   )`,
+  `CREATE TABLE IF NOT EXISTS households (
+    id TEXT PRIMARY KEY,
+    -- 家有名字才能在切换器里被认出来。同一个人可能同时在「我家」和「爸妈家」。
+    name TEXT NOT NULL DEFAULT '我们的家',
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS household_memberships (
+    user_id TEXT NOT NULL,
+    household_id TEXT NOT NULL,
+    -- owner 能改家庭设置、发邀请、请人出去；member 只是看得见同一份数据。
+    role TEXT NOT NULL DEFAULT 'member',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, household_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS household_invites (
     token_hash TEXT PRIMARY KEY,
     household_id TEXT NOT NULL,
@@ -306,6 +321,9 @@ const INDEXES_ON_ADDED_COLUMNS = [
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_settings_household ON household_settings(household_id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_recipe_preferences_household ON recipe_preferences(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id)",
+  // 切换家庭要按人查「我都属于哪些家」，成员列表要按家查「这家里都有谁」。
+  "CREATE INDEX IF NOT EXISTS idx_memberships_user ON household_memberships(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_memberships_household ON household_memberships(household_id, role)",
 ];
 
 /**
@@ -406,6 +424,20 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
  * 种子与清理语句。它们跨表读写，必须排在所有建表之后。
  */
 const SEEDS = [
+  /*
+   * 从「一人一家」迁到「一人多家」。
+   *
+   * users.household_id 没有消失，它的含义变了：从「我属于哪个家」变成
+   * 「我现在正在看哪个家」。谁能进哪个家，改由 household_memberships 说了算。
+   *
+   * 这样改的理由是省下一百多条 SQL：resolveHousehold 仍然从 users.household_id
+   * 取值，所有带 household_id 的查询一条都不用动。切换家庭变成「验一下有没有
+   * membership，然后改这个指针」。
+   *
+   * 两条都是 INSERT OR IGNORE，跑多少次结果都一样。
+   */
+  "INSERT OR IGNORE INTO households (id, name) SELECT DISTINCT household_id, '我们的家' FROM users",
+  "INSERT OR IGNORE INTO household_memberships (user_id, household_id, role) SELECT id, household_id, role FROM users",
   // 删除菜谱时留下的墓碑，用来阻止旧数据被回填语句复活。
   "DELETE FROM recipe_catalog WHERE id IN (SELECT recipe_id FROM recipe_activity_log WHERE action = '删除菜谱' AND recipe_id IS NOT NULL)",
   "PRAGMA optimize",

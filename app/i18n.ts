@@ -587,6 +587,7 @@ const ui: Record<string, string> = {
   "适合餐次（可多选，也可不选）": "Suitable meals (optional, pick any)",
   "适用于所有计数单位，范围 0–100%": "Works with every unit, 0–100%",
   选择清晰的小票照片: "Pick a clear photo of the receipt",
+  拍照: "Take a photo",
   选择照片: "Choose photos",
   邮编: "Postal code",
   采购时机: "When to buy",

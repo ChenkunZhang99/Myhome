@@ -1717,16 +1717,31 @@ export default function Home() {
                         </p>
                       </>
                     )}
-                    <label>
-                      <span>{receiptPreview ? t("重新选择") : t("选择照片")}</span>
-                      <input
-                        name="receipt"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif"
-                        required
-                        onChange={pickReceipt}
-                      />
-                    </label>
+                    {/*
+                      两个入口，共用一个 onChange。
+                      capture="environment" 在手机上会直接调起后置摄像头，省掉
+                      「相册 → 找到刚拍的那张」这两步——人多半是站在厨房里、
+                      小票还在手上的时候做这件事。
+                      桌面浏览器会忽略 capture，那个按钮就和「选择照片」一模一样，
+                      所以只在触摸屏上显示它（样式里的 pointer: coarse）。
+                      required 从 input 上拿掉了：两个 input 都标 required 的话，
+                      只填了其中一个的表单永远提交不了。改由提交按钮看有没有选中图片。
+                    */}
+                    <div className="receipt-pickers">
+                      <label className="receipt-capture">
+                        <span>{t("拍照")}</span>
+                        <input type="file" accept="image/*" capture="environment" onChange={pickReceipt} />
+                      </label>
+                      <label>
+                        <span>{receiptPreview ? t("重新选择") : t("选择照片")}</span>
+                        <input
+                          name="receipt"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          onChange={pickReceipt}
+                        />
+                      </label>
+                    </div>
                   </div>
                   {category !== "全部" && (
                     <p className="receipt-category-hint">
@@ -1737,7 +1752,10 @@ export default function Home() {
                     <button type="button" className="secondary-button" onClick={closeReceipt}>
                       {t("取消")}
                     </button>
-                    <button className="primary-button" disabled={compressing || analyzingReceipt}>
+                    <button
+                      className="primary-button"
+                      disabled={compressing || analyzingReceipt || !receiptPreview}
+                    >
                       {analyzingReceipt ? t("正在识别小票…") : t("开始识别")}
                     </button>
                   </div>

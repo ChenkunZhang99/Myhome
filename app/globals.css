@@ -5733,3 +5733,24 @@ button.item-main:focus-visible {
   color: var(--muted);
   font-size: var(--text-lg);
 }
+
+/*
+ * 小票的两个入口：拍照 / 从相册选。
+ *
+ * 拍照那个只在触摸屏上出现——桌面浏览器会忽略 capture，两个按钮会变得
+ * 一模一样，那只会让人犹豫该点哪个。
+ */
+.receipt-pickers {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.receipt-capture {
+  display: none;
+}
+@media (pointer: coarse) {
+  .receipt-capture {
+    display: inline-flex;
+  }
+}

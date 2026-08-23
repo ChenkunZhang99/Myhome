@@ -1,5 +1,7 @@
 import { env } from "cloudflare:workers";
 import { flyerSourceByKey, manualSourceKey } from "../_shared/flyerSources";
+import { getOpenAIConfig } from "../_shared/openai";
+import { areaOf, discoverStores, storesInArea } from "../_shared/storeDiscovery";
 import { resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
@@ -127,7 +129,14 @@ export const GET = withRoute("planner", async (request: Request) => {
       .bind(household)
       .all();
 
+    // 这一户填过的邮编所在片区，目录里已经有哪些店。目录是全局的，
+    // 所以同一片区的第二个人打开就有得选，不用再搜一次。
+    const area = areaOf(String((settings as { postalCode?: string } | null)?.postalCode ?? ""));
+    const nearby = await storesInArea(area);
+
     return Response.json({
+      area,
+      nearby,
       settings: settings ?? {
         id: 1,
         city: "",
@@ -225,10 +234,31 @@ export const POST = withRoute("planner", async (request: Request) => {
       return Response.json({ store }, { status: 201 });
     }
 
+    /**
+     * 按邮编搜附近的超市。
+     *
+     * 结果并进全局目录并按片区索引：同一个片区的下一个人直接命中缓存，
+     * 一个 token 都不花。这也是「一份 flyer 解析一次供所有住户共用」的延伸。
+     *
+     * 搜出来只是候选，要用户自己挑了才会进他家的收藏——模型会编店，
+     * 这一步的确认交给人，比在服务端逐个 fetch 验证更靠谱也更省。
+     */
+    if (type === "discoverStores") {
+      const postalCode = cleanText(payload.postalCode, "", 20).toUpperCase();
+      const result = await discoverStores(postalCode, getOpenAIConfig(request, household), household);
+      return Response.json(result);
+    }
+
     if (type === "storePreset") {
       const sourceKey = cleanText(payload.sourceKey);
-      const preset = flyerSourceByKey.get(sourceKey);
-      if (!preset) return Response.json({ error: "没有找到这家预设门店" }, { status: 400 });
+      // 代码里写死的那三家，和按邮编搜出来进了目录的，都算数。
+      // 只认写死的那份就等于搜出来的店永远收藏不了。
+      const preset =
+        flyerSourceByKey.get(sourceKey) ??
+        (await env.DB.prepare("SELECT name, address FROM flyer_sources WHERE source_key = ?")
+          .bind(sourceKey)
+          .first<{ name: string; address: string }>());
+      if (!preset) return Response.json({ error: "门店目录里没有这一家" }, { status: 400 });
       // 目录是全局的，这里只是这一户订阅它。
       await env.DB.prepare(
         `INSERT INTO household_stores (id, household_id, source_key, name, address, is_favorite)

@@ -95,3 +95,42 @@ export function takeInviteTokenFromUrl() {
   window.history.replaceState(null, "", url.toString());
   return token;
 }
+
+/**
+ * 邀请令牌的暂存。
+ *
+ * 点开邀请链接的人多半还没有账号，令牌要跨过一次注册或登录才能兑换，
+ * 所以先放进 sessionStorage。会话级：关掉标签页就没了，不会长期留在这台机器上。
+ *
+ * 放在这里而不是 LoginLanding 里，是因为现在有两个地方要用它：
+ * LoginLanding 负责登录之后兑换，注册表单负责把它当作「我确实收到了邀请」的凭据。
+ */
+const INVITE_KEY = "hsp.pendingInvite";
+
+export function stashInvite(token: string) {
+  try {
+    window.sessionStorage.setItem(INVITE_KEY, token);
+  } catch {
+    /* 隐私设置禁用了存储，那这次邀请就得在登录后重新点一次链接 */
+  }
+}
+
+/** 取走并清掉。兑换只该发生一次。 */
+export function takeStashedInvite() {
+  try {
+    const token = window.sessionStorage.getItem(INVITE_KEY) ?? "";
+    if (token) window.sessionStorage.removeItem(INVITE_KEY);
+    return token;
+  } catch {
+    return "";
+  }
+}
+
+/** 只看一眼。注册要把令牌交给服务端验证，但兑换还在后面，这里不能清掉。 */
+export function peekStashedInvite() {
+  try {
+    return window.sessionStorage.getItem(INVITE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}

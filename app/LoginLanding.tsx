@@ -2,28 +2,13 @@
 
 import { useEffect } from "react";
 import { redeemLoginToken, takeLoginTokenFromUrl } from "./account";
-import { acceptInvite, takeInviteTokenFromUrl } from "./householdAccounts";
-
-/** 邀请令牌要跨过一次登录才能兑换，先存着。会话级，关掉标签页就没了。 */
-const INVITE_KEY = "hsp.pendingInvite";
-
-function stash(token: string) {
-  try {
-    window.sessionStorage.setItem(INVITE_KEY, token);
-  } catch {
-    /* 隐私设置禁用了存储，那这次邀请就得在登录后重新点一次链接 */
-  }
-}
-
-function takeStashed() {
-  try {
-    const token = window.sessionStorage.getItem(INVITE_KEY) ?? "";
-    if (token) window.sessionStorage.removeItem(INVITE_KEY);
-    return token;
-  } catch {
-    return "";
-  }
-}
+import {
+  acceptInvite,
+  peekStashedInvite,
+  stashInvite,
+  takeInviteTokenFromUrl,
+  takeStashedInvite,
+} from "./householdAccounts";
 
 /**
  * 处理从链接落地的两件事：邮件登录，和家庭邀请。
@@ -38,7 +23,7 @@ function takeStashed() {
 export function LoginLanding({ notify }: { notify: (message: string) => void }) {
   useEffect(() => {
     const invite = takeInviteTokenFromUrl();
-    if (invite) stash(invite);
+    if (invite) stashInvite(invite);
     const loginToken = takeLoginTokenFromUrl();
     let cancelled = false;
 
@@ -58,8 +43,15 @@ export function LoginLanding({ notify }: { notify: (message: string) => void }) 
       }
     }
 
+    /**
+     * 先看一眼，兑换成功了才清。
+     *
+     * 不能一上来就取走：还没登录的人在这里必然失败一次，而在他去填注册表单的
+     * 那几十秒里，令牌得一直待在原处——注册表单要拿它当「我确实收到了邀请」的凭据。
+     * 取走再放回去中间有个窗口期，窗口里注册就成了「没有邀请」。
+     */
     async function joinIfInvited({ reloadOnSuccess = false } = {}) {
-      const token = takeStashed();
+      const token = peekStashedInvite();
       if (!token) return;
       try {
         await acceptInvite(token);
@@ -70,13 +62,14 @@ export function LoginLanding({ notify }: { notify: (message: string) => void }) 
           if (!window.confirm(failed.message)) return;
           await acceptInvite(token, true);
         } else if (/请先登录/.test(failed.message)) {
-          // 还没登录：把令牌放回去，等登录完再兑换。
-          stash(token);
+          // 还没登录：原样留着，等注册或登录完再兑换。
           return;
         } else {
           throw failed;
         }
       }
+      // 兑换是一次性的，成功之后才把它从暂存里划掉。
+      takeStashedInvite();
       if (cancelled) return;
       notify("已加入家庭");
       if (reloadOnSuccess) window.location.reload();

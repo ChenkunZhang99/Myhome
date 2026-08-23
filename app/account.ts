@@ -69,6 +69,26 @@ export async function signInWithPassword(email: string, password: string) {
   if (!response.ok) throw new Error(result.error || "登录失败");
 }
 
+/**
+ * 用邮箱和密码开一个新账号，成功后直接就是登录状态。
+ *
+ * invite 是那条邀请链接里的令牌。服务端凭它确认这个人确实被请进来了——
+ * 这个部署没有发信服务，「能收到那封信」这道锁不存在，令牌就是唯一的凭据。
+ *
+ * 和 signInWithPassword 分开是有意的：这个会建账号，那个只认已有的。
+ * 合成一个「有就登录、没有就注册」的接口，会让打错一个字母的登录
+ * 悄悄变成一个新的空账号——人看到的是「我的东西都不见了」。
+ */
+export async function registerWithPassword(email: string, password: string, invite: string) {
+  const response = await fetch("/api/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "register", email, password, invite }),
+  });
+  const result = await readJson<Record<string, never>>(response);
+  if (!response.ok) throw new Error(result.error || "注册失败");
+}
+
 /** 设置或清除密码。传 null 表示以后只用邮箱链接登录。 */
 export async function savePassword(password: string | null) {
   const response = await fetch("/api/auth", {

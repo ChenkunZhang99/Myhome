@@ -703,6 +703,13 @@ const ui: Record<string, string> = {
   已加入家庭: "You joined the household",
   操作没有完成: "That did not go through",
   登录方式: "Sign-in method",
+  注册: "Sign up",
+  注册并登录: "Create account",
+  注册失败: "Sign-up failed",
+  再输一遍: "Repeat password",
+  两次输入的密码不一样: "The two passwords do not match",
+  "用邮箱和一个自己定的密码开号。需要一条有效的邀请链接才能注册。":
+    "Create an account with your email and a password you choose. A valid invite link is required.",
   密码登录: "Password",
   邮箱链接: "Email link",
   密码: "Password",
@@ -715,10 +722,10 @@ const ui: Record<string, string> = {
   密码保存失败: "Could not save the password",
   已改为只用邮箱链接登录: "Switched to email-link sign-in only",
   "至少 8 位": "At least 8 characters",
-  "第一次来，或者忘了密码，请用「邮箱链接」那一侧。":
-    "New here, or forgot your password? Use the Email link tab.",
-  "填写邮箱，我们会发一条一次性链接。第一次来也用这个，点开就算注册。":
-    "Enter your email and we will send a one-time link. First visit works the same way — opening the link signs you up.",
+  "第一次来请点「注册」；忘了密码走「邮箱链接」。":
+    "New here? Use Sign up. Forgot your password? Use Email link.",
+  "填写邮箱，我们会发一条一次性链接。忘了密码也走这里。":
+    "Enter your email and we will send a one-time link. This is also how you reset a forgotten password.",
   "设了密码之后仍然可以用邮箱链接登录，密码忘了就走那条路。":
     "You can still sign in with an email link. That is also how you recover a forgotten password.",
   "设一个密码，以后可以直接用邮箱加密码登录，不用每次去收邮件。":

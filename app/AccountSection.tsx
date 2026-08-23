@@ -5,17 +5,20 @@ import { useAppSettings } from "./AppSettings";
 import {
   AccountState,
   fetchAccount,
+  registerWithPassword,
   requestLoginLink,
   savePassword,
   signedOut,
   signInWithPassword,
   signOut,
 } from "./account";
+import { peekStashedInvite } from "./householdAccounts";
 
 /**
  * 账号区块。
  *
- * 两种登录方式并存：
+ * 三条路并存：
+ *  - 注册：第一次来的人自己定一个密码，全程不经过邮箱
  *  - 密码：设过就能直接进，日常最省事
  *  - 邮箱一次性链接：不需要记住任何东西，同时也是「忘记密码」的出口
  *
@@ -32,8 +35,9 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [devLink, setDevLink] = useState("");
-  // 没设过密码的人第一次来，直接展开邮箱链接那一侧，省一次点击。
-  const [method, setMethod] = useState<"password" | "link">("password");
+  // 回头客占多数，默认停在密码登录；第一次来的人点「注册」。
+  const [method, setMethod] = useState<"register" | "password" | "link">("password");
+  const [confirm, setConfirm] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
@@ -66,6 +70,26 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
     } catch (error) {
       notify(error instanceof Error ? error.message : t("登录链接发送失败"));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function register(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // 两遍不一致就地拦下。这个部署的发信服务没配，密码打错一个字母
+    // 意味着既登不进去、也收不到重置链接——确认这一步在这里不是多余的。
+    if (password !== confirm) {
+      notify(t("两次输入的密码不一样"));
+      return;
+    }
+    setBusy(true);
+    try {
+      // 令牌由 LoginLanding 在落地时存好。只看不取——真正的兑换（加入哪个家）
+      // 发生在注册成功、页面重载之后，那时候才知道是谁接受了。
+      await registerWithPassword(email.trim(), password, peekStashedInvite());
+      window.location.reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("注册失败"));
       setBusy(false);
     }
   }
@@ -180,6 +204,14 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
       <div className="method-switch" role="group" aria-label={t("登录方式")}>
         <button
           type="button"
+          className={method === "register" ? "active" : ""}
+          aria-pressed={method === "register"}
+          onClick={() => setMethod("register")}
+        >
+          {t("注册")}
+        </button>
+        <button
+          type="button"
           className={method === "password" ? "active" : ""}
           aria-pressed={method === "password"}
           onClick={() => setMethod("password")}
@@ -196,7 +228,48 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
         </button>
       </div>
 
-      {method === "password" ? (
+      {method === "register" ? (
+        <form onSubmit={register}>
+          <p className="settings-note">
+            {t("用邮箱和一个自己定的密码开号。需要一条有效的邀请链接才能注册。")}
+          </p>
+          <label className="field full">
+            <span>{t("邮箱")}</span>
+            <input
+              type="email"
+              value={email}
+              autoComplete="email"
+              spellCheck={false}
+              placeholder="you@example.com"
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+          <label className="field full">
+            <span>{t("设置密码")}</span>
+            <input
+              type="password"
+              value={password}
+              autoComplete="new-password"
+              placeholder={t("至少 8 位")}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+          <label className="field full">
+            <span>{t("再输一遍")}</span>
+            <input
+              type="password"
+              value={confirm}
+              autoComplete="new-password"
+              onChange={(event) => setConfirm(event.target.value)}
+            />
+          </label>
+          <div className="modal-actions">
+            <button className="primary-button" disabled={busy || !email.trim() || password.length < 8}>
+              {busy ? t("处理中…") : t("注册并登录")}
+            </button>
+          </div>
+        </form>
+      ) : method === "password" ? (
         <form onSubmit={signIn}>
           <label className="field full">
             <span>{t("邮箱")}</span>
@@ -218,7 +291,7 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
-          <p className="settings-note">{t("第一次来，或者忘了密码，请用「邮箱链接」那一侧。")}</p>
+          <p className="settings-note">{t("第一次来请点「注册」；忘了密码走「邮箱链接」。")}</p>
           <div className="modal-actions">
             <button className="primary-button" disabled={busy || !email.trim() || !password}>
               {busy ? t("处理中…") : t("登录")}
@@ -227,9 +300,7 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
         </form>
       ) : (
         <form onSubmit={sendLink}>
-          <p className="settings-note">
-            {t("填写邮箱，我们会发一条一次性链接。第一次来也用这个，点开就算注册。")}
-          </p>
+          <p className="settings-note">{t("填写邮箱，我们会发一条一次性链接。忘了密码也走这里。")}</p>
           <label className="field full">
             <span>{t("邮箱")}</span>
             <input

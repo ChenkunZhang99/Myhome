@@ -18,7 +18,7 @@ import {
  * 这个组件不渲染任何东西，只在挂载时把地址栏里的令牌处理掉。
  *
  * 邀请比登录多一层：点链接的人可能还没登录。那就先把令牌存进 sessionStorage，
- * 等他用自己的邮箱登录之后再兑换——这样「先登录再入伙」和「先入伙」是同一条路。
+ * 等他注册或登录之后再兑换——这样「先登录再入伙」和「先入伙」是同一条路。
  */
 export function LoginLanding({ notify }: { notify: (message: string) => void }) {
   useEffect(() => {
@@ -56,22 +56,15 @@ export function LoginLanding({ notify }: { notify: (message: string) => void }) 
       try {
         await acceptInvite(token);
       } catch (error) {
-        const failed = error as Error & { needsConfirm?: boolean };
-        if (failed.needsConfirm) {
-          // 换家之后原来的库存看不到了。这一步不可逆，必须问过本人。
-          if (!window.confirm(failed.message)) return;
-          await acceptInvite(token, true);
-        } else if (/请先登录/.test(failed.message)) {
-          // 还没登录：原样留着，等注册或登录完再兑换。
-          return;
-        } else {
-          throw failed;
-        }
+        const failed = error as Error;
+        // 还没登录：令牌原样留着，等注册或登录完再兑换。
+        if (/请先登录/.test(failed.message)) return;
+        throw failed;
       }
       // 兑换是一次性的，成功之后才把它从暂存里划掉。
       takeStashedInvite();
       if (cancelled) return;
-      notify("已加入家庭");
+      notify("已加入这个家");
       if (reloadOnSuccess) window.location.reload();
     }
 

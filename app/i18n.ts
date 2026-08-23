@@ -328,7 +328,6 @@ const ui: Record<string, string> = {
     "Demo mode: AI features return built-in sample data at no cost.",
 
   // ——— 批量补充的界面文案 ———
-  "2 人 · 个人维护": "2 people · personal",
   "AI 为你推荐": "Suggested for you",
   "AI 自动识别": "Read automatically",
   "Flyer 计价单位": "Flyer pricing unit",
@@ -677,6 +676,24 @@ const ui: Record<string, string> = {
   家庭账号: "Household accounts",
   "家人用自己的账号登录，看到的是同一份库存、菜谱和采购记录。":
     "Family members sign in with their own accounts and see the same inventory, recipes, and purchases.",
+  "你现在在「{name}」。家人用自己的账号登录，看到的是同一份库存、菜谱和采购记录。":
+    "You are in “{name}”. Family members sign in with their own accounts and see the same inventory, recipes, and purchases.",
+  我的家庭: "My households",
+  "一个账号可以属于多个家，各自的库存和记录互不相通。":
+    "One account can belong to several households. Their inventories and records stay separate.",
+  正在查看: "viewing now",
+  切换过去: "Switch to it",
+  家庭名称: "Household name",
+  改名: "Rename",
+  家庭名称已更新: "Household renamed",
+  "只有这个家的管理者可以邀请新成员。": "Only this household's admin can invite new members.",
+  "当前在{name}，点击切换家庭": "Currently in {name} — click to switch households",
+  "{count} 人": "{count} people",
+  "＋ 新建一个家庭": "+ New household",
+  "新家庭叫什么名字？": "What should the new household be called?",
+  我的家: "My household",
+  切换失败: "Could not switch",
+  新建失败: "Could not create it",
   管理者: "Admin",
   成员: "Member",
   你: "you",
@@ -697,10 +714,10 @@ const ui: Record<string, string> = {
   "邀请链接已生成，发给家人即可": "Invite link created — send it to them",
   邀请没有生成: "Could not create the invite",
   退出这个家: "Leave this household",
-  "退出这个家？你会得到一个全新的空家，这里的数据留给其他人。":
-    "Leave this household? You will get a fresh empty one; this data stays with the others.",
+  "退出这个家？之后就看不到这里的数据了。你的其他家庭不受影响。":
+    "Leave this household? You will lose access to its data. Your other households are unaffected.",
   已退出这个家: "You left the household",
-  已加入家庭: "You joined the household",
+  已加入这个家: "You joined this household",
   操作没有完成: "That did not go through",
   登录方式: "Sign-in method",
   注册: "Sign up",

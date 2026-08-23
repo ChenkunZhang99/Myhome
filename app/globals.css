@@ -124,17 +124,36 @@ button {
 .sidebar-spacer {
   flex: 1;
 }
+/*
+ * 家庭切换器。原来这里是一块写死的「我们的家」，现在它是入口：
+ * 一个人可能同时在自己家和爸妈家，而「我现在看的是哪个家」是每一次
+ * 加减库存的前提，所以它得一直待在视线里，不能藏进设置面板。
+ */
 .home-profile {
+  position: relative;
+  padding: 18px 0 2px;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  margin-top: 10px;
+}
+.home-switch {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 18px 8px 2px;
-  border-top: 1px solid rgb(255 255 255 / 12%);
-  margin-top: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-switch:hover {
+  background: rgb(255 255 255 / 8%);
 }
 .avatar {
   width: 34px;
   height: 34px;
+  flex: none;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -142,16 +161,73 @@ button {
   color: #1c4a3a;
   font-weight: 700;
 }
-.home-profile div {
+.home-switch .nav-label {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
-.home-profile strong {
+.home-switch strong {
   font-size: var(--text-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.home-profile small {
+.home-switch small {
   color: #a7c0b6;
   font-size: var(--text-sm);
+}
+/* 往上弹：这块贴在侧边栏最底下，往下没有地方。 */
+.home-menu {
+  position: absolute;
+  bottom: calc(100% - 8px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  background: #17342a;
+  border: 1px solid rgb(255 255 255 / 14%);
+  box-shadow: 0 14px 40px rgb(0 0 0 / 38%);
+}
+.home-menu button {
+  display: grid;
+  gap: 1px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-menu button:hover {
+  background: rgb(255 255 255 / 10%);
+}
+.home-menu button.active {
+  background: rgb(255 255 255 / 14%);
+}
+.home-menu b {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.home-menu small {
+  color: #a7c0b6;
+  font-size: var(--text-sm);
+}
+.home-menu .add {
+  margin-top: 4px;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  padding-top: 10px;
+  color: #cfe6da;
+  font-size: var(--text-sm);
+}
+/* 收起成窄条时只剩头像，弹出层改成从旁边推出来，不然 64px 宽塞不下名字。 */
+.railed .home-menu {
+  left: calc(100% + 8px);
+  right: auto;
+  bottom: 0;
+  width: 220px;
 }
 
 .content {

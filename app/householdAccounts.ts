@@ -3,7 +3,10 @@
 import { readJson } from "./apiClient";
 
 /**
- * 家庭成员账号。
+ * 家庭：我在哪个家，我还能进哪些家，这个家里有谁。
+ *
+ * 一个人可以属于多个家（自己家、爸妈家）。households 是我能进的全部，
+ * householdId 是我现在正在看的那一个，members 是那一个家里的人。
  *
  * 和 household_members（做饭、点菜用的家庭成员称呼）不是一回事——
  * 这里的每一条都对应一个能登录的账号。
@@ -19,14 +22,33 @@ export type HouseholdMemberAccount = {
 
 export type PendingInvite = { tokenHash: string; email: string | null; expiresAt: string };
 
+/** 我能进的一个家。role 是我在这个家里的角色，同一个人在不同的家里可以不一样。 */
+export type HouseholdSummary = {
+  id: string;
+  name: string;
+  role: "owner" | "member";
+  joinedAt: string;
+};
+
 export type HouseholdAccounts = {
   role: "owner" | "member";
   me: string;
+  householdId: string;
+  householdName: string;
+  households: HouseholdSummary[];
   members: HouseholdMemberAccount[];
   invites: PendingInvite[];
 };
 
-export const emptyHousehold: HouseholdAccounts = { role: "member", me: "", members: [], invites: [] };
+export const emptyHousehold: HouseholdAccounts = {
+  role: "member",
+  me: "",
+  householdId: "",
+  householdName: "",
+  households: [],
+  members: [],
+  invites: [],
+};
 
 export async function fetchHouseholdAccounts(): Promise<HouseholdAccounts> {
   const response = await fetch("/api/household");
@@ -35,6 +57,9 @@ export async function fetchHouseholdAccounts(): Promise<HouseholdAccounts> {
   return {
     role: result.role ?? "member",
     me: result.me ?? "",
+    householdId: result.householdId ?? "",
+    householdName: result.householdName ?? "",
+    households: result.households ?? [],
     members: result.members ?? [],
     invites: result.invites ?? [],
   };
@@ -62,8 +87,29 @@ export function inviteToHousehold(email: string) {
   return post<{ link: string; expiresAt: string }>({ action: "invite", email });
 }
 
-export function acceptInvite(token: string, confirm = false) {
-  return post<Record<string, never>>({ action: "accept", token, confirm });
+/**
+ * 接受邀请，加入对方的家。
+ *
+ * 加入是「多一个家」而不是「换一个家」，所以不再需要确认：原来那个家还在
+ * 我的列表里，两边的数据谁也没动。
+ */
+export function acceptInvite(token: string) {
+  return post<{ householdId: string }>({ action: "accept", token });
+}
+
+/** 自己开一个新家，开完就切过去。新家是空的。 */
+export function createHousehold(name: string) {
+  return post<{ householdId: string }>({ action: "create", name });
+}
+
+/** 换到另一个家。服务端会先确认我确实在那个家里。 */
+export function switchHousehold(householdId: string) {
+  return post<{ householdId: string }>({ action: "switch", householdId });
+}
+
+/** 给当前这个家改名。只有管理者能改。 */
+export function renameHousehold(name: string) {
+  return post<Record<string, never>>({ action: "rename", name });
 }
 
 export function revokeInvite(tokenHash: string) {

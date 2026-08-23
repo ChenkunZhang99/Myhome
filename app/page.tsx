@@ -13,6 +13,7 @@ import {
 } from "./inventoryUsage";
 import { withAiHeaders } from "./aiSettings";
 import { useAppSettings } from "./AppSettings";
+import { HouseholdSwitcher } from "./HouseholdSwitcher";
 import { LoginGate } from "./LoginGate";
 import { LoginLanding } from "./LoginLanding";
 import { SettingsPanel } from "./SettingsPanel";
@@ -1007,13 +1008,7 @@ export default function Home() {
               <Icon name="settings" />
               <span className="nav-label">{t("家庭设置")}</span>
             </button>
-            <div className="home-profile">
-              <span className="avatar">{t("两")}</span>
-              <div className="nav-label">
-                <strong>{t("我们的家")}</strong>
-                <small>{t("2 人 · 个人维护")}</small>
-              </div>
-            </div>
+            <HouseholdSwitcher notify={setToast} />
           </aside>
 
           <section className="content">

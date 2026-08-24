@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  adjustQuantity,
   adjustRemaining,
   isMeasurableUnit,
   restock,
@@ -361,4 +362,73 @@ test("推不出满量时不要凭空造一个重量", () => {
   const after = adjustRemaining(broken, 25);
   assert.ok(Number.isFinite(after.quantity), "数量必须是有限数");
   assert.equal(after.quantity, 5, "推不出满量就别动数量");
+});
+
+/**
+ * 卡片上的 ± 改的是数量，但百分比必须跟着按满量走。
+ *
+ * 以前只改数量：4 个减 1 变成「3 个 · 100%」。而这个百分比正是补货推荐
+ * 判断「快用完了没有」的依据——不动它，等于把一件已经用掉四分之一的东西
+ * 继续当成满的，永远不会提醒你补货。
+ */
+
+test("4 个减到 3 个，百分比跟着变成 75%", () => {
+  const after = adjustQuantity({ quantity: 4, remainingPercent: 100 }, -1);
+  assert.equal(after.quantity, 3);
+  assert.equal(after.remainingPercent, 75);
+});
+
+test("一路减下去，每一步都还认得同一个满量", () => {
+  let item = { quantity: 4, remainingPercent: 100 };
+  const steps = [];
+  for (let i = 0; i < 4; i += 1) {
+    const after = adjustQuantity(item, -1);
+    steps.push(after.quantity + "/" + after.remainingPercent);
+    item = { quantity: after.quantity, remainingPercent: after.remainingPercent };
+  }
+  assert.deepEqual(
+    steps,
+    ["3/75", "2/50", "1/25", "0/0"],
+    "每一步都要从当前的数量和百分比反推回同一个满量 4，否则会越算越偏",
+  );
+});
+
+test("加回原来的满量就是 100%", () => {
+  const after = adjustQuantity({ quantity: 3, remainingPercent: 75 }, 1);
+  assert.equal(after.quantity, 4);
+  assert.equal(after.remainingPercent, 100);
+});
+
+test("加过了原来的满量，新的总量就是新的满量", () => {
+  const after = adjustQuantity({ quantity: 4, remainingPercent: 100 }, 1);
+  assert.equal(after.quantity, 5);
+  assert.equal(after.remainingPercent, 100, "「满」的意思就是现在手上有的全部，和 restock 同一口径");
+});
+
+test("从空的加起来，加进来多少就是满量", () => {
+  const after = adjustQuantity({ quantity: 0, remainingPercent: 0 }, 1);
+  assert.equal(after.quantity, 1);
+  assert.equal(after.remainingPercent, 100);
+  assert.equal(after.level, "充足");
+});
+
+test("减到 0 就是已用完", () => {
+  const after = adjustQuantity({ quantity: 1, remainingPercent: 25 }, -1);
+  assert.equal(after.quantity, 0);
+  assert.equal(after.remainingPercent, 0);
+  assert.equal(after.level, "已用完");
+});
+
+test("可量单位按同一个满量算：2kg 50% 的满量是 4kg", () => {
+  const after = adjustQuantity({ quantity: 2, unit: "kg", remainingPercent: 50 }, -0.1);
+  assert.equal(after.quantity, 1.9);
+  assert.equal(after.remainingPercent, 48, "1.9 ÷ 4 = 47.5%，取整 48");
+});
+
+test("和 ±25% 用的是同一个满量，两条路不会互相打架", () => {
+  const start = { quantity: 4, remainingPercent: 100 };
+  const byQuantity = adjustQuantity(start, -1);
+  const byPercent = adjustRemaining(start, -25);
+  assert.equal(byQuantity.quantity, byPercent.quantity, "减 1 个和减 25% 在满量 4 上应当落到同一处");
+  assert.equal(byQuantity.remainingPercent, byPercent.remainingPercent);
 });

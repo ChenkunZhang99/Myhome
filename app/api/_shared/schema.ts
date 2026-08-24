@@ -75,6 +75,12 @@ const TABLES = [
     -- 区别只在能不能把别人请出去。
     role TEXT NOT NULL DEFAULT 'owner'
   )`,
+  `CREATE TABLE IF NOT EXISTS ai_quota (
+    -- 每个家在服务端那把密钥上用掉了几次。用满了就得填自己的。
+    household_id TEXT PRIMARY KEY,
+    used INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE TABLE IF NOT EXISTS households (
     id TEXT PRIMARY KEY,
     -- 家有名字才能在切换器里被认出来。同一个人可能同时在「我家」和「爸妈家」。

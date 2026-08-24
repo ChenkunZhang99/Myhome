@@ -19,7 +19,24 @@ export const MODEL_HEADER = "x-openai-model";
 
 const DEFAULT_MODEL = "gpt-5.6-luna";
 
-export type OpenAIConfig = { apiKey: string; model: string };
+export type OpenAIConfig = {
+  apiKey: string;
+  model: string;
+  /** 没有密钥时的原因。用来分辨「从没填过」和「免费次数用完了」。 */
+  reason?: "none" | "quota";
+};
+
+/**
+ * 没有密钥时该对用户说什么。
+ *
+ * 两种情况看起来一样（apiKey 是空的），但对用户是两件事：一件是「这个功能
+ * 你还没开通」，另一件是「你已经用过 20 次了」。混成一句会让人以为设置丢了。
+ */
+export function missingKeyMessage(config: OpenAIConfig) {
+  return config.reason === "quota"
+    ? `免费体验的 ${FREE_SHARED_CALLS} 次已经用完了，继续用请在设置里填上你自己的 OpenAI 密钥`
+    : "还没有可用的 OpenAI 密钥，请在设置里填上你自己的";
+}
 
 /** 只接受长得像密钥的值：避免把任意内容原样拼进 Authorization 头。 */
 function sanitizeKey(value: string | null) {
@@ -73,6 +90,38 @@ function sanitizeModel(value: string | null) {
   return /^[A-Za-z0-9._-]{1,60}$/.test(model) ? model : "";
 }
 
+/** 每个家可以白用服务端密钥的次数。用完之后要填自己的。 */
+export const FREE_SHARED_CALLS = 20;
+
+/**
+ * 记一次服务端密钥的使用，用完了就返回 false。
+ *
+ * 判断和记账必须是同一条语句：读一次再写一次的话，同时打进来的两个请求
+ * 会读到同一个旧值，双双通过——配额说是 20，实际能刷出多少取决于并发。
+ * `WHERE ai_quota.used < ?` 让 SQLite 自己拦，配额满时 changes 为 0。
+ *
+ * 先扣后用，不是用成功了再扣。失败也扣看起来不近人情，但反过来
+ * 意味着「让它失败」就能无限刷——而每一次失败的调用同样是要付钱的。
+ */
+export async function takeSharedCall(householdId: string) {
+  const result = await env.DB.prepare(
+    `INSERT INTO ai_quota (household_id, used) VALUES (?1, 1)
+     ON CONFLICT(household_id) DO UPDATE SET used = used + 1, updated_at = CURRENT_TIMESTAMP
+     WHERE ai_quota.used < ?2`,
+  )
+    .bind(householdId, FREE_SHARED_CALLS)
+    .run();
+  return (result.meta?.changes ?? 0) > 0;
+}
+
+/** 这个家还剩几次。只用来在界面上显示，不作为放行依据。 */
+export async function remainingSharedCalls(householdId: string) {
+  const row = await env.DB.prepare("SELECT used FROM ai_quota WHERE household_id = ?")
+    .bind(householdId)
+    .first<{ used: number }>();
+  return Math.max(0, FREE_SHARED_CALLS - Number(row?.used ?? 0));
+}
+
 /**
  * 取出这次请求该用哪个密钥。
  *
@@ -95,6 +144,32 @@ export function getOpenAIConfig(request: Request | undefined, householdId: strin
 }
 
 /**
+ * 和上面一样，但别的家也能白用服务端密钥若干次。
+ *
+ * 部署者自己那个家不限次；定时任务（householdId 为 null）也不限，它没有
+ * 请求者可言。其余每个家有 FREE_SHARED_CALLS 次，用完就回到「填自己的密钥」。
+ *
+ * 自带密钥的请求根本不碰配额——那花的是他自己的钱，没有理由计数。
+ *
+ * 密钥本身从不离开服务端：这里只把它交给同进程的 fetch，
+ * 任何响应里都不会出现它，所以「白用」只能通过这个网站自己的功能兑现。
+ */
+export async function getSharedOpenAIConfig(
+  request: Request | undefined,
+  householdId: string | null,
+): Promise<OpenAIConfig & { usedSharedCall: boolean }> {
+  const own = getOpenAIConfig(request, householdId);
+  if (own.apiKey) return { ...own, usedSharedCall: false };
+  // 走到这里说明既没带自己的密钥，也不是那个可以无限用的家。
+  if (householdId === null) return { ...own, usedSharedCall: false };
+  // 部署者压根没配服务端密钥时，没有「免费次数」可言，别拿配额去骗人。
+  if (!envKey()) return { ...own, reason: "none", usedSharedCall: false };
+  const allowed = await takeSharedCall(householdId);
+  if (!allowed) return { ...own, reason: "quota", usedSharedCall: false };
+  return { apiKey: envKey(), model: own.model, usedSharedCall: true };
+}
+
+/**
  * 从 Responses API 的返回里取出那段文本。
  *
  * 结构比看上去绕：正文藏在 output[].content[] 里 type 为 output_text 的那一项，
@@ -112,7 +187,7 @@ export function outputText(response: Record<string, unknown>) {
 
 export async function createOpenAIResponse(body: Record<string, unknown>, config: OpenAIConfig) {
   // 没有密钥不是程序缺陷，而是使用者还没填，提示要能直接看懂。
-  if (!config.apiKey) throw new UserFacingError("尚未配置 OpenAI API 密钥，请在设置里填写后再试", 503);
+  if (!config.apiKey) throw new UserFacingError(missingKeyMessage(config), 503);
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },

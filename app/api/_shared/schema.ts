@@ -289,6 +289,12 @@ const TABLES = [
     household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    checksum TEXT NOT NULL,
+    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 
 const INDEXES = [
@@ -570,12 +576,103 @@ const DROPPED_COLUMNS: Array<{ table: string; column: string }> = [
   { table: "flyer_recommendation_feedback", column: "store_id" },
 ];
 
+type AppliedMigration = {
+  version: number;
+  name: string;
+  checksum: string;
+};
+
+type SchemaMigration = AppliedMigration & {
+  apply(): Promise<void>;
+};
+
+/**
+ * v1 是给已经在线运行的无版本数据库建立的基线，不把历史兼容逻辑伪装成一条
+ * 新迁移。ensureSchema 只有在旧逻辑完整跑完后才会记录它。后续结构变化必须
+ * 追加 v2、v3；已发布版本的 name、checksum 和 apply 都不可修改。
+ *
+ * 历史兼容逻辑目前仍幂等执行，避免首次引入版本表时顺带改变生产清理行为。
+ * 等所有线上库都确认有 v1 后，再单独审计是否退休它，不能夹在普通迁移里做。
+ */
+const MIGRATIONS: SchemaMigration[] = [
+  {
+    version: 1,
+    name: "versioned-migrations-baseline",
+    checksum: "1a59b71c16784ed276061d61485286545a28a672976eb74f51900a8bb06a7388",
+    apply: async () => undefined,
+  },
+];
+
+export const CURRENT_SCHEMA_VERSION = MIGRATIONS.at(-1)?.version ?? 0;
+
+async function migrationHistory() {
+  const result = await env.DB.prepare(
+    "SELECT version, name, checksum FROM schema_migrations ORDER BY version",
+  ).all<AppliedMigration>();
+  const byVersion = new Map(result.results.map((record) => [record.version, record]));
+
+  for (const record of result.results) {
+    const expected = MIGRATIONS.find((migration) => migration.version === record.version);
+    if (!expected) {
+      throw new Error(
+        `Database schema version ${record.version} is newer than this application (latest ${CURRENT_SCHEMA_VERSION})`,
+      );
+    }
+    if (record.name !== expected.name || record.checksum !== expected.checksum) {
+      throw new Error(`Schema migration ${record.version} was modified after it was applied`);
+    }
+  }
+
+  return byVersion;
+}
+
+async function applyPendingMigrations(applied: Map<number, AppliedMigration>) {
+  for (const migration of MIGRATIONS) {
+    if (applied.has(migration.version)) continue;
+
+    await migration.apply();
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO schema_migrations (version, name, checksum)
+       VALUES (?, ?, ?)`,
+    )
+      .bind(migration.version, migration.name, migration.checksum)
+      .run();
+
+    // 多个 isolate 可能同时冷启动。INSERT OR IGNORE 让它们可以安全竞争，
+    // 但输掉写入的一方仍要确认数据库里记录的是完全相同的迁移。
+    const stored = await env.DB.prepare(
+      "SELECT version, name, checksum FROM schema_migrations WHERE version = ?",
+    )
+      .bind(migration.version)
+      .first<AppliedMigration>();
+    if (!stored || stored.name !== migration.name || stored.checksum !== migration.checksum) {
+      throw new Error(`Schema migration ${migration.version} could not be recorded safely`);
+    }
+
+    console.info(
+      JSON.stringify({
+        at: new Date().toISOString(),
+        scope: "schema.migration",
+        version: migration.version,
+        name: migration.name,
+      }),
+    );
+  }
+}
+
 export const ensureSchema = once(async () => {
   await env.DB.batch([...TABLES, ...INDEXES].map((ddl) => env.DB.prepare(ddl)));
+  const appliedMigrations = await migrationHistory();
 
   // 补列不放进 batch：backfill 需要看到刚加上的列，而 batch 是一个事务一次提交。
   for (const entry of await missingColumns()) {
-    await env.DB.prepare(entry.ddl).run();
+    try {
+      await env.DB.prepare(entry.ddl).run();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      // 两个 isolate 可能同时看到缺列；另一边刚补完就是成功，不是迁移失败。
+      if (!/duplicate column/i.test(reason)) throw error;
+    }
     if (entry.backfill) await env.DB.prepare(entry.backfill).run();
   }
 
@@ -605,6 +702,10 @@ export const ensureSchema = once(async () => {
       );
     }
   }
+
+  // v1 只是给现有无版本数据库建立基线。旧兼容逻辑先完整执行，成功后才记版本；
+  // 后续新增的 v2、v3 则由同一个 runner 按顺序执行并记录。
+  await applyPendingMigrations(appliedMigrations);
 
   await env.DB.batch([
     ...SOURCE_SEEDS.map((sql, index) =>

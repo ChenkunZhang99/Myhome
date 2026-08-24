@@ -35,13 +35,18 @@ https://home-stock-planner.mm10237207.workers.dev
 
 ### 2. 建表只有一个来源
 
-28 张表全部定义在 `app/api/_shared/schema.ts`，每个路由处理请求前调 `ensureSchema()`。**不要在别处写 `CREATE TABLE`** —— `schema-single-source.test.mjs` 会扫出来并指名道姓。
+29 张表全部定义在 `app/api/_shared/schema.ts`，每个路由处理请求前调 `ensureSchema()`。**不要在别处写 `CREATE TABLE`** —— `schema-single-source.test.mjs` 会扫出来并指名道姓。
+
+结构版本也只在这里维护。`schema_migrations` 的 v1 是现有线上库的基线；下一次结构
+变化必须同时更新新库的 `TABLES`、追加不可修改的 v2，并扩展旧库升级测试。不要继续
+往历史迁移里塞新列，也不要改已经上线版本的 checksum。完整步骤见
+[`deploy.md`](deploy.md#数据库迁移)。
 
 `ensureSchema` 用 `once()` 包着，每个 isolate 只跑一次。这有个反直觉的后果见第四节。
 
 ### 3. 守卫测试盯的是「源码长什么样」
 
-217 个测试里有相当一部分不是行为测试，而是**用字符串匹配扫源码**的纪律检查。比如：
+224 个测试里有相当一部分不是行为测试，而是**用字符串匹配扫源码**的纪律检查。比如：
 
 | 测试                       | 拦的是                                          |
 | -------------------------- | ----------------------------------------------- |
@@ -103,6 +108,10 @@ docs/multi-household-design.md  多住户设计，第十节是最终形态
 ### `ensureSchema` 每 isolate 只跑一次
 
 刚部署完新表，**立刻查数据库会看不到**。要先发一个真正会走到 `ensureSchema()` 的请求：`GET /api/auth` 在没有 cookie 时会提前返回，用 `POST /api/auth {"action":"signOut"}`。
+
+迁移记录同理。部署成功只表示代码上传了，不表示 D1 已经跑到最新版本。触发请求后再查
+`SELECT version, name, applied_at FROM schema_migrations ORDER BY version;`。不要手工插入
+或修改这里的记录；checksum 不一致会让应用拒绝继续迁移。
 
 ### 部署前要先停本地 dev server
 
@@ -233,6 +242,7 @@ pnpm run release            # build + wrangler deploy
 - **会话管理** —— 改密码会原子轮换会话，用户可以查看设备并逐个、批量退出；见 [`audits/003-session-management.md`](audits/003-session-management.md)。
 - **PWA 安装基础** —— 加入品牌化 manifest、完整尺寸图标和移动端主题元数据；不缓存登录后的家庭数据；见 [`audits/004-pwa-installability.md`](audits/004-pwa-installability.md)。
 - **首次使用与反馈入口** —— 空家庭会得到可关闭、可重开的三步引导；侧边栏和设置都能进入带隐私提醒的公开反馈表；见 [`audits/005-onboarding-feedback.md`](audits/005-onboarding-feedback.md)。
+- **版本化数据库迁移** —— 无版本线上库会建立 v1 基线；旧 D1 升级、回填、遗留结构清理和重复冷启动都有真实集成测试；见 [`audits/006-versioned-schema-migrations.md`](audits/006-versioned-schema-migrations.md)。
 
 ---
 

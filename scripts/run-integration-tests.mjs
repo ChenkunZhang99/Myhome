@@ -8,6 +8,7 @@ import process from "node:process";
 const ROOT = resolve(import.meta.dirname, "..");
 const VINEXT_CLI = resolve(ROOT, "node_modules", "vinext", "dist", "cli.js");
 const TEST_FILE = resolve(ROOT, "tests", "integration", "auth-household.integration.mjs");
+const MIGRATION_RUNNER = resolve(ROOT, "scripts", "run-schema-migration-tests.mjs");
 const KEEP_STATE = process.env.HSP_KEEP_INTEGRATION_STATE === "1";
 
 async function unusedPort() {
@@ -121,6 +122,19 @@ try {
   } else {
     await rm(stateDirectory, { recursive: true, force: true });
   }
+}
+
+if (testExitCode === 0) {
+  testExitCode = await new Promise((resolveCode, reject) => {
+    const migrationTests = spawn(process.execPath, [MIGRATION_RUNNER], {
+      cwd: ROOT,
+      env: { ...process.env, NO_COLOR: "1" },
+      stdio: "inherit",
+      windowsHide: true,
+    });
+    migrationTests.once("error", reject);
+    migrationTests.once("close", (code) => resolveCode(code ?? 1));
+  });
 }
 
 process.exitCode = testExitCode;

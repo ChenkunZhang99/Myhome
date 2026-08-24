@@ -79,7 +79,9 @@ test("每个路由处理函数都带请求日志", async () => {
 test("给用户看的错误必须显式标记", async () => {
   const offenders = [];
   for (const file of await collectSources(API_DIR)) {
-    if (isObservability(file)) continue;
+    // 不构造 Response 的底层模块只能把异常交给路由边界统一脱敏，
+    // 把 schema 版本或列名包装成 UserFacingError 反而可能泄露内部结构。
+    if (isObservability(file) || NO_RESPONSE_FILES.includes(file.name)) continue;
     for (const [match] of file.code.matchAll(/throw new Error\(/g))
       offenders.push(`${file.name}: ${match} 应改为 UserFacingError`);
   }

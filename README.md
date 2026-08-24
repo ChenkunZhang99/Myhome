@@ -232,7 +232,7 @@ Email delivery is optional too, and its absence has a consequence worth knowing 
 
 ## Known tradeoffs
 
-Tables are created at runtime, with no versioned migration history. A structural change shows up only as a diff to `app/api/_shared/schema.ts`, and rolling back to an earlier version means writing the reverse statements by hand. Once several environments need to advance their structure independently, this approach stops being enough.
+Tables and migrations still run at request time, but each database now records ordered versions and checksums in `schema_migrations`, with upgrades exercised against a real local D1 fixture. There are no automatic down migrations: after a database advances, an older application refuses to write to it, so a rollback build must remain compatible with the latest schema or the fix must move forward.
 
 `household_members` — the people a meal is cooked for — are still plain records rather than accounts, so attribution for cooking and ratings is entered by hand. An account and a family member are deliberately separate: a child should be able to request a meal without owning an email address.
 

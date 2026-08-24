@@ -245,3 +245,41 @@ test("fruit snacks 是零食，不是水果", () => {
   assert.equal(categoryFromText("Fresh Strawberries"), "蔬菜水果");
   assert.equal(categoryFromText("Orange juice"), "零食饮料", "橙汁是饮料不是橙子");
 });
+
+/**
+ * 同步是全局任务，但回给调用方的数字必须是他自己那几家店的。
+ *
+ * 一份 flyer 解析一次供所有住户共用，所以一次同步读的是「所有被任何人收藏过
+ * 的门店」。只订了两家的人如果看到「已录入 549 项」，点开列表却只有几十条，
+ * 这个数字就是在骗他。
+ */
+test("同步响应按调用方的收藏门店裁过", () => {
+  assert.ok(route.includes("async function subscribedKeys("), "没有取调用方收藏了哪几家");
+  const at = route.indexOf("const mine = household ? await subscribedKeys(household)");
+  assert.notEqual(at, -1, "没有按住户裁剪");
+  const body = route.slice(at, at + 900);
+  assert.ok(body.includes("mine.has(summary.sourceKey)"), "裁剪没有按门店来源过滤");
+  assert.ok(body.includes("visibleImported"), "条数没有跟着重算");
+});
+
+test("回给前端的是裁过的那份，不是全局那份", () => {
+  // 直接锚在成功返回那一段：前面有提前返回、后面有 catch 里的错误返回，
+  // 用 indexOf/lastIndexOf 都会打偏。
+  const at = route.indexOf("return Response.json({" + String.fromCharCode(10) + "      ok: true,");
+  assert.notEqual(at, -1, "找不到成功返回那一段");
+  const body = route.slice(at, at + 300);
+  assert.ok(body.includes("imported: visibleImported"), "还在回全局的导入数");
+  assert.ok(body.includes("stores: visible"), "还在回全局的逐店结果");
+  assert.ok(!body.includes("stores: summaries"), "summaries 是全局的账，不该直接回出去");
+});
+
+test("全局那本账仍然照记，cron 没有住户可言", () => {
+  // 同样用 lastIndexOf：同步开头还会写一次 'running' 状态。
+  const at = route.lastIndexOf("INSERT INTO flyer_sync_settings");
+  const body = route.slice(at, at + 700);
+  assert.ok(body.includes(".bind(intervalHours"), "找不到写入全局同步记录的地方");
+  assert.ok(
+    !body.includes("visibleImported"),
+    "全局记录不该写成某一户看到的数字——定时任务跑的时候根本没有住户",
+  );
+});

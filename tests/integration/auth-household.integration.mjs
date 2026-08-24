@@ -220,3 +220,37 @@ test("password changes rotate sessions and users can revoke devices", async () =
   assert.equal(currentAfterAll.body.valid, false);
   assert.equal(otherAfterAll.body.valid, false);
 });
+
+/**
+ * 一个账号不能凭 session_id 撤销另一个账号的登录设备。
+ *
+ * 003 的记录把这条留在了「给下一位审计者的检查清单」里，没有写成测试。
+ * 复核时把 revokeUserSession 的 user_id 条件去掉，整套测试依然全绿——
+ * 说明这条边界当时没有任何自动化保护。session_id 是随机的、猜不到，
+ * 所以实际风险有限；但那道 user_id 检查正是为了「万一泄漏也无所谓」而存在的，
+ * 没有测试守着，它可以在任何一次重构里被静悄悄拿掉。
+ */
+test("one account cannot revoke another account's device", async () => {
+  const victim = await register("victim", "Victim Browser / Windows");
+  const attacker = await register("attacker", "Attacker Browser / Android");
+
+  const victimSessions = await json("/api/sessions", authenticated(victim.cookie));
+  assert.equal(victimSessions.response.status, 200);
+  const victimSessionId = victimSessions.body.sessions[0].id;
+  assert.ok(victimSessionId, "victim must have a listed session");
+
+  // 攻击者手里握着受害者的 session_id，仍然撤不掉。
+  const attempt = await json("/api/sessions", {
+    ...authenticated(attacker.cookie),
+    method: "POST",
+    headers: { ...authenticated(attacker.cookie).headers, "content-type": "application/json" },
+    body: JSON.stringify({ action: "revoke", sessionId: victimSessionId }),
+  });
+  assert.equal(attempt.response.status, 404, JSON.stringify(attempt.body));
+
+  // 受害者的会话必须原封不动。
+  const stillValid = await json("/api/auth", authenticated(victim.cookie));
+  assert.equal(stillValid.body.signedIn, true, "victim was signed out by another account");
+  const after = await json("/api/sessions", authenticated(victim.cookie));
+  assert.equal(after.body.sessions.length, 1, "victim lost a device to another account");
+});

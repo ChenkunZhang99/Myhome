@@ -296,7 +296,6 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_household_stores_household ON household_stores(household_id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_stores_subscription ON household_stores(household_id, source_key)",
   "CREATE INDEX IF NOT EXISTS idx_shopping_items_checked ON shopping_items(checked)",
-  "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_item ON flyer_price_history(item_key, source_key, observed_at)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_deal ON flyer_price_history(deal_id)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_match_rules_pattern ON flyer_match_rules(deal_pattern, active)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_feedback_action_pattern ON flyer_recommendation_feedback(action, item_pattern)",
@@ -535,7 +534,13 @@ const DROPPED_TABLES = ["stores", "recipe_suggestions", "recipe_favorites"];
  * 从 INDEXES 里删掉一行只是以后不再建它，库里已有的那个不会消失。
  * 而 SQLite 不允许删除被索引引用的列——所以删列之前必须先删索引，顺序不能反。
  */
-const DROPPED_INDEXES = ["idx_flyer_deals_store_source", "idx_flyer_price_history_item_store"];
+const DROPPED_INDEXES = [
+  "idx_flyer_deals_store_source",
+  "idx_flyer_price_history_item_store",
+  // Replaced by idx_flyer_price_history_source. Keeping both wastes space and
+  // the old definition used to run before source_key had been added on a new DB.
+  "idx_flyer_price_history_item",
+];
 
 const DROPPED_COLUMNS: Array<{ table: string; column: string }> = [
   { table: "flyer_deals", column: "store_id" },

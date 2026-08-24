@@ -1,0 +1,44 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "home-stock-planner-integration",
+  "main": "../../worker/index.ts",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // This config is local-only. Keeping it below tests/integration also means
+  // Wrangler cannot discover the real project-root .dev.vars file.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "assets": {
+    "directory": "../../public",
+    "binding": "ASSETS"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "home-stock-planner-integration",
+      "database_id": "00000000-0000-4000-8000-000000000001"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "home-stock-planner-integration"
+    }
+  ],
+
+  "vars": {
+    "REQUIRE_HOUSEHOLD": "on",
+    "DEMO_MODE": "off",
+    "OPEN_SIGNUP": "on"
+  },
+
+  // This is a second guard: even if a .dev.vars file is later added beside
+  // this config, no secret is admitted into the integration Worker.
+  "secrets": {
+    "required": []
+  }
+}

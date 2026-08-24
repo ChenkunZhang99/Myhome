@@ -41,6 +41,11 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Starts the real Worker locally with a fresh D1/R2 directory, then sends
+      # HTTP requests through the same routes used in production.
+      - name: HTTP integration test
+        run: pnpm run test:integration
+
       - name: Lint
         run: pnpm run lint
 

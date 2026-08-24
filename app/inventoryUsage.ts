@@ -326,6 +326,35 @@ export function adjustRemaining(item: ConsumableStock, deltaPercent: number): St
 }
 
 /**
+ * 手动调整数量（界面卡片上的 ±）。
+ *
+ * 百分比要跟着动，而且是按满量算的：4 个（满量 4）减 1 个就是 3 个 / 75%。
+ * 以前这里只改数量、百分比原地不动，于是「3 个」还挂着「100%」——
+ * 而这个百分比正是补货推荐用来判断「快用完了没有」的依据，
+ * 不动它等于把一件已经用掉四分之一的东西继续当成满的。
+ *
+ * 加到超过原来的满量时，新的总量就是新的满量（回到 100%）。
+ * 这和 restock 的口径是同一条：「满」的意思就是「现在手上有的全部」。
+ *
+ * 从 0 加起来也一样——空的时候推不出满量，加进来多少就是满量。
+ */
+export function adjustQuantity(item: ConsumableStock, delta: number): StockChange {
+  const quantity = roundQuantity(Number(item.quantity) || 0);
+  const percent = clampPercent(item.remainingPercent);
+  const next = roundQuantity(quantity + (Number(delta) || 0));
+  if (next <= 0) return { quantity: 0, remainingPercent: 0, level: "已用完" };
+
+  const baseline = baselineQuantity(quantity, percent);
+  // 推不出满量（原来是空的），或者已经加过了原来的满量：这次的总量就是新的满量。
+  if (baseline <= 0 || next >= baseline)
+    return { quantity: next, remainingPercent: 100, level: levelFromPercent(100) };
+
+  const nextPercent = clampPercent((next / baseline) * 100, 0);
+  if (nextPercent <= 0) return { quantity: 0, remainingPercent: 0, level: "已用完" };
+  return { quantity: next, remainingPercent: nextPercent, level: levelFromPercent(nextPercent) };
+}
+
+/**
  * 买回来补进已有的那一项。
  *
  * 新买的加到「现在还剩的」上面，然后整体重新算作满量——

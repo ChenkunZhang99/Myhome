@@ -432,3 +432,34 @@ test("和 ±25% 用的是同一个满量，两条路不会互相打架", () => {
   assert.equal(byQuantity.quantity, byPercent.quantity, "减 1 个和减 25% 在满量 4 上应当落到同一处");
   assert.equal(byQuantity.remainingPercent, byPercent.remainingPercent);
 });
+
+/**
+ * 加超过原满量之后，满量本身要跟着变大，后续的减法建立在新满量上。
+ *
+ * 4 个（满量 4）加到 5 个，满量就是 5 了；再减 1 回到 4 个，那是 5 的 80%，
+ * 不是原来那个 100%。这条容易写错成「记住最初的满量 4」，那样减回 4 会报 100%，
+ * 于是加一次再减一次，一件已经被动过的东西又变回「满的」。
+ */
+test("加超过满量之后，满量跟着变大", () => {
+  let item = { quantity: 4, unit: "个", remainingPercent: 100 };
+  const chain = [];
+  const step = (delta) => {
+    const after = adjustQuantity(item, delta);
+    item = { quantity: after.quantity, unit: "个", remainingPercent: after.remainingPercent };
+    chain.push(after.quantity + "/" + after.remainingPercent);
+  };
+  step(1);
+  step(-1);
+  assert.deepEqual(chain, ["5/100", "4/80"], "加到 5 之后满量是 5，减回 4 应当是 80% 而不是 100%");
+});
+
+test("新满量之上一路减到底，比例始终按 5 算", () => {
+  let item = { quantity: 5, unit: "个", remainingPercent: 100 };
+  const chain = [];
+  for (let i = 0; i < 5; i += 1) {
+    const after = adjustQuantity(item, -1);
+    item = { quantity: after.quantity, unit: "个", remainingPercent: after.remainingPercent };
+    chain.push(after.quantity + "/" + after.remainingPercent);
+  }
+  assert.deepEqual(chain, ["4/80", "3/60", "2/40", "1/20", "0/0"]);
+});

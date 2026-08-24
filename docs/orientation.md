@@ -57,7 +57,7 @@ https://home-stock-planner.mm10237207.workers.dev
 
 锚点本身也容易选错：`indexOf("return Response.json({")` 会命中前面的提前返回，`lastIndexOf` 又会命中 catch 里的错误返回。锚要选得够具体。
 
-反过来也要知道它们的**盲区**：没有任何一个测试真的启动服务发 HTTP 请求。它们能防住「有人删掉了那行检查」，防不住「那行检查逻辑本身写错了」。历史上 `storePreset` 只认写死的三家、`consumeInventory` 没传住户、`recipe_preferences` upsert 写错列，全是手工发请求才发现的。**改完关键路径要真的打一次请求。**
+反过来也要知道它们的**盲区**：大多数测试仍是纯函数或源码守卫，能防住「有人删掉了那行检查」，防不住「这行检查逻辑本身写错了」。现在 `tests/integration/` 会启动隔离 Worker，真实覆盖注册、会话、PWA 静态资源和库存跨户隔离，但邀请、附件、注销、Flyer、菜谱和备份仍未覆盖。历史上 `storePreset` 只认写死的三家、`consumeInventory` 没传住户、`recipe_preferences` upsert 写错列，全是手工发请求才发现的。**改完关键路径要真的打一次请求。**
 
 ---
 
@@ -223,15 +223,15 @@ pnpm run release            # build + wrangler deploy
 2. **错误监控** —— 没有 Sentry 之类。陌生人遇到 500，除非正在跑 `wrangler tail` 否则不知道。现有日志已经是结构化 JSON（`scope` 字段），接出去成本很低。
 3. **HTTP 集成覆盖仍然很窄** —— 已有真实服务测试守住注册、会话生命周期和库存跨户隔离，但邀请、附件、注销、Flyer、菜谱和备份还没有走真实 HTTP。
 4. **门店目录只进不出** —— 按邮编搜出来的店永远留着，错地址无处举报。
-5. **PWA manifest** —— 手机不能加到主屏，而这是个「站在超市里用」的应用。
-6. **发信服务未配** —— 没有 `RESEND_API_KEY`，忘记密码 = 永久锁死。界面已经如实说明并隐藏了那个入口。
-7. **JS 渲染 + 不在 Flipp 的门店** 没有任何读取方式覆盖（目前实际数量为 0，先别投入）。
+5. **发信服务未配** —— 没有 `RESEND_API_KEY`，忘记密码 = 永久锁死。界面已经如实说明并隐藏了那个入口。
+6. **JS 渲染 + 不在 Flipp 的门店** 没有任何读取方式覆盖（目前实际数量为 0，先别投入）。
 
 最近关闭：
 
 - **真实 HTTP 测试基础** —— 隔离的本地 D1/R2、身份和跨户库存场景已进入 CI；见 [`audits/001-integration-test-foundation.md`](audits/001-integration-test-foundation.md)。
 - **安全响应头** —— Worker 统一出口已加 CSP、HSTS、X-Frame-Options 等策略；见 [`audits/002-security-headers.md`](audits/002-security-headers.md)。
 - **会话管理** —— 改密码会原子轮换会话，用户可以查看设备并逐个、批量退出；见 [`audits/003-session-management.md`](audits/003-session-management.md)。
+- **PWA 安装基础** —— 加入品牌化 manifest、完整尺寸图标和移动端主题元数据；不缓存登录后的家庭数据；见 [`audits/004-pwa-installability.md`](audits/004-pwa-installability.md)。
 
 ---
 

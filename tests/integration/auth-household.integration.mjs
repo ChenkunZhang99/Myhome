@@ -46,6 +46,34 @@ function authenticated(cookie, init = {}) {
   };
 }
 
+test("PWA manifest and install icons are served over real HTTP", async () => {
+  const documentResponse = await fetch(`${BASE_URL}/`);
+  const document = await documentResponse.text();
+  assert.match(document, /<link[^>]+rel="manifest"[^>]+href="\/manifest\.webmanifest"/);
+  assert.match(document, /<link[^>]+rel="apple-touch-icon"[^>]+href="\/apple-touch-icon\.png"/);
+  assert.match(document, /<meta[^>]+name="theme-color"[^>]+content="#163f33"/);
+
+  const manifestResponse = await fetch(`${BASE_URL}/manifest.webmanifest`);
+  assert.equal(manifestResponse.status, 200);
+  assert.match(
+    manifestResponse.headers.get("content-type") ?? "",
+    /application\/manifest\+json|application\/json/,
+  );
+  const manifest = await manifestResponse.json();
+  assert.equal(manifest.display, "standalone");
+
+  for (const icon of manifest.icons) {
+    const iconResponse = await fetch(`${BASE_URL}${icon.src}`);
+    assert.equal(iconResponse.status, 200, icon.src);
+    assert.match(iconResponse.headers.get("content-type") ?? "", /^image\/png/i, icon.src);
+    const png = Buffer.from(await iconResponse.arrayBuffer());
+    assert.equal(png.subarray(1, 4).toString("ascii"), "PNG", icon.src);
+    const [expectedWidth, expectedHeight] = icon.sizes.split("x").map(Number);
+    assert.equal(png.readUInt32BE(16), expectedWidth, icon.src);
+    assert.equal(png.readUInt32BE(20), expectedHeight, icon.src);
+  }
+});
+
 test("real HTTP requests enforce authentication and household isolation", async () => {
   const document = await fetch(`${BASE_URL}/`);
   assert.equal(document.status, 200);

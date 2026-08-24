@@ -17,6 +17,7 @@ const geistMono = Geist_Mono({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#163f33",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,7 +30,18 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "家里有数｜家庭库存与采购助手",
     description: "查看家庭库存、临期提醒、Flyer 优惠窗口与采购预算。",
-    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    applicationName: "家里有数",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: "家里有数",
+    },
+    icons: {
+      icon: "/favicon.svg",
+      shortcut: "/favicon.svg",
+      apple: "/apple-touch-icon.png",
+    },
     openGraph: {
       title: "家里有数",
       description: "家庭库存、Flyer 优惠与采购计划，都在一处。",

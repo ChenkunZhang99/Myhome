@@ -175,11 +175,19 @@ function money(value: number) {
  * 所以这里只用 last_status + deals_imported 这两个结构化字段自己拼。
  * 只有出错时才回退到服务端消息 —— 那里面通常带着有用的具体原因。
  */
+/**
+ * 状态条上那句话。
+ *
+ * 条数用的是这一户自己看得见的优惠数（mine），不是 sync.dealsImported。
+ * 后者是全局任务的账：同步一次读的是所有被任何人收藏过的门店，
+ * 只订了两家的人会看到「已录入 549 项」，点开列表却只有几十条。
+ */
 function syncMessage(
   sync: SyncSettings,
+  mine: number,
   t: (text: string, vars?: Record<string, string | number>) => string,
 ) {
-  const imported = Number(sync.dealsImported) || 0;
+  const imported = mine;
   switch (sync.lastStatus) {
     case "running":
       return t("正在读取收藏门店 Flyer");
@@ -793,7 +801,7 @@ export function PlannerPanel({
                 {t("自动录入")} {data.syncSettings.enabled ? t("已开启") : t("已暂停")}
               </strong>
               <small>
-                {syncMessage(data.syncSettings, t)} · 上次{" "}
+                {syncMessage(data.syncSettings, data.deals.length, t)} · 上次{" "}
                 {syncTime(data.syncSettings.lastCompletedAt, locale, timeZone, t)}
               </small>
             </p>

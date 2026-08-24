@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { flyerSourceByKey, manualSourceKey } from "../_shared/flyerSources";
-import { getOpenAIConfig } from "../_shared/openai";
+import { getSharedOpenAIConfig } from "../_shared/openai";
 import { areaOf, discoverStores, storesInArea } from "../_shared/storeDiscovery";
 import { resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
@@ -246,7 +246,11 @@ export const POST = withRoute("planner", async (request: Request) => {
      */
     if (type === "discoverStores") {
       const postalCode = cleanText(payload.postalCode, "", 20).toUpperCase();
-      const result = await discoverStores(postalCode, getOpenAIConfig(request, household), household);
+      const result = await discoverStores(
+        postalCode,
+        await getSharedOpenAIConfig(request, household),
+        household,
+      );
       return Response.json(result);
     }
 

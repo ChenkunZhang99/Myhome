@@ -1,6 +1,6 @@
 import { resolveHousehold } from "../../_shared/household";
 import { failure, redact, UserFacingError, withRoute } from "../../_shared/observability";
-import { createOpenAIResponse, getOpenAIConfig } from "../../_shared/openai";
+import { createOpenAIResponse, getSharedOpenAIConfig, missingKeyMessage } from "../../_shared/openai";
 import { cleanGeneratedRecipe, GeneratedRecipe, RECIPE_SCHEMA } from "../../_shared/recipeShape";
 import { isDemoMode } from "../../_shared/demo";
 
@@ -39,7 +39,7 @@ export const POST = withRoute("recipes.draft", async (request: Request) => {
       .slice(0, 2000);
     if (description.length < 4) throw new UserFacingError("描述太短了，多写几个字");
 
-    const openAI = getOpenAIConfig(request, household);
+    const openAI = await getSharedOpenAIConfig(request, household);
     if (isDemoMode(request)) {
       // 演示模式不花钱，返回一个能看出形状的样例，走同一条清洗路径。
       return Response.json({
@@ -58,7 +58,7 @@ export const POST = withRoute("recipes.draft", async (request: Request) => {
         demo: true,
       });
     }
-    if (!openAI.apiKey) throw new UserFacingError("尚未配置 OpenAI 密钥，请在设置里填写后再试", 503);
+    if (!openAI.apiKey) throw new UserFacingError(missingKeyMessage(openAI), 503);
 
     const response = await createOpenAIResponse(
       {

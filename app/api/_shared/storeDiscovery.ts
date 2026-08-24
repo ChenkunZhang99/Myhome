@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { DEFAULT_TIME_ZONE } from "../../dateTime";
-import { createOpenAIResponse, outputText, type OpenAIConfig } from "./openai";
+import { createOpenAIResponse, missingKeyMessage, type OpenAIConfig, outputText } from "./openai";
 import { UserFacingError } from "./observability";
 
 /**
@@ -200,7 +200,7 @@ export async function discoverStores(
   const cached = await storesInArea(area);
   if (cached.length) return { area, stores: cached, fromCache: true };
 
-  if (!openAI.apiKey) throw new UserFacingError("还没有可用的 OpenAI 密钥，请在设置里填上你自己的", 503);
+  if (!openAI.apiKey) throw new UserFacingError(missingKeyMessage(openAI), 503);
 
   const response = await createOpenAIResponse(
     {

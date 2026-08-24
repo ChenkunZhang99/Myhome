@@ -4,7 +4,12 @@ import { householdTimeZone, resolveHousehold } from "../../_shared/household";
 import { isInternalCall } from "../../_shared/internal";
 import { dayIn } from "../../../dateTime";
 import { ensureSchema } from "../../_shared/schema";
-import { createOpenAIResponse, getOpenAIConfig, outputText, type OpenAIConfig } from "../../_shared/openai";
+import {
+  createOpenAIResponse,
+  getSharedOpenAIConfig,
+  outputText,
+  type OpenAIConfig,
+} from "../../_shared/openai";
 import { demoDeals, isDemoMode } from "../../_shared/demo";
 import { fetchFlippFlyers, fetchFlyerDeals, merchantMatches, type FlippFlyer } from "./flipp";
 import { readFlyerImage } from "./visionFlyer";
@@ -336,7 +341,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
 
   try {
     // 定时任务没有浏览器可问，只会拿到环境变量里的密钥；这里两者都覆盖。
-    const openAI = getOpenAIConfig(request, household);
+    const openAI = await getSharedOpenAIConfig(request, household);
     await ensureSchema();
     const scheduled = new URL(request.url).searchParams.get("scheduled") === "1";
     const stores = await env.DB.prepare(

@@ -6,6 +6,7 @@ import {
 } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { INTERNAL_HEADER, internalToken } from "../app/api/_shared/internal";
+import { withSecurityHeaders } from "./securityHeaders";
 
 /** Cloudflare Images is optional; without it images are served unmodified. */
 type ImagesBinding = {
@@ -40,7 +41,7 @@ const worker = {
     if (url.pathname === "/_vinext/image") {
       const images = env.IMAGES;
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
-      return handleImageOptimization(
+      const response = await handleImageOptimization(
         request,
         {
           fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
@@ -57,9 +58,10 @@ const worker = {
         },
         allowedWidths,
       );
+      return withSecurityHeaders(response, request);
     }
 
-    return handler.fetch(request, env, ctx);
+    return withSecurityHeaders(await handler.fetch(request, env, ctx), request);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const request = new Request("https://household.internal/api/flyers/sync?scheduled=1", {

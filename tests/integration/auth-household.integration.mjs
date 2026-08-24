@@ -32,8 +32,17 @@ function authenticated(cookie, init = {}) {
 }
 
 test("real HTTP requests enforce authentication and household isolation", async () => {
+  const document = await fetch(`${BASE_URL}/`);
+  assert.equal(document.status, 200);
+  assert.equal(document.headers.get("x-frame-options"), "DENY");
+  assert.equal(document.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(document.headers.get("strict-transport-security"), "max-age=31536000");
+  assert.match(document.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+  assert.match(document.headers.get("content-security-policy") ?? "", /object-src 'none'/);
+
   const anonymous = await json("/api/inventory");
   assert.equal(anonymous.response.status, 401);
+  assert.equal(anonymous.response.headers.get("x-frame-options"), "DENY");
 
   const first = await register("first");
   const firstAuth = await json("/api/auth", authenticated(first.cookie));

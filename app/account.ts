@@ -22,6 +22,8 @@ export type AccountState = {
    * 所以界面上要如实说清楚，而不是让人对着一个没反应的按钮猜。
    */
   canEmail: boolean;
+  /** 还能白用几次部署者的密钥；没登录时是 null。 */
+  freeCalls: number | null;
 };
 
 export const signedOut: AccountState = {
@@ -30,6 +32,7 @@ export const signedOut: AccountState = {
   hasPassword: false,
   required: false,
   canEmail: false,
+  freeCalls: null,
 };
 
 export async function fetchAccount(): Promise<AccountState> {
@@ -42,6 +45,7 @@ export async function fetchAccount(): Promise<AccountState> {
     hasPassword: Boolean(result.hasPassword),
     required: Boolean(result.required),
     canEmail: Boolean(result.canEmail),
+    freeCalls: typeof result.freeCalls === "number" ? result.freeCalls : null,
   };
 }
 
@@ -118,6 +122,23 @@ export async function redeemLoginToken(token: string) {
   });
   const result = await readJson<Record<string, never>>(response);
   if (!response.ok) throw new Error(result.error || "登录失败");
+}
+
+/**
+ * 注销账号，不可撤销。
+ *
+ * 要把邮箱原样打一遍。服务端会核对，所以这不只是界面上的一道劝阻——
+ * 手改请求也绕不过去。
+ */
+export async function deleteAccount(confirmEmail: string) {
+  const response = await fetch("/api/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "deleteAccount", confirmEmail }),
+  });
+  const result = await readJson<{ purgedHouseholds?: number }>(response);
+  if (!response.ok) throw new Error(result.error || "注销失败");
+  return result.purgedHouseholds ?? 0;
 }
 
 export async function signOut() {

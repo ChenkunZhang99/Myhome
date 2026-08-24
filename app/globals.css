@@ -5806,3 +5806,36 @@ button.item-main:focus-visible {
   font-size: var(--text-2xs);
   white-space: nowrap;
 }
+
+/*
+ * 隐私说明与使用条款的正文。
+ *
+ * 排版按「会被真的读一遍」来做，而不是按「摆在那里应付合规」——
+ * 小标题分段、行距放开，因为里面每一条都是可以被核对的具体说法。
+ */
+.policy-body {
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+  line-height: 1.75;
+  color: var(--ink);
+}
+.policy-body h4 {
+  margin: 14px 0 2px;
+  font-size: var(--text-md);
+}
+.policy-body h4:first-child {
+  margin-top: 0;
+}
+.policy-body p {
+  margin: 0;
+  color: var(--muted);
+}
+.policy-body ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+.policy-body li {
+  margin: 3px 0;
+}

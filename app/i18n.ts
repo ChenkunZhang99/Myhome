@@ -104,6 +104,25 @@ const values: Record<string, string> = {
   上次同步的逐店结果: "How each store read last time",
   "{count} 项": "{count} deals",
   没读到: "nothing read",
+  注销账号: "Delete account",
+  注销失败: "Could not delete the account",
+  "注销之后数据无法恢复。请输入你的邮箱确认：": "Deleting is permanent. Type your email to confirm:",
+  "注销会删掉只有你一个人的家庭及其全部数据、图片和备份；有其他成员的家庭会留给他们。":
+    "Deleting removes any household where you are the only member, along with its data, photos and backups. Households with other members are left to them.",
+  "账号与 {count} 个家庭的数据已删除": "Account deleted, along with {count} household(s)",
+  "账号已注销，你参与的家庭留给了其他成员":
+    "Account deleted. The households you shared are left to the others.",
+  "你还可以免费用 {count} 次，用完之后填上自己的密钥即可继续。":
+    "You have {count} free uses left. Add your own key to keep going afterwards.",
+  "免费次数已经用完，填上自己的密钥即可继续使用这些功能。":
+    "Your free uses are gone. Add your own key to keep using these features.",
+  隐私与条款: "Privacy and terms",
+  隐私: "Privacy",
+  条款: "Terms",
+  隐私说明: "Privacy notice",
+  使用条款: "Terms of use",
+  "这两份说明描述的就是这个应用的实际行为，不是一段模板。":
+    "Both describe what this application actually does, rather than restating a template.",
   网页搜索核验: "Verified via web search",
   "图片识别，到店核对": "Read from a picture — check in store",
   需要确认: "Needs confirmation",

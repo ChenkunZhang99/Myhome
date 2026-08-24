@@ -11,6 +11,7 @@ import {
   signedOut,
   signInWithPassword,
   signOut,
+  deleteAccount,
 } from "./account";
 import { peekStashedInvite } from "./householdAccounts";
 
@@ -139,6 +140,28 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
     }
   }
 
+  async function removeAccount() {
+    // 打一遍邮箱，不是「确定吗」。后者挡不住手滑，而这一步不可撤销。
+    const typed = window.prompt(
+      t("注销之后数据无法恢复。请输入你的邮箱确认：") + ` ${account.email ?? ""}`,
+      "",
+    );
+    if (typed === null) return;
+    setBusy(true);
+    try {
+      const purged = await deleteAccount(typed.trim());
+      notify(
+        purged > 0
+          ? t("账号与 {count} 个家庭的数据已删除", { count: purged })
+          : t("账号已注销，你参与的家庭留给了其他成员"),
+      );
+      window.location.reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("注销失败"));
+      setBusy(false);
+    }
+  }
+
   async function leave() {
     setBusy(true);
     try {
@@ -196,6 +219,15 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
         <div className="modal-actions">
           <button type="button" className="secondary-button danger" disabled={busy} onClick={leave}>
             {t("退出登录")}
+          </button>
+        </div>
+
+        <p className="settings-note">
+          {t("注销会删掉只有你一个人的家庭及其全部数据、图片和备份；有其他成员的家庭会留给他们。")}
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button danger" disabled={busy} onClick={removeAccount}>
+            {t("注销账号")}
           </button>
         </div>
       </div>

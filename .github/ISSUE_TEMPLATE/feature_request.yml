@@ -1,0 +1,36 @@
+name: 提出建议 / Feature request
+description: 说说什么改动会让家庭日常使用更顺手
+title: "[Idea] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        最有帮助的建议通常从一个具体场景开始。这里的内容会公开显示，请不要附上任何家庭隐私。
+  - type: textarea
+    id: situation
+    attributes:
+      label: 你在什么情况下需要它？
+      placeholder: 例如：我站在超市里，想快速知道……
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: 现在你会怎么做？
+      description: 现有流程哪里最麻烦，或者为什么不够用？
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你希望怎么改？
+      description: 不用写技术方案，描述你希望完成的结果即可。
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我没有在这里填写邮箱、家庭成员姓名、库存照片、API 密钥或其他私人信息。
+          required: true

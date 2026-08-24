@@ -1,11 +1,17 @@
+import { env } from "cloudflare:workers";
 import {
   accountByEmail,
+  accountsInHousehold,
+  householdsForUser,
+  ownerCount,
   accountCount,
   clearLoginFailures,
   findOrCreateAccount,
   recordLoginFailure,
   setAccountPassword,
 } from "../_shared/accounts";
+import { purgeHousehold } from "../_shared/dataTransfer";
+import { remainingSharedCalls } from "../_shared/openai";
 import { hasUsableInvite, inviteMatches } from "../_shared/invites";
 import {
   assertPasswordAllowed,
@@ -24,9 +30,10 @@ import {
   purgeExpiredSessions,
   readSession,
   redeemLoginToken,
+  replacePasswordAndRotateSessions,
   revokeSession,
   sessionCookie,
-  SESSION_COOKIE,
+  sessionTokenFromRequest,
 } from "../_shared/session";
 import { canDeliverEmail, deliverLoginLink } from "../_shared/mailer";
 
@@ -43,6 +50,8 @@ export const GET = withRoute("auth", async (request: Request) => {
       required: loginRequired(),
       // 发不出信的时候，「邮箱链接」那个入口不该出现在界面上。
       canEmail: canDeliverEmail(),
+      // 还能白用几次服务端密钥。让人在撞墙之前就看得到，而不是点下去才发现。
+      freeCalls: account ? await remainingSharedCalls(account.householdId) : null,
     });
   } catch (error) {
     return failure("auth", error, "登录状态暂时无法读取", 500);
@@ -63,16 +72,12 @@ export const POST = withRoute("auth", async (request: Request) => {
       email?: string;
       token?: string;
       password?: string | null;
+      confirmEmail?: string;
     };
 
     if (payload.action === "signOut") {
-      const cookie = request.headers.get("cookie") ?? "";
-      const token = cookie
-        .split(";")
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
-        ?.slice(SESSION_COOKIE.length + 1);
-      if (token) await revokeSession(decodeURIComponent(token));
+      const token = sessionTokenFromRequest(request);
+      if (token) await revokeSession(token);
       return Response.json({ ok: true }, { headers: { "Set-Cookie": clearedSessionCookie() } });
     }
 
@@ -80,16 +85,20 @@ export const POST = withRoute("auth", async (request: Request) => {
       const token = String(payload.token ?? "").trim();
       const userId = await redeemLoginToken(token);
       if (!userId) throw new UserFacingError("这个登录链接已经用过或已过期，请重新获取", 401);
-      const session = await issueSessionToken(userId);
+      const session = await issueSessionToken(userId, request);
       return Response.json({ ok: true }, { headers: { "Set-Cookie": sessionCookie(session) } });
     }
 
     if (payload.action === "password") {
-      return await signInWithPassword(payload);
+      return await signInWithPassword(request, payload);
     }
 
     if (payload.action === "register") {
-      return await registerWithPassword(payload);
+      return await registerWithPassword(request, payload);
+    }
+
+    if (payload.action === "deleteAccount") {
+      return await deleteAccount(request, payload);
     }
 
     if (payload.action === "setPassword") {
@@ -97,13 +106,13 @@ export const POST = withRoute("auth", async (request: Request) => {
       // 改密码必须已经登录。没有「凭旧密码改密码」这条路——想改先登录，
       // 密码忘了就走邮箱链接，那条路本来就是重置流程。
       if (!account) throw new UserFacingError("请先登录后再设置密码", 401);
-      if (payload.password === null) {
-        await setAccountPassword(account.id, null);
-        return Response.json({ ok: true, hasPassword: false });
-      }
-      const password = assertPasswordAllowed(payload.password);
-      await setAccountPassword(account.id, await hashPassword(password));
-      return Response.json({ ok: true, hasPassword: true });
+      const passwordHash =
+        payload.password === null ? null : await hashPassword(assertPasswordAllowed(payload.password));
+      const session = await replacePasswordAndRotateSessions(account.id, passwordHash, request);
+      return Response.json(
+        { ok: true, hasPassword: passwordHash !== null },
+        { headers: { "Set-Cookie": sessionCookie(session) } },
+      );
     }
 
     // 默认动作：请求登录链接
@@ -161,7 +170,10 @@ async function assertMayRegister(email: string) {
  * 两步的顺序是有讲究的：先过邀请这一关，再查邮箱在不在。反过来的话，
  * 这个接口对谁都能回答「这个邮箱注册过没有」，成了不要凭据的邮箱枚举器。
  */
-async function registerWithPassword(payload: { email?: string; password?: string | null; invite?: string }) {
+async function registerWithPassword(
+  request: Request,
+  payload: { email?: string; password?: string | null; invite?: string },
+) {
   const email = normalizeEmail(payload.email);
   const password = assertPasswordAllowed(payload.password);
   await assertMayRegister(email);
@@ -171,7 +183,7 @@ async function registerWithPassword(payload: { email?: string; password?: string
   const account = await findOrCreateAccount(email);
   await setAccountPassword(account.id, await hashPassword(password));
   await purgeExpiredSessions();
-  const session = await issueSessionToken(account.id);
+  const session = await issueSessionToken(account.id, request);
   return Response.json({ ok: true }, { headers: { "Set-Cookie": sessionCookie(session) } });
 }
 
@@ -199,6 +211,56 @@ async function assertInviteInHand(email: string, token: string) {
   throw new UserFacingError("请用家里人发给你的那条邀请链接打开页面，再在这里注册", 403);
 }
 
+/**
+ * 注销账号。
+ *
+ * 要求把自己的邮箱原样打一遍才执行。这一步不可撤销，而「确定吗」那种弹窗
+ * 挡不住手滑——打一遍邮箱能让人在动手前真的读一眼自己要删的是哪个账号。
+ *
+ * 每个家分三种情况处理：
+ *  - 只有自己 —— 这个家跟着一起删掉，数据、图片、备份快照全清
+ *  - 还有别人，而自己不是唯一的管理者 —— 只退出，那家的东西留给其他人
+ *  - 还有别人，而自己是唯一的管理者 —— 拒绝，先把管理权交出去
+ *
+ * 第三种情况宁可挡住也不放行：留下一个没有管理者的家，数据还在，
+ * 却谁也改不了设置、再也发不出邀请，那是把一群人锁在里面。
+ */
+async function deleteAccount(request: Request, payload: { confirmEmail?: string }) {
+  const account = await currentAccount(request);
+  if (!account) throw new UserFacingError("请先登录", 401);
+
+  const typed = normalizeEmail(payload.confirmEmail);
+  if (typed !== account.email) throw new UserFacingError("请把你的邮箱完整打一遍，确认要注销", 400);
+
+  const mine = await householdsForUser(account.id);
+  const soloHouseholds: string[] = [];
+  for (const household of mine) {
+    const members = await accountsInHousehold(household.id);
+    if (members.length <= 1) {
+      soloHouseholds.push(household.id);
+      continue;
+    }
+    if (household.role === "owner" && (await ownerCount(household.id)) === 1)
+      throw new UserFacingError(`你是「${household.name}」目前唯一的管理者，先把管理权交给别人再注销`, 400);
+  }
+
+  for (const householdId of soloHouseholds) await purgeHousehold(householdId);
+
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM household_memberships WHERE user_id = ?").bind(account.id),
+    env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(account.id),
+    env.DB.prepare("DELETE FROM household_invites WHERE invited_by = ? AND accepted_at IS NULL").bind(
+      account.id,
+    ),
+    env.DB.prepare("DELETE FROM users WHERE id = ?").bind(account.id),
+  ]);
+
+  return Response.json(
+    { ok: true, purgedHouseholds: soloHouseholds.length },
+    { headers: { "Set-Cookie": clearedSessionCookie() } },
+  );
+}
+
 /** 连续失败几次就锁。5 次是个折中：手滑几次不至于被关在门外，暴力破解又跑不起来。 */
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -209,7 +271,7 @@ const LOCK_MINUTES = 15;
  * 所有失败路径都回同一句话、也都花掉差不多的时间。
  * 分别提示「查无此人」和「密码错误」，等于把这个接口变成邮箱枚举器。
  */
-async function signInWithPassword(payload: { email?: string; password?: string | null }) {
+async function signInWithPassword(request: Request, payload: { email?: string; password?: string | null }) {
   const email = normalizeEmail(payload.email);
   const password = typeof payload.password === "string" ? payload.password : "";
   const rejected = new UserFacingError("邮箱或密码不对", 401);
@@ -240,20 +302,15 @@ async function signInWithPassword(payload: { email?: string; password?: string |
 
   await clearLoginFailures(account.id);
   await purgeExpiredSessions();
-  const session = await issueSessionToken(account.id);
+  const session = await issueSessionToken(account.id, request);
   return Response.json({ ok: true }, { headers: { "Set-Cookie": sessionCookie(session) } });
 }
 
 /** 校验会话是否仍然有效，用于前端在长时间挂起后自查。 */
 export const PATCH = withRoute("auth", async (request: Request) => {
   try {
-    const cookie = request.headers.get("cookie") ?? "";
-    const raw = cookie
-      .split(";")
-      .map((part) => part.trim())
-      .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
-      ?.slice(SESSION_COOKIE.length + 1);
-    const userId = raw ? await readSession(decodeURIComponent(raw)) : null;
+    const raw = sessionTokenFromRequest(request);
+    const userId = raw ? await readSession(raw) : null;
     return Response.json({ valid: Boolean(userId) });
   } catch (error) {
     return failure("auth", error, "登录状态暂时无法校验", 500);

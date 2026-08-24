@@ -4,7 +4,7 @@ import { failure, redact, withRoute } from "../_shared/observability";
 import { householdTimeZone } from "../_shared/household";
 import { dayIn } from "../../dateTime";
 import { ensureSchema } from "../_shared/schema";
-import { createOpenAIResponse, getOpenAIConfig } from "../_shared/openai";
+import { createOpenAIResponse, getSharedOpenAIConfig, missingKeyMessage } from "../_shared/openai";
 import { demoRecipes, isDemoMode } from "../_shared/demo";
 import { cleanGeneratedRecipe as cleanRecipe, GeneratedRecipe, RECIPE_SCHEMA } from "../_shared/recipeShape";
 
@@ -51,14 +51,13 @@ export const POST = withRoute("recipes", async (request: Request) => {
     } catch {
       /* request body is optional */
     }
-    const openAI = getOpenAIConfig(request, household);
+    const openAI = await getSharedOpenAIConfig(request, household);
     if (isDemoMode(request)) {
       // 演示模式不调用模型，返回一组固定的示例菜谱，走和真实结果相同的清洗与入库流程。
       const sample = demoRecipes().map(cleanRecipe);
       return Response.json({ recipes: sample, demo: true });
     }
-    if (!openAI.apiKey)
-      return Response.json({ error: "还没有可用的 OpenAI 密钥，请在设置里填上你自己的" }, { status: 503 });
+    if (!openAI.apiKey) return Response.json({ error: missingKeyMessage(openAI) }, { status: 503 });
     await ensureSchema();
     const today = await localDate(household);
     const inventory = await env.DB.prepare(

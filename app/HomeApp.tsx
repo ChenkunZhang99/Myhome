@@ -17,12 +17,14 @@ import { AppNav, type AppView } from "./AppNav";
 import { ItemScanModal } from "./ItemScanModal";
 import { LoginGate } from "./LoginGate";
 import { LoginLanding } from "./LoginLanding";
+import { OnboardingGuide } from "./OnboardingGuide";
 import { SettingsPanel } from "./SettingsPanel";
 import { locales } from "./i18n";
 import { dayIn, detectTimeZone } from "./dateTime";
 import { Modal } from "./Modal";
 import { readJson } from "./apiClient";
 import { compressImage, formatBytes } from "./imageCompression";
+import { fetchHouseholdAccounts } from "./householdAccounts";
 
 type Precision = "simple" | "quantity" | "exact";
 type InventoryItem = {
@@ -381,8 +383,11 @@ function YmdDateInput({ prefix, label, value }: { prefix: string; label: string;
 export function HomeApp({ view = "overview" }: { view?: AppView }) {
   const { t, tv, tu, fmtNumber, fmtDate, locale, setLocale, demo } = useAppSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideHouseholdId, setGuideHouseholdId] = useState("");
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [inventoryReady, setInventoryReady] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("全部");
@@ -416,6 +421,7 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
       const response = await fetch("/api/inventory", { cache: "no-store" });
       const data = await readJson<{ items?: InventoryItem[] }>(response);
       if (!response.ok) throw new Error(data.error || t("读取失败"));
+      setInventoryReady(true);
       setItems(
         (data.items ?? []).map((item: InventoryItem) => ({
           ...item,
@@ -467,6 +473,7 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
     Boolean(selectedItem) && !selectedItem?.demo && attachments.itemId !== selectedItem?.id;
 
   const showingDemo = !loading && items.length === 0;
+  const newHousehold = showingDemo && inventoryReady;
   const displayItems = showingDemo ? demoItems : items;
   // 打开应用时想知道的是「什么快过期、什么快没了」，不是「我有哪 150 件东西」。
   // 所以默认只展示需要处理的，全部库存收进另一个视图。
@@ -483,6 +490,40 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
       /* localStorage 可能被隐私设置禁用，那就保持展开 */
     }
   }, []);
+
+  useEffect(() => {
+    if (!newHousehold) return;
+    let cancelled = false;
+    void fetchHouseholdAccounts()
+      .then((household) => {
+        if (cancelled || !household.householdId) return;
+        setGuideHouseholdId(household.householdId);
+        try {
+          if (window.localStorage.getItem(`hsp.onboarding.${household.householdId}`) !== "dismissed") {
+            setGuideOpen(true);
+          }
+        } catch {
+          setGuideOpen(true);
+        }
+      })
+      .catch(() => {
+        // 库存已经正常返回才会走到这里；家庭资料偶发失败不该挡住主页面。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [newHousehold]);
+
+  function closeGuide() {
+    if (guideHouseholdId) {
+      try {
+        window.localStorage.setItem(`hsp.onboarding.${guideHouseholdId}`, "dismissed");
+      } catch {
+        /* 私密浏览模式存不住，只影响下次会不会再次自动打开 */
+      }
+    }
+    setGuideOpen(false);
+  }
 
   function toggleRail() {
     setRailed((value) => {
@@ -1004,10 +1045,19 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
                   {showingDemo && (
                     <div className="demo-banner">
                       <div>
-                        <strong>{t("这是一个示例家庭")}</strong>
-                        <span>{t("下面的物品都带有“示例”标记，不会写入你的真实库存。")}</span>
+                        <strong>{newHousehold ? t("这是一个新家庭") : t("这是一个示例家庭")}</strong>
+                        <span>
+                          {newHousehold
+                            ? t("先看看示例；加入第一件真实物品后，它们就会消失。")
+                            : t("下面的物品都带有“示例”标记，不会写入你的真实库存。")}
+                        </span>
                       </div>
-                      <button onClick={() => setShowAdd(true)}>{t("录入第一件真实物品")}</button>
+                      <span className="demo-actions">
+                        {newHousehold && (
+                          <button onClick={() => setGuideOpen(true)}>{t("查看新手指南")}</button>
+                        )}
+                        <button onClick={() => setShowAdd(true)}>{t("录入第一件真实物品")}</button>
+                      </span>
                     </div>
                   )}
 
@@ -1951,6 +2001,20 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
           )}
 
           {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} notify={setToast} />}
+          {guideOpen && newHousehold && (
+            <OnboardingGuide
+              onClose={closeGuide}
+              onAdd={() => setShowAdd(true)}
+              onReceipt={() => {
+                setReceiptDraft(null);
+                setReceiptOpen(true);
+              }}
+              onStores={() => {
+                window.location.assign("/flyers");
+              }}
+              onSettings={() => setSettingsOpen(true)}
+            />
+          )}
         </main>
       </LoginGate>
       {/* 提示条也在门外。挂在门里的话，登录卡片上「密码不对」「邀请无效」这些

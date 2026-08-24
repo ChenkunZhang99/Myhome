@@ -201,8 +201,17 @@ export function findInventoryMatch<T extends InventoryMatchCandidate>(
   return best && best.score >= inventoryMatchThreshold ? best : null;
 }
 
+/**
+ * 数量一律留两位小数，且必须是一个有限的非负数。
+ *
+ * 非有限值要挡在这里而不是靠调用方：Infinity 和 NaN 一旦漏进去，会一路
+ * 渗进百分比换算、界面显示和乐观更新——卡片上会先闪出「Infinity 个」，
+ * 要等服务端回包才纠正回来。
+ */
 function roundQuantity(value: number) {
-  return Number(Math.max(0, value).toFixed(2));
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Number(Math.max(0, number).toFixed(2));
 }
 
 /**
@@ -323,6 +332,35 @@ export function adjustRemaining(item: ConsumableStock, deltaPercent: number): St
   const nextQuantity = baseline > 0 ? roundQuantity((baseline * next) / 100) : quantity;
   if (next <= 0 || nextQuantity <= 0) return { quantity: 0, remainingPercent: 0, level: "已用完" };
   return { quantity: nextQuantity, remainingPercent: next, level: levelFromPercent(next) };
+}
+
+/**
+ * 手动调整数量（界面卡片上的 ±）。
+ *
+ * 百分比要跟着动，而且是按满量算的：4 个（满量 4）减 1 个就是 3 个 / 75%。
+ * 以前这里只改数量、百分比原地不动，于是「3 个」还挂着「100%」——
+ * 而这个百分比正是补货推荐用来判断「快用完了没有」的依据，
+ * 不动它等于把一件已经用掉四分之一的东西继续当成满的。
+ *
+ * 加到超过原来的满量时，新的总量就是新的满量（回到 100%）。
+ * 这和 restock 的口径是同一条：「满」的意思就是「现在手上有的全部」。
+ *
+ * 从 0 加起来也一样——空的时候推不出满量，加进来多少就是满量。
+ */
+export function adjustQuantity(item: ConsumableStock, delta: number): StockChange {
+  const quantity = roundQuantity(Number(item.quantity) || 0);
+  const percent = clampPercent(item.remainingPercent);
+  const next = roundQuantity(quantity + (Number(delta) || 0));
+  if (next <= 0) return { quantity: 0, remainingPercent: 0, level: "已用完" };
+
+  const baseline = baselineQuantity(quantity, percent);
+  // 推不出满量（原来是空的），或者已经加过了原来的满量：这次的总量就是新的满量。
+  if (baseline <= 0 || next >= baseline)
+    return { quantity: next, remainingPercent: 100, level: levelFromPercent(100) };
+
+  const nextPercent = clampPercent((next / baseline) * 100, 0);
+  if (nextPercent <= 0) return { quantity: 0, remainingPercent: 0, level: "已用完" };
+  return { quantity: next, remainingPercent: nextPercent, level: levelFromPercent(nextPercent) };
 }
 
 /**

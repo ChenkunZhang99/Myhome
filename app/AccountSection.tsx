@@ -3,16 +3,56 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useAppSettings } from "./AppSettings";
 import {
+  AccountSession,
   AccountState,
   fetchAccount,
+  fetchSessions,
   registerWithPassword,
   requestLoginLink,
   savePassword,
   signedOut,
   signInWithPassword,
   signOut,
+  deleteAccount,
+  updateSessions,
 } from "./account";
 import { peekStashedInvite } from "./householdAccounts";
+
+function deviceName(userAgent: string, fallback: string) {
+  if (!userAgent) return fallback;
+  const browser = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /Firefox\//.test(userAgent)
+      ? "Firefox"
+      : /Chrome\//.test(userAgent)
+        ? "Chrome"
+        : /Safari\//.test(userAgent)
+          ? "Safari"
+          : "";
+  const system = /iPhone/.test(userAgent)
+    ? "iPhone"
+    : /iPad/.test(userAgent)
+      ? "iPad"
+      : /Android/.test(userAgent)
+        ? "Android"
+        : /Windows/.test(userAgent)
+          ? "Windows"
+          : /Macintosh/.test(userAgent)
+            ? "Mac"
+            : "";
+  return [browser, system].filter(Boolean).join(" · ") || fallback;
+}
+
+function sessionTime(value: string, locale: "zh" | "en") {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(locale === "en" ? "en-CA" : "zh-CN", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 /**
  * 账号区块。
@@ -33,7 +73,7 @@ import { peekStashedInvite } from "./householdAccounts";
  * 这样 clone 下来的人不需要真实邮箱也能走完整个流程。
  */
 export function AccountSection({ notify }: { notify: (message: string) => void }) {
-  const { t } = useAppSettings();
+  const { t, locale } = useAppSettings();
   const [account, setAccount] = useState<AccountState>(signedOut);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,12 +83,27 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
   const [method, setMethod] = useState<"register" | "password" | "link">("password");
   const [confirm, setConfirm] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [sessions, setSessions] = useState<AccountSession[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
 
   useEffect(() => {
     // 令牌兑换由 LoginLanding 负责——它始终挂载，而这个面板只在用户点开时才存在。
     let cancelled = false;
-    void fetchAccount().then((state) => {
-      if (!cancelled) setAccount(state);
+    void fetchAccount().then(async (state) => {
+      if (cancelled) return;
+      setAccount(state);
+      if (!state.signedIn) {
+        setSessionsLoaded(true);
+        return;
+      }
+      try {
+        const active = await fetchSessions();
+        if (!cancelled) setSessions(active);
+      } catch {
+        if (!cancelled) setSessions([]);
+      } finally {
+        if (!cancelled) setSessionsLoaded(true);
+      }
     });
     return () => {
       cancelled = true;
@@ -117,8 +172,9 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
     try {
       const has = await savePassword(newPassword);
       setAccount((state) => ({ ...state, hasPassword: has }));
+      setSessions(await fetchSessions());
       setNewPassword("");
-      notify(t("密码已保存"));
+      notify(t("密码已保存，其他设备已退出"));
     } catch (error) {
       notify(error instanceof Error ? error.message : t("密码保存失败"));
     } finally {
@@ -131,10 +187,33 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
     try {
       await savePassword(null);
       setAccount((state) => ({ ...state, hasPassword: false }));
-      notify(t("已改为只用邮箱链接登录"));
+      setSessions(await fetchSessions());
+      notify(t("已改为只用邮箱链接登录，其他设备已退出"));
     } catch (error) {
       notify(error instanceof Error ? error.message : t("密码保存失败"));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeAccount() {
+    // 打一遍邮箱，不是「确定吗」。后者挡不住手滑，而这一步不可撤销。
+    const typed = window.prompt(
+      t("注销之后数据无法恢复。请输入你的邮箱确认：") + ` ${account.email ?? ""}`,
+      "",
+    );
+    if (typed === null) return;
+    setBusy(true);
+    try {
+      const purged = await deleteAccount(typed.trim());
+      notify(
+        purged > 0
+          ? t("账号与 {count} 个家庭的数据已删除", { count: purged })
+          : t("账号已注销，你参与的家庭留给了其他成员"),
+      );
+      window.location.reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("注销失败"));
       setBusy(false);
     }
   }
@@ -148,6 +227,44 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
       // 数据是按住户取的，退出后必须重新拉，否则页面上还留着上一个人的东西。
       window.location.reload();
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeDevice(sessionId: string) {
+    setBusy(true);
+    try {
+      await updateSessions("revoke", sessionId);
+      setSessions(await fetchSessions());
+      notify(t("该设备已退出"));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("登录设备更新失败"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeOthers() {
+    setBusy(true);
+    try {
+      await updateSessions("revokeOthers");
+      setSessions(await fetchSessions());
+      notify(t("其他设备已退出"));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("登录设备更新失败"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeAll() {
+    setBusy(true);
+    try {
+      await updateSessions("revokeAll");
+      notify(t("所有设备已退出"));
+      window.location.reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : t("登录设备更新失败"));
       setBusy(false);
     }
   }
@@ -193,9 +310,73 @@ export function AccountSection({ notify }: { notify: (message: string) => void }
           </div>
         </form>
 
+        <div className="password-block">
+          <strong>{t("登录设备")}</strong>
+          <p className="settings-note">
+            {t("这里只列出仍然有效的登录。发现不认识的设备，可以单独让它退出。")}
+          </p>
+          {!sessionsLoaded ? (
+            <p className="settings-note">{t("正在读取登录设备…")}</p>
+          ) : sessions.length ? (
+            <ul className="member-list">
+              {sessions.map((session) => (
+                <li key={session.id}>
+                  <span className="member-who">
+                    <b>
+                      {deviceName(session.userAgent, t("未知设备"))}
+                      {session.current ? ` · ${t("当前设备")}` : ""}
+                    </b>
+                    <small>
+                      {t("最近使用：{time}", {
+                        time: sessionTime(session.lastSeenAt || session.createdAt, locale),
+                      })}
+                    </small>
+                  </span>
+                  {!session.current && (
+                    <span className="member-actions">
+                      <button
+                        type="button"
+                        className="danger"
+                        disabled={busy}
+                        onClick={() => revokeDevice(session.id)}
+                      >
+                        {t("退出")}
+                      </button>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="settings-note warn">{t("登录设备暂时无法读取，请稍后再试。")}</p>
+          )}
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy || sessions.filter((session) => !session.current).length === 0}
+              onClick={revokeOthers}
+            >
+              {t("退出其他设备")}
+            </button>
+            <button type="button" className="secondary-button danger" disabled={busy} onClick={revokeAll}>
+              {t("退出所有设备")}
+            </button>
+          </div>
+        </div>
+
         <div className="modal-actions">
           <button type="button" className="secondary-button danger" disabled={busy} onClick={leave}>
             {t("退出登录")}
+          </button>
+        </div>
+
+        <p className="settings-note">
+          {t("注销会删掉只有你一个人的家庭及其全部数据、图片和备份；有其他成员的家庭会留给他们。")}
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button danger" disabled={busy} onClick={removeAccount}>
+            {t("注销账号")}
           </button>
         </div>
       </div>

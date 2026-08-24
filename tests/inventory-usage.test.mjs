@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  adjustQuantity,
   adjustRemaining,
   isMeasurableUnit,
   restock,
@@ -361,4 +362,200 @@ test("推不出满量时不要凭空造一个重量", () => {
   const after = adjustRemaining(broken, 25);
   assert.ok(Number.isFinite(after.quantity), "数量必须是有限数");
   assert.equal(after.quantity, 5, "推不出满量就别动数量");
+});
+
+/**
+ * 卡片上的 ± 改的是数量，但百分比必须跟着按满量走。
+ *
+ * 以前只改数量：4 个减 1 变成「3 个 · 100%」。而这个百分比正是补货推荐
+ * 判断「快用完了没有」的依据——不动它，等于把一件已经用掉四分之一的东西
+ * 继续当成满的，永远不会提醒你补货。
+ */
+
+test("4 个减到 3 个，百分比跟着变成 75%", () => {
+  const after = adjustQuantity({ quantity: 4, remainingPercent: 100 }, -1);
+  assert.equal(after.quantity, 3);
+  assert.equal(after.remainingPercent, 75);
+});
+
+test("一路减下去，每一步都还认得同一个满量", () => {
+  let item = { quantity: 4, remainingPercent: 100 };
+  const steps = [];
+  for (let i = 0; i < 4; i += 1) {
+    const after = adjustQuantity(item, -1);
+    steps.push(after.quantity + "/" + after.remainingPercent);
+    item = { quantity: after.quantity, remainingPercent: after.remainingPercent };
+  }
+  assert.deepEqual(
+    steps,
+    ["3/75", "2/50", "1/25", "0/0"],
+    "每一步都要从当前的数量和百分比反推回同一个满量 4，否则会越算越偏",
+  );
+});
+
+test("加回原来的满量就是 100%", () => {
+  const after = adjustQuantity({ quantity: 3, remainingPercent: 75 }, 1);
+  assert.equal(after.quantity, 4);
+  assert.equal(after.remainingPercent, 100);
+});
+
+test("加过了原来的满量，新的总量就是新的满量", () => {
+  const after = adjustQuantity({ quantity: 4, remainingPercent: 100 }, 1);
+  assert.equal(after.quantity, 5);
+  assert.equal(after.remainingPercent, 100, "「满」的意思就是现在手上有的全部，和 restock 同一口径");
+});
+
+test("从空的加起来，加进来多少就是满量", () => {
+  const after = adjustQuantity({ quantity: 0, remainingPercent: 0 }, 1);
+  assert.equal(after.quantity, 1);
+  assert.equal(after.remainingPercent, 100);
+  assert.equal(after.level, "充足");
+});
+
+test("减到 0 就是已用完", () => {
+  const after = adjustQuantity({ quantity: 1, remainingPercent: 25 }, -1);
+  assert.equal(after.quantity, 0);
+  assert.equal(after.remainingPercent, 0);
+  assert.equal(after.level, "已用完");
+});
+
+test("可量单位按同一个满量算：2kg 50% 的满量是 4kg", () => {
+  const after = adjustQuantity({ quantity: 2, unit: "kg", remainingPercent: 50 }, -0.1);
+  assert.equal(after.quantity, 1.9);
+  assert.equal(after.remainingPercent, 48, "1.9 ÷ 4 = 47.5%，取整 48");
+});
+
+test("和 ±25% 用的是同一个满量，两条路不会互相打架", () => {
+  const start = { quantity: 4, remainingPercent: 100 };
+  const byQuantity = adjustQuantity(start, -1);
+  const byPercent = adjustRemaining(start, -25);
+  assert.equal(byQuantity.quantity, byPercent.quantity, "减 1 个和减 25% 在满量 4 上应当落到同一处");
+  assert.equal(byQuantity.remainingPercent, byPercent.remainingPercent);
+});
+
+/**
+ * 加超过原满量之后，满量本身要跟着变大，后续的减法建立在新满量上。
+ *
+ * 4 个（满量 4）加到 5 个，满量就是 5 了；再减 1 回到 4 个，那是 5 的 80%，
+ * 不是原来那个 100%。这条容易写错成「记住最初的满量 4」，那样减回 4 会报 100%，
+ * 于是加一次再减一次，一件已经被动过的东西又变回「满的」。
+ */
+test("加超过满量之后，满量跟着变大", () => {
+  let item = { quantity: 4, unit: "个", remainingPercent: 100 };
+  const chain = [];
+  const step = (delta) => {
+    const after = adjustQuantity(item, delta);
+    item = { quantity: after.quantity, unit: "个", remainingPercent: after.remainingPercent };
+    chain.push(after.quantity + "/" + after.remainingPercent);
+  };
+  step(1);
+  step(-1);
+  assert.deepEqual(chain, ["5/100", "4/80"], "加到 5 之后满量是 5，减回 4 应当是 80% 而不是 100%");
+});
+
+test("新满量之上一路减到底，比例始终按 5 算", () => {
+  let item = { quantity: 5, unit: "个", remainingPercent: 100 };
+  const chain = [];
+  for (let i = 0; i < 5; i += 1) {
+    const after = adjustQuantity(item, -1);
+    item = { quantity: after.quantity, unit: "个", remainingPercent: after.remainingPercent };
+    chain.push(after.quantity + "/" + after.remainingPercent);
+  }
+  assert.deepEqual(chain, ["4/80", "3/60", "2/40", "1/20", "0/0"]);
+});
+
+/**
+ * 边界输入。这些不是假想出来的：百分比越界、数量为负、步长是 NaN
+ * 都可能来自旧数据行、手改的请求，或者某条还没被想到的调用路径。
+ * 这一层出问题的表现是「界面上冒出一个荒唐的数字」，而不是报错。
+ */
+
+const finiteAndConsistent = (result) => {
+  assert.ok(Number.isFinite(result.quantity), "数量必须是有限数，得到 " + result.quantity);
+  assert.ok(Number.isFinite(result.remainingPercent), "百分比必须是有限数");
+  assert.ok(result.quantity >= 0, "数量不能为负");
+  assert.ok(result.remainingPercent >= 0 && result.remainingPercent <= 100, "百分比必须在 0–100");
+  assert.ok(
+    !(result.quantity > 0 && result.remainingPercent === 0),
+    "有数量却 0%——卡片会显示「5 个」配一条空余量条",
+  );
+  assert.ok(!(result.quantity === 0 && result.remainingPercent > 0), "0 数量却有百分比");
+};
+
+test("脏输入不会产出荒唐结果", () => {
+  const dirty = [
+    { quantity: NaN, remainingPercent: 100 },
+    { quantity: undefined, remainingPercent: 100 },
+    { quantity: -3, remainingPercent: 100 },
+    { quantity: 4, remainingPercent: NaN },
+    { quantity: 4, remainingPercent: 150 },
+    { quantity: 4, remainingPercent: -20 },
+    { quantity: "4", remainingPercent: 100 },
+  ];
+  for (const item of dirty) {
+    finiteAndConsistent(adjustQuantity(item, -1));
+    finiteAndConsistent(adjustQuantity(item, 1));
+    finiteAndConsistent(adjustRemaining(item, -25));
+    finiteAndConsistent(adjustRemaining(item, 25));
+  }
+});
+
+test("步长是脏值时原地不动，不会算出 Infinity", () => {
+  const item = { quantity: 4, remainingPercent: 100 };
+  for (const delta of [NaN, undefined, Infinity, -Infinity, 0]) {
+    const after = adjustQuantity(item, delta);
+    finiteAndConsistent(after);
+  }
+  assert.equal(
+    adjustQuantity(item, Infinity).quantity,
+    0,
+    "Infinity 会一路渗进界面，卡片上先闪出「Infinity 个」再等服务端纠正",
+  );
+});
+
+test("−25% 再 +25% 回得到原点，反复来回也不漂移", () => {
+  for (const start of [
+    { quantity: 4, unit: "个", remainingPercent: 100 },
+    { quantity: 3, unit: "包", remainingPercent: 60 },
+    { quantity: 2, unit: "kg", remainingPercent: 50 },
+    { quantity: 1, unit: "瓶", remainingPercent: 100 },
+  ]) {
+    let item = start;
+    for (let i = 0; i < 20; i += 1) {
+      const down = adjustRemaining(item, -25);
+      const up = adjustRemaining({ ...item, ...down }, 25);
+      item = { ...start, quantity: up.quantity, remainingPercent: up.remainingPercent };
+    }
+    assert.equal(item.quantity, start.quantity, "二十轮加减之后数量漂移了");
+    assert.equal(item.remainingPercent, start.remainingPercent, "二十轮加减之后百分比漂移了");
+  }
+});
+
+test("补货对脏输入原地不动", () => {
+  const item = { quantity: 2, remainingPercent: 50 };
+  for (const add of [NaN, undefined, -5, 0]) {
+    const after = restock(item, add);
+    assert.equal(after.quantity, 2, "补一个无效的量不该改动数量");
+    assert.equal(after.remainingPercent, 50, "更不该把百分比重置成 100");
+  }
+});
+
+/**
+ * 写入端也要守住同一条不变式。
+ *
+ * 纯函数守得再好也没用——数量和百分比在 API 里一度是分开验的，
+ * { quantity: 5, remainingPercent: 0 } 能直接存进库。而编辑表单里这两个字段
+ * 本来就是分别填的，把数量改成 0 却没动百分比，存下来就是那种行。
+ */
+test("库存写入端把数量和百分比对齐", async () => {
+  const route = await readFile(new URL("../app/api/inventory/route.ts", import.meta.url), "utf8");
+  assert.ok(route.includes("function reconcileStock"), "没有把两个字段对齐的地方");
+  const calls = route.split("reconcileStock(").length - 1;
+  assert.ok(calls >= 3, "POST 和 PATCH 两条写入路径都要过它，找到 " + (calls - 1) + " 处调用");
+  const at = route.indexOf("function reconcileStock");
+  const body = route.slice(at, route.indexOf(String.fromCharCode(10) + "}", at));
+  assert.ok(
+    body.includes("quantity <= 0 || remainingPercent <= 0"),
+    "两个方向都要管：5 个配 0%，和 0 个配 100%，都是矛盾的",
+  );
 });

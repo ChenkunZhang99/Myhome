@@ -149,6 +149,62 @@ export async function replaceHousehold(householdId: string, payload: unknown) {
 }
 
 /**
+ * 把一个家的全部数据抹掉。
+ *
+ * 删的是这户在每一张租户表里的行——EXPORTED_TABLES 就是「一个家拥有什么」
+ * 的定义，导出用它，注销也用它，两边不会各记一份而慢慢走散。
+ *
+ * R2 里的图片跟着一起删：那是这个家上传的字节，人走了还留着既是在计费，
+ * 也仍然可以被 object key 直接取到。
+ */
+export async function purgeHousehold(householdId: string) {
+  const attachments = await env.DB.prepare(
+    `SELECT object_key AS objectKey FROM inventory_attachments WHERE household_id = ?1
+     UNION SELECT object_key FROM recipe_attachments WHERE household_id = ?1`,
+  )
+    .bind(householdId)
+    .all<{ objectKey: string }>();
+  const keys = (attachments.results ?? []).map((row) => row.objectKey).filter(Boolean);
+  // 先删字节再删记录：反过来的话记录没了，字节就成了没人知道的孤儿。
+  if (keys.length) await env.UPLOADS.delete(keys);
+
+  // 手工添加的门店有一条只属于这一户的来源，跟着一起清。必须赶在下面清空
+  // household_stores 之前把它们捞出来，那之后就查不到了。
+  // 预设门店和按邮编搜出来的是全局目录，别的家还在用，不能碰。
+  const manual = await env.DB.prepare(
+    "SELECT source_key AS sourceKey FROM household_stores WHERE household_id = ? AND source_key LIKE 'manual-%'",
+  )
+    .bind(householdId)
+    .all<{ sourceKey: string }>();
+  for (const { sourceKey } of manual.results ?? []) {
+    await env.DB.batch([
+      // 元数据先删：它靠 deal_id 指过来，优惠没了它就成了孤儿。
+      env.DB.prepare(
+        "DELETE FROM flyer_deal_metadata WHERE deal_id IN (SELECT id FROM flyer_deals WHERE source_key = ?)",
+      ).bind(sourceKey),
+      env.DB.prepare("DELETE FROM flyer_price_history WHERE source_key = ?").bind(sourceKey),
+      env.DB.prepare("DELETE FROM flyer_deals WHERE source_key = ?").bind(sourceKey),
+      env.DB.prepare("DELETE FROM flyer_sources WHERE source_key = ?").bind(sourceKey),
+      env.DB.prepare("DELETE FROM flyer_source_areas WHERE source_key = ?").bind(sourceKey),
+    ]);
+  }
+
+  for (const table of [...EXPORTED_TABLES].reverse())
+    await env.DB.prepare(`DELETE FROM ${table} WHERE household_id = ?`).bind(householdId).run();
+
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM household_invites WHERE household_id = ?").bind(householdId),
+    env.DB.prepare("DELETE FROM household_memberships WHERE household_id = ?").bind(householdId),
+    env.DB.prepare("DELETE FROM households WHERE id = ?").bind(householdId),
+    env.DB.prepare("DELETE FROM ai_quota WHERE household_id = ?").bind(householdId),
+  ]);
+
+  // 自动备份也要清掉，否则「我删了账号」之后 R2 里还躺着这个家的完整快照。
+  const snapshots = await env.UPLOADS.list({ prefix: `backups/${householdId}/` });
+  for (const object of snapshots.objects) await env.UPLOADS.delete(object.key);
+}
+
+/**
  * 合并导入：只收库存，其余表忽略。
  *
  * 为什么只收库存：跨表的记录彼此用 id 相互引用（评分指向菜谱、历史指向物品）。

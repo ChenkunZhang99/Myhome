@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "家里有数 · 家庭库存与采购助手",
+  "short_name": "家里有数",
+  "description": "查看家庭库存、临期提醒、Flyer 优惠窗口与采购预算。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f2eb",
+  "theme_color": "#163f33",
+  "categories": ["lifestyle", "shopping", "food"],
+  "icons": [
+    {
+      "src": "/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

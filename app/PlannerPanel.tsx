@@ -114,6 +114,15 @@ type NearbyStore = {
   flyerFormat: string;
   cached: boolean;
 };
+/**
+ * 一次同步里，某一家门店读成了什么样。
+ *
+ * 服务端一直在返回这个数组，前端却只取了聚合的 imported/message 两个字段，
+ * 整个数组被扔掉——收藏五家店、四家一直读不出来，用户只会看到
+ * 「已录入 18 项优惠」，永远不知道是哪四家、为什么。
+ */
+type StoreSyncResult = { store: string; status: string; imported: number; message: string };
+
 type PlannerData = {
   /** 当前邮编所在的片区（加拿大 FSA，邮编前三位）。 */
   area?: string;
@@ -239,11 +248,19 @@ function demoNearbyPicks(timeZone: string): NearbyPick[] {
  * 所以这里只用 last_status + deals_imported 这两个结构化字段自己拼。
  * 只有出错时才回退到服务端消息 —— 那里面通常带着有用的具体原因。
  */
+/**
+ * 状态条上那句话。
+ *
+ * 条数用的是这一户自己看得见的优惠数（mine），不是 sync.dealsImported。
+ * 后者是全局任务的账：同步一次读的是所有被任何人收藏过的门店，
+ * 只订了两家的人会看到「已录入 549 项」，点开列表却只有几十条。
+ */
 function syncMessage(
   sync: SyncSettings,
+  mine: number,
   t: (text: string, vars?: Record<string, string | number>) => string,
 ) {
-  const imported = Number(sync.dealsImported) || 0;
+  const imported = mine;
   switch (sync.lastStatus) {
     case "running":
       return t("正在读取收藏门店 Flyer");
@@ -378,6 +395,8 @@ export function PlannerPanel({
   const [areaCode, setAreaCode] = useState("");
   const [finding, setFinding] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  // 上一次同步的逐店结果。只在本次会话里有意义，不落库。
+  const [syncReport, setSyncReport] = useState<StoreSyncResult[]>([]);
   const autoSyncing = useRef(false);
 
   async function load() {
@@ -496,8 +515,13 @@ export function PlannerPanel({
     setSyncing(true);
     try {
       const response = await fetch("/api/flyers/sync", { method: "POST", headers: withAiHeaders() });
-      const result = await readJson<{ imported?: number; message?: string }>(response);
+      const result = await readJson<{
+        imported?: number;
+        message?: string;
+        stores?: StoreSyncResult[];
+      }>(response);
       if (!response.ok) throw new Error(result.error || t("Flyer 自动同步失败"));
+      setSyncReport(result.stores ?? []);
       const imported = result.imported ?? 0;
       if (!silent || imported > 0)
         notify(result.message || t("已自动录入 {count} 项优惠", { count: imported }));
@@ -915,7 +939,7 @@ export function PlannerPanel({
                 {t("自动录入")} {data.syncSettings.enabled ? t("已开启") : t("已暂停")}
               </strong>
               <small>
-                {syncMessage(data.syncSettings, t)} · 上次{" "}
+                {syncMessage(data.syncSettings, data.deals.length, t)} · 上次{" "}
                 {syncTime(data.syncSettings.lastCompletedAt, locale, timeZone, t)}
               </small>
             </p>
@@ -961,6 +985,21 @@ export function PlannerPanel({
             <i />
           </button>
         </div>
+        {syncReport.length > 0 && (
+          <ul className="sync-report" aria-label={t("上次同步的逐店结果")}>
+            {syncReport.map((entry) => (
+              <li key={entry.store} className={entry.status === "ok" ? "ok" : "failed"}>
+                <span className="sync-report-store">
+                  <b>{entry.store}</b>
+                  <small>{entry.message}</small>
+                </span>
+                <span className="sync-report-count">
+                  {entry.status === "ok" ? t("{count} 项", { count: entry.imported }) : t("没读到")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {/*
           原来这里是写死的三家 Lougheed 门店，不管用户住在哪都显示同样的三家。
           现在按邮编搜：结果进全局目录并按片区索引，同一片区的下一个人直接命中，

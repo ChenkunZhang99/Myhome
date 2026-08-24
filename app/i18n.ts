@@ -101,6 +101,28 @@ const values: Record<string, string> = {
   // 核验来源
   官方结构化核验: "Verified from structured feed",
   官方来源核验: "Verified from official page",
+  上次同步的逐店结果: "How each store read last time",
+  "{count} 项": "{count} deals",
+  没读到: "nothing read",
+  注销账号: "Delete account",
+  注销失败: "Could not delete the account",
+  "注销之后数据无法恢复。请输入你的邮箱确认：": "Deleting is permanent. Type your email to confirm:",
+  "注销会删掉只有你一个人的家庭及其全部数据、图片和备份；有其他成员的家庭会留给他们。":
+    "Deleting removes any household where you are the only member, along with its data, photos and backups. Households with other members are left to them.",
+  "账号与 {count} 个家庭的数据已删除": "Account deleted, along with {count} household(s)",
+  "账号已注销，你参与的家庭留给了其他成员":
+    "Account deleted. The households you shared are left to the others.",
+  "你还可以免费用 {count} 次，用完之后填上自己的密钥即可继续。":
+    "You have {count} free uses left. Add your own key to keep going afterwards.",
+  "免费次数已经用完，填上自己的密钥即可继续使用这些功能。":
+    "Your free uses are gone. Add your own key to keep using these features.",
+  隐私与条款: "Privacy and terms",
+  隐私: "Privacy",
+  条款: "Terms",
+  隐私说明: "Privacy notice",
+  使用条款: "Terms of use",
+  "这两份说明描述的就是这个应用的实际行为，不是一段模板。":
+    "Both describe what this application actually does, rather than restating a template.",
   网页搜索核验: "Verified via web search",
   "图片识别，到店核对": "Read from a picture — check in store",
   需要确认: "Needs confirmation",
@@ -819,8 +841,28 @@ const ui: Record<string, string> = {
   保存密码: "Save password",
   取消密码: "Remove password",
   密码已保存: "Password saved",
+  "密码已保存，其他设备已退出": "Password saved. Other devices have been signed out.",
   密码保存失败: "Could not save the password",
   已改为只用邮箱链接登录: "Switched to email-link sign-in only",
+  "已改为只用邮箱链接登录，其他设备已退出":
+    "Switched to email-link sign-in only. Other devices have been signed out.",
+  登录设备: "Signed-in devices",
+  "这里只列出仍然有效的登录。发现不认识的设备，可以单独让它退出。":
+    "Only active sessions are listed. Sign out any device you do not recognize.",
+  "正在读取登录设备…": "Loading signed-in devices…",
+  "登录设备暂时无法读取，请稍后再试。": "Signed-in devices could not be loaded. Try again later.",
+  未知设备: "Unknown device",
+  当前设备: "This device",
+  "最近使用：{time}": "Last active: {time}",
+  退出: "Sign out",
+  退出其他设备: "Sign out other devices",
+  退出所有设备: "Sign out all devices",
+  该设备已退出: "That device has been signed out",
+  其他设备已退出: "Other devices have been signed out",
+  所有设备已退出: "All devices have been signed out",
+  登录设备更新失败: "Could not update signed-in devices",
+  "登录设备：保存浏览器的 User-Agent、登录时间和最近使用时间，供你撤销旧会话。":
+    "Signed-in devices: browser User-Agent, sign-in time, and last-active time are stored so you can revoke old sessions.",
   "至少 8 位": "At least 8 characters",
   "第一次来请点「注册」；忘了密码走「邮箱链接」。":
     "New here? Use Sign up. Forgot your password? Use Email link.",
@@ -833,6 +875,34 @@ const ui: Record<string, string> = {
   收起侧边栏: "Collapse sidebar",
   展开侧边栏: "Expand sidebar",
   返回首页: "Back to overview",
+  反馈与建议: "Feedback",
+  报告问题: "Report a problem",
+  提出建议: "Suggest an improvement",
+  "遇到问题或想到更顺手的做法，可以直接在项目的公开问题区告诉我们。":
+    "If something goes wrong or you have an idea, tell us in the project's public issue tracker.",
+  "反馈是公开的。请先遮住姓名、邮箱、小票、照片和其他家庭隐私。":
+    "Feedback is public. Remove names, email addresses, receipts, photos, and other household details first.",
+  第一次使用: "Getting started",
+  三步把这个家建起来: "Set up this household in three steps",
+  "不用一次录完整个家。先加入最常用、最容易忘买或最容易过期的东西，之后边用边补。":
+    "You do not need to catalog everything at once. Start with frequently used, easy-to-forget, or perishable items and add more as you go.",
+  先录一批真实库存: "Add your first real stock",
+  "东西少就手动添加；刚买完一大袋时，直接拍小票更快。":
+    "Add a few items by hand, or scan a receipt after a larger shop.",
+  收藏真正会去的门店: "Save the stores you actually visit",
+  "填好地区并收藏常去门店后，Flyer 推荐才会只看与你有关的优惠。":
+    "Set your area and save regular stores so flyer suggestions only use relevant deals.",
+  去设置门店: "Set up stores",
+  按需补全家庭设置: "Finish household settings when needed",
+  "可以邀请家人、设置语言和 AI；这些都不是开始记录库存的前置条件。":
+    "You can invite family, change language, and configure AI later. None of that blocks inventory tracking.",
+  打开家庭设置: "Open household settings",
+  "遇到不清楚或不好用的地方？": "Something unclear or awkward?",
+  告诉我们: "Tell us",
+  这是一个新家庭: "This is a new household",
+  "先看看示例；加入第一件真实物品后，它们就会消失。":
+    "Explore the samples first. They disappear after you add the first real item.",
+  查看新手指南: "View setup guide",
   家里有数: "Home Stock",
   "搜索家里的物品…": "Search your items…",
   预算记录: "Budget",

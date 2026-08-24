@@ -10,6 +10,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "test": "pnpm run build && node --test \"tests/**/*.test.mjs\"",
+    "test:integration": "node scripts/run-integration-tests.mjs",
     "types": "wrangler types",
     "typecheck": "wrangler types && tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",

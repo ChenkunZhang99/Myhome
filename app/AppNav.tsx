@@ -3,6 +3,7 @@
 import { Icon } from "./Icon";
 import { HouseholdSwitcher } from "./HouseholdSwitcher";
 import { useAppSettings } from "./AppSettings";
+import { FEEDBACK_HUB_URL } from "./feedback";
 
 export type AppView = "overview" | "inventory" | "flyers" | "recipes" | "budget";
 
@@ -65,6 +66,17 @@ export function AppNav({
         <a href="/#budget" className="nav-item" aria-label={t("家庭设置")} title={t("家庭设置")}>
           <Icon name="settings" />
           <span className="nav-label">{t("家庭设置")}</span>
+        </a>
+        <a
+          className="nav-item"
+          href={FEEDBACK_HUB_URL}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={t("反馈与建议")}
+          title={t("反馈与建议")}
+        >
+          <Icon name="feedback" />
+          <span className="nav-label">{t("反馈与建议")}</span>
         </a>
         <HouseholdSwitcher notify={notify} />
       </aside>

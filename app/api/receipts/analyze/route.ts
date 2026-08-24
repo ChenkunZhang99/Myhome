@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { resolveHousehold } from "../../_shared/household";
 import { failure, withRoute } from "../../_shared/observability";
 import { householdTimeZone } from "../../_shared/household";
-import { createOpenAIResponse, getOpenAIConfig } from "../../_shared/openai";
+import { createOpenAIResponse, getSharedOpenAIConfig, missingKeyMessage } from "../../_shared/openai";
 import { demoReceipt, isDemoMode } from "../../_shared/demo";
 
 const categories = [
@@ -139,9 +139,8 @@ export const POST = withRoute("receipts.analyze", async (request: Request) => {
   try {
     const household = await resolveHousehold(request);
     const demo = isDemoMode(request);
-    const openAI = getOpenAIConfig(request, household);
-    if (!demo && !openAI.apiKey)
-      return Response.json({ error: "还没有可用的 OpenAI 密钥，请在设置里填上你自己的" }, { status: 503 });
+    const openAI = await getSharedOpenAIConfig(request, household);
+    if (!demo && !openAI.apiKey) return Response.json({ error: missingKeyMessage(openAI) }, { status: 503 });
     const form = await request.formData();
     const file = form.get("receipt");
     const preferredCategory = String(form.get("preferredCategory") ?? "").trim();

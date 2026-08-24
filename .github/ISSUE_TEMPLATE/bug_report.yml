@@ -1,0 +1,51 @@
+name: 报告问题 / Bug report
+description: 告诉我们哪里没有按预期工作
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢你帮忙改进“家里有数”。这里的内容会公开显示，请不要上传邮箱、小票、家庭成员姓名、库存照片、API 密钥或其他私人信息。
+  - type: textarea
+    id: happened
+    attributes:
+      label: 发生了什么？
+      description: 请写清你做了什么、看到了什么，以及原本希望看到什么。
+      placeholder: 我点击……之后，页面……；我原本希望……
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 如何重现？
+      description: 如果每次都会发生，请列出最短步骤。
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 看到……
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: 使用的设备
+      options:
+        - iPhone / iPad
+        - Android 手机或平板
+        - Windows 电脑
+        - Mac
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: 浏览器
+      placeholder: 例如 Safari、Chrome、Edge
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已删除或遮住邮箱、小票、家庭成员姓名、照片、API 密钥和其他私人信息。
+          required: true

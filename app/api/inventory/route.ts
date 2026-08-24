@@ -25,6 +25,24 @@ function cleanText(value: unknown, fallback = "", max = 120) {
   return typeof value === "string" ? value.trim().slice(0, max) : fallback;
 }
 
+/**
+ * 数量和百分比必须对「空了没有」说同一句话。
+ *
+ * 这两个值一直是分开验的：数量夹到 >= 0，百分比夹到 0–100，谁也不看谁。
+ * 于是 { quantity: 5, remainingPercent: 0 } 和 { quantity: 0, remainingPercent: 100 }
+ * 都能存进库——卡片上会出现「5 个」配一条空的余量条，旁边还挂着「已用完」。
+ *
+ * 这不是假想出来的输入：编辑表单里这两个字段是分别填的，把数量改成 0
+ * 却没动百分比，存下来就是这种行。
+ *
+ * 只在这里收口，是因为所有写入路径（表单、卡片上的 ±、小票确认、做菜扣减、
+ * 数据导入）最后都要过 POST/PATCH 这两道门。
+ */
+function reconcileStock(quantity: number, remainingPercent: number) {
+  if (quantity <= 0 || remainingPercent <= 0) return { quantity: 0, remainingPercent: 0 };
+  return { quantity, remainingPercent };
+}
+
 function resolvedLevel(quantity: number, requested: string, previous = "充足") {
   if (quantity <= 0) return "已用完";
   if (requested && requested !== "已用完") return requested;
@@ -93,8 +111,10 @@ export const POST = withRoute("inventory", async (request: Request) => {
     }
 
     await ensureSchema();
-    const quantity = Number.isFinite(payload.quantity) ? Math.max(0, Number(payload.quantity)) : 1;
-    const remainingPercent = clampPercent(payload.remainingPercent);
+    const { quantity, remainingPercent } = reconcileStock(
+      Number.isFinite(payload.quantity) ? Math.max(0, Number(payload.quantity)) : 1,
+      clampPercent(payload.remainingPercent),
+    );
     const item = {
       id: crypto.randomUUID(),
       name,
@@ -167,15 +187,14 @@ export const PATCH = withRoute("inventory", async (request: Request) => {
       .first<InventoryPayload & { id: string; quantity: number; remainingPercent: number; level: string }>();
     if (!existing) return Response.json({ error: "物品不存在" }, { status: 404 });
 
-    const quantity = Number.isFinite(payload.quantity)
-      ? Math.max(0, Number(payload.quantity))
-      : Number(existing.quantity);
     const requestedLevel =
       payload.level === undefined ? existing.level : cleanText(payload.level, existing.level);
-    const remainingPercent =
+    const { quantity, remainingPercent } = reconcileStock(
+      Number.isFinite(payload.quantity) ? Math.max(0, Number(payload.quantity)) : Number(existing.quantity),
       payload.remainingPercent === undefined
         ? clampPercent(existing.remainingPercent)
-        : clampPercent(payload.remainingPercent);
+        : clampPercent(payload.remainingPercent),
+    );
     const item = {
       id,
       name: payload.name === undefined ? existing.name! : cleanText(payload.name),

@@ -1,13 +1,16 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { AccountSection } from "./AccountSection";
 import { DataSection } from "./DataSection";
+import { fetchAccount, signedOut, type AccountState } from "./account";
+import { PolicySection } from "./PolicySection";
 import { HouseholdSection } from "./HouseholdSection";
 import { useAppSettings } from "./AppSettings";
 import { Modal } from "./Modal";
 import { clearAiSettings, isUsableKey, maskKey, readAiSettings, writeAiSettings } from "./aiSettings";
 import { localeLabels, locales } from "./i18n";
+import { BUG_REPORT_URL, FEATURE_REQUEST_URL } from "./feedback";
 
 /**
  * 账号、语言切换与自带密钥设置。
@@ -25,6 +28,17 @@ export function SettingsPanel({
   // 这个面板只在用户点开后才渲染（不参与服务端渲染），所以可以直接惰性读取本地设置。
   const [draftModel, setDraftModel] = useState(() => readAiSettings().model);
   const usable = isUsableKey(ai.apiKey);
+  // 免费额度只在打开设置时问一次；它不影响任何判断，纯粹是让人心里有数。
+  const [account, setAccount] = useState<AccountState>(signedOut);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAccount().then((state) => {
+      if (!cancelled) setAccount(state);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,6 +62,25 @@ export function SettingsPanel({
       <AccountSection notify={notify} />
       <HouseholdSection notify={notify} />
       <DataSection notify={notify} />
+      <PolicySection />
+
+      <div className="settings-section">
+        <strong>{t("反馈与建议")}</strong>
+        <p className="settings-note">
+          {t("遇到问题或想到更顺手的做法，可以直接在项目的公开问题区告诉我们。")}
+        </p>
+        <div className="feedback-links">
+          <a href={BUG_REPORT_URL} target="_blank" rel="noreferrer">
+            {t("报告问题")} ↗
+          </a>
+          <a href={FEATURE_REQUEST_URL} target="_blank" rel="noreferrer">
+            {t("提出建议")} ↗
+          </a>
+        </div>
+        <p className="settings-note warn">
+          {t("反馈是公开的。请先遮住姓名、邮箱、小票、照片和其他家庭隐私。")}
+        </p>
+      </div>
 
       <div className="settings-section">
         <strong>{t("语言")}</strong>
@@ -73,6 +106,15 @@ export function SettingsPanel({
             "小票识别、Flyer 自动读取和菜谱生成需要 OpenAI 密钥。密钥只保存在这台设备的浏览器里，每次请求直接发给本站后端转发，服务端不会存储或显示它。",
           )}
         </p>
+        {!usable && account.freeCalls !== null && (
+          <p className={account.freeCalls > 0 ? "settings-note" : "settings-note warn"}>
+            {account.freeCalls > 0
+              ? t("你还可以免费用 {count} 次，用完之后填上自己的密钥即可继续。", {
+                  count: account.freeCalls,
+                })
+              : t("免费次数已经用完，填上自己的密钥即可继续使用这些功能。")}
+          </p>
+        )}
         {/* 存了一个形状不对的值时不能显示「已配置」——那正是这次的问题：
             界面说已配置，实际每次调用都在报 ISO-8859-1 的错。 */}
         <div className={usable ? "settings-status ok" : "settings-status"}>

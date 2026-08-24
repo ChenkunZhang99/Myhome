@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { flyerSourceByKey, manualSourceKey } from "../_shared/flyerSources";
-import { getOpenAIConfig } from "../_shared/openai";
+import { getSharedOpenAIConfig } from "../_shared/openai";
 import { areaOf, discoverStores, storesInArea } from "../_shared/storeDiscovery";
 import { resolveHousehold } from "../_shared/household";
 import { failure, withRoute } from "../_shared/observability";
@@ -77,10 +77,11 @@ export const GET = withRoute("planner", async (request: Request) => {
       LEFT JOIN flyer_deal_metadata metadata ON metadata.deal_id = flyer_deals.id
       LEFT JOIN flyer_price_history history ON history.item_key = metadata.item_key
         AND history.source_key = flyer_deals.source_key
+      WHERE flyer_deals.valid_to >= ?2
       GROUP BY flyer_deals.id
       ORDER BY flyer_deals.valid_to ASC, flyer_deals.created_at DESC`,
     )
-      .bind(household)
+      .bind(household, await todayDate(household))
       .all();
     const syncSettings = await env.DB.prepare(
       `SELECT enabled, interval_hours AS intervalHours,
@@ -245,7 +246,11 @@ export const POST = withRoute("planner", async (request: Request) => {
      */
     if (type === "discoverStores") {
       const postalCode = cleanText(payload.postalCode, "", 20).toUpperCase();
-      const result = await discoverStores(postalCode, getOpenAIConfig(request, household), household);
+      const result = await discoverStores(
+        postalCode,
+        await getSharedOpenAIConfig(request, household),
+        household,
+      );
       return Response.json(result);
     }
 

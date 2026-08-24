@@ -55,8 +55,9 @@ test("内部调用靠进程内随机令牌区分，不是靠查询参数", async
   // 那是定义位置不是执行顺序，拿它比会误判。
   const body = sync.slice(sync.indexOf("export const POST"));
   const gate = body.indexOf("isInternalCall(request)");
-  // 只认函数名：签名以后还会变（比如加住户参数），带上参数列表会让这条断言假失败。
-  const readsKey = body.indexOf("getOpenAIConfig(");
+  // 只认名字的后半段：前缀会变（getOpenAIConfig → getSharedOpenAIConfig），
+  // 而这条断言关心的是「有没有在闸门之前去拿密钥」，不是它叫什么。
+  const readsKey = body.indexOf("OpenAIConfig(");
   assert.ok(gate !== -1, "缺少内部调用判断");
   assert.ok(gate < readsKey, "闸门必须排在读取密钥、开始干活之前");
 });

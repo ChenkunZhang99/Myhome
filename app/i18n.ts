@@ -780,8 +780,28 @@ const ui: Record<string, string> = {
   保存密码: "Save password",
   取消密码: "Remove password",
   密码已保存: "Password saved",
+  "密码已保存，其他设备已退出": "Password saved. Other devices have been signed out.",
   密码保存失败: "Could not save the password",
   已改为只用邮箱链接登录: "Switched to email-link sign-in only",
+  "已改为只用邮箱链接登录，其他设备已退出":
+    "Switched to email-link sign-in only. Other devices have been signed out.",
+  登录设备: "Signed-in devices",
+  "这里只列出仍然有效的登录。发现不认识的设备，可以单独让它退出。":
+    "Only active sessions are listed. Sign out any device you do not recognize.",
+  "正在读取登录设备…": "Loading signed-in devices…",
+  "登录设备暂时无法读取，请稍后再试。": "Signed-in devices could not be loaded. Try again later.",
+  未知设备: "Unknown device",
+  当前设备: "This device",
+  "最近使用：{time}": "Last active: {time}",
+  退出: "Sign out",
+  退出其他设备: "Sign out other devices",
+  退出所有设备: "Sign out all devices",
+  该设备已退出: "That device has been signed out",
+  其他设备已退出: "Other devices have been signed out",
+  所有设备已退出: "All devices have been signed out",
+  登录设备更新失败: "Could not update signed-in devices",
+  "登录设备：保存浏览器的 User-Agent、登录时间和最近使用时间，供你撤销旧会话。":
+    "Signed-in devices: browser User-Agent, sign-in time, and last-active time are stored so you can revoke old sessions.",
   "至少 8 位": "At least 8 characters",
   "第一次来请点「注册」；忘了密码走「邮箱链接」。":
     "New here? Use Sign up. Forgot your password? Use Email link.",

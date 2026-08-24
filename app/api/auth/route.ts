@@ -30,9 +30,10 @@ import {
   purgeExpiredSessions,
   readSession,
   redeemLoginToken,
+  replacePasswordAndRotateSessions,
   revokeSession,
   sessionCookie,
-  SESSION_COOKIE,
+  sessionTokenFromRequest,
 } from "../_shared/session";
 import { canDeliverEmail, deliverLoginLink } from "../_shared/mailer";
 
@@ -75,13 +76,8 @@ export const POST = withRoute("auth", async (request: Request) => {
     };
 
     if (payload.action === "signOut") {
-      const cookie = request.headers.get("cookie") ?? "";
-      const token = cookie
-        .split(";")
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
-        ?.slice(SESSION_COOKIE.length + 1);
-      if (token) await revokeSession(decodeURIComponent(token));
+      const token = sessionTokenFromRequest(request);
+      if (token) await revokeSession(token);
       return Response.json({ ok: true }, { headers: { "Set-Cookie": clearedSessionCookie() } });
     }
 
@@ -89,16 +85,16 @@ export const POST = withRoute("auth", async (request: Request) => {
       const token = String(payload.token ?? "").trim();
       const userId = await redeemLoginToken(token);
       if (!userId) throw new UserFacingError("这个登录链接已经用过或已过期，请重新获取", 401);
-      const session = await issueSessionToken(userId);
+      const session = await issueSessionToken(userId, request);
       return Response.json({ ok: true }, { headers: { "Set-Cookie": sessionCookie(session) } });
     }
 
     if (payload.action === "password") {
-      return await signInWithPassword(payload);
+      return await signInWithPassword(request, payload);
     }
 
     if (payload.action === "register") {
-      return await registerWithPassword(payload);
+      return await registerWithPassword(request, payload);
     }
 
     if (payload.action === "deleteAccount") {
@@ -110,13 +106,13 @@ export const POST = withRoute("auth", async (request: Request) => {
       // 改密码必须已经登录。没有「凭旧密码改密码」这条路——想改先登录，
       // 密码忘了就走邮箱链接，那条路本来就是重置流程。
       if (!account) throw new UserFacingError("请先登录后再设置密码", 401);
-      if (payload.password === null) {
-        await setAccountPassword(account.id, null);
-        return Response.json({ ok: true, hasPassword: false });
-      }
-      const password = assertPasswordAllowed(payload.password);
-      await setAccountPassword(account.id, await hashPassword(password));
-      return Response.json({ ok: true, hasPassword: true });
+      const passwordHash =
+        payload.password === null ? null : await hashPassword(assertPasswordAllowed(payload.password));
+      const session = await replacePasswordAndRotateSessions(account.id, passwordHash, request);
+      return Response.json(
+        { ok: true, hasPassword: passwordHash !== null },
+        { headers: { "Set-Cookie": sessionCookie(session) } },
+      );
     }
 
     // 默认动作：请求登录链接
@@ -174,7 +170,10 @@ async function assertMayRegister(email: string) {
  * 两步的顺序是有讲究的：先过邀请这一关，再查邮箱在不在。反过来的话，
  * 这个接口对谁都能回答「这个邮箱注册过没有」，成了不要凭据的邮箱枚举器。
  */
-async function registerWithPassword(payload: { email?: string; password?: string | null; invite?: string }) {
+async function registerWithPassword(
+  request: Request,
+  payload: { email?: string; password?: string | null; invite?: string },
+) {
   const email = normalizeEmail(payload.email);
   const password = assertPasswordAllowed(payload.password);
   await assertMayRegister(email);
@@ -184,7 +183,7 @@ async function registerWithPassword(payload: { email?: string; password?: string
   const account = await findOrCreateAccount(email);
   await setAccountPassword(account.id, await hashPassword(password));
   await purgeExpiredSessions();
-  const session = await issueSessionToken(account.id);
+  const session = await issueSessionToken(account.id, request);
   return Response.json({ ok: true }, { headers: { "Set-Cookie": sessionCookie(session) } });
 }
 
@@ -272,7 +271,7 @@ const LOCK_MINUTES = 15;
  * 所有失败路径都回同一句话、也都花掉差不多的时间。
  * 分别提示「查无此人」和「密码错误」，等于把这个接口变成邮箱枚举器。
  */
-async function signInWithPassword(payload: { email?: string; password?: string | null }) {
+async function signInWithPassword(request: Request, payload: { email?: string; password?: string | null }) {
   const email = normalizeEmail(payload.email);
   const password = typeof payload.password === "string" ? payload.password : "";
   const rejected = new UserFacingError("邮箱或密码不对", 401);
@@ -303,20 +302,15 @@ async function signInWithPassword(payload: { email?: string; password?: string |
 
   await clearLoginFailures(account.id);
   await purgeExpiredSessions();
-  const session = await issueSessionToken(account.id);
+  const session = await issueSessionToken(account.id, request);
   return Response.json({ ok: true }, { headers: { "Set-Cookie": sessionCookie(session) } });
 }
 
 /** 校验会话是否仍然有效，用于前端在长时间挂起后自查。 */
 export const PATCH = withRoute("auth", async (request: Request) => {
   try {
-    const cookie = request.headers.get("cookie") ?? "";
-    const raw = cookie
-      .split(";")
-      .map((part) => part.trim())
-      .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
-      ?.slice(SESSION_COOKIE.length + 1);
-    const userId = raw ? await readSession(decodeURIComponent(raw)) : null;
+    const raw = sessionTokenFromRequest(request);
+    const userId = raw ? await readSession(raw) : null;
     return Response.json({ valid: Boolean(userId) });
   } catch (error) {
     return failure("auth", error, "登录状态暂时无法校验", 500);

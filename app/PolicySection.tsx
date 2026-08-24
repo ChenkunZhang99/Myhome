@@ -43,6 +43,7 @@ export function PolicySection() {
               <li>{t("你录入的内容：库存、采购记录、菜谱、购物清单、家庭成员称呼。")}</li>
               <li>{t("你上传的图片：小票与物品照片，存放在 Cloudflare R2。")}</li>
               <li>{t("会话凭据：HttpOnly cookie，60 天有效，浏览器脚本读不到。")}</li>
+              <li>{t("登录设备：保存浏览器的 User-Agent、登录时间和最近使用时间，供你撤销旧会话。")}</li>
             </ul>
 
             <h4>{t("谁看得见")}</h4>

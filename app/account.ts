@@ -114,6 +114,33 @@ export async function savePassword(password: string | null) {
   return Boolean(result.hasPassword);
 }
 
+export type AccountSession = {
+  id: string;
+  userAgent: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  current: boolean;
+};
+
+export async function fetchSessions() {
+  const response = await fetch("/api/sessions");
+  const result = await readJson<{ sessions?: AccountSession[] }>(response);
+  if (!response.ok) throw new Error(result.error || "登录设备读取失败");
+  return Array.isArray(result.sessions) ? result.sessions : [];
+}
+
+export async function updateSessions(action: "revoke" | "revokeOthers" | "revokeAll", sessionId?: string) {
+  const response = await fetch("/api/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, sessionId }),
+  });
+  const result = await readJson<{ signedOut?: boolean }>(response);
+  if (!response.ok) throw new Error(result.error || "登录设备更新失败");
+  return Boolean(result.signedOut);
+}
+
 export async function redeemLoginToken(token: string) {
   const response = await fetch("/api/auth", {
     method: "POST",

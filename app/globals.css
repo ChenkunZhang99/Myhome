@@ -5538,6 +5538,11 @@ button.item-main:focus-visible {
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
+.password-block > strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--text-sm);
+}
 
 /* 家庭成员列表。每行左边是谁，右边是能对他做什么。 */
 .member-list {

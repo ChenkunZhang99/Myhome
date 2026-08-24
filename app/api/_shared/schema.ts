@@ -109,10 +109,13 @@ const TABLES = [
   )`,
   `CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     kind TEXT NOT NULL DEFAULT 'session',
     expires_at TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_agent TEXT NOT NULL DEFAULT ''
   )`,
   `CREATE TABLE IF NOT EXISTS household_settings (
     id INTEGER PRIMARY KEY DEFAULT 1,
@@ -316,6 +319,7 @@ const INDEXES = [
 const INDEXES_ON_ADDED_COLUMNS = [
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)",
   "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_id ON sessions(session_id)",
   "CREATE INDEX IF NOT EXISTS idx_household_invites_household ON household_invites(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_household_invites_expiry ON household_invites(expires_at)",
   "CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at)",
@@ -364,6 +368,24 @@ const DISCOVERY_COLUMNS: Array<{ table: string; column: string; ddl: string }> =
  */
 const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfill?: string }> = [
   ...DISCOVERY_COLUMNS,
+  {
+    table: "sessions",
+    column: "session_id",
+    ddl: "ALTER TABLE sessions ADD COLUMN session_id TEXT",
+    backfill:
+      "UPDATE sessions SET session_id = lower(hex(randomblob(16))) WHERE session_id IS NULL OR session_id = ''",
+  },
+  {
+    table: "sessions",
+    column: "last_seen_at",
+    ddl: "ALTER TABLE sessions ADD COLUMN last_seen_at TEXT",
+    backfill: "UPDATE sessions SET last_seen_at = created_at WHERE last_seen_at IS NULL",
+  },
+  {
+    table: "sessions",
+    column: "user_agent",
+    ddl: "ALTER TABLE sessions ADD COLUMN user_agent TEXT NOT NULL DEFAULT ''",
+  },
   {
     table: "inventory_items",
     column: "purchase_date",

@@ -160,6 +160,7 @@ const TABLES = [
     source TEXT NOT NULL DEFAULT 'manual',
     source_url TEXT NOT NULL DEFAULT '',
     source_fingerprint TEXT,
+    source_key TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS flyer_sync_settings (
@@ -197,6 +198,7 @@ const TABLES = [
     package_unit TEXT NOT NULL DEFAULT '',
     valid_from TEXT NOT NULL,
     valid_to TEXT NOT NULL,
+    source_key TEXT NOT NULL DEFAULT '',
     observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS flyer_match_rules (
@@ -216,6 +218,7 @@ const TABLES = [
     action TEXT NOT NULL,
     note TEXT NOT NULL DEFAULT '',
     household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}',
+    source_key TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS shopping_items (
@@ -288,9 +291,7 @@ const INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_purchase_records_name ON purchase_records(name)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_deals_valid_to ON flyer_deals(valid_to)",
   "CREATE INDEX IF NOT EXISTS idx_household_stores_household ON household_stores(household_id)",
-  "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_stores_subscription ON household_stores(household_id, source_key)",
   "CREATE INDEX IF NOT EXISTS idx_shopping_items_checked ON shopping_items(checked)",
-  "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_item ON flyer_price_history(item_key, source_key, observed_at)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_deal ON flyer_price_history(deal_id)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_match_rules_pattern ON flyer_match_rules(deal_pattern, active)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_feedback_action_pattern ON flyer_recommendation_feedback(action, item_pattern)",
@@ -328,6 +329,7 @@ const INDEXES_ON_ADDED_COLUMNS = [
   "CREATE INDEX IF NOT EXISTS idx_purchase_records_household ON purchase_records(household_id, purchase_date)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_deals_source ON flyer_deals(source_key, valid_to)",
   "CREATE INDEX IF NOT EXISTS idx_flyer_price_history_source ON flyer_price_history(item_key, source_key, observed_at)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_stores_subscription ON household_stores(household_id, source_key)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_household_settings_household ON household_settings(household_id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_recipe_preferences_household ON recipe_preferences(household_id)",
   "CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id)",
@@ -422,7 +424,7 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; ddl: string; backfil
     column: "household_id",
     ddl: `ALTER TABLE ${table} ADD COLUMN household_id TEXT NOT NULL DEFAULT '${DEFAULT_HOUSEHOLD_ID}'`,
   })),
-  ...["flyer_deals", "flyer_price_history", "flyer_recommendation_feedback"].map((table) => ({
+  ...["flyer_deals", "flyer_price_history", "flyer_recommendation_feedback", "household_stores"].map((table) => ({
     // flyer 数据改为挂在「来源」上而不是某一户的门店行上，同一份优惠所有人共享。
     table,
     column: "source_key",

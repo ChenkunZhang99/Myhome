@@ -16,7 +16,7 @@ const HOLDERS = "selectedItem|item|deal|selectedDeal|recipe|selectedRecipe|entry
 // 排除三种非显示位置：`=` 属性值、`(` 已包在 tv() 里、`$` 模板插值（多用于 React key）
 const DISPLAY_FIELD = new RegExp(`(^|[^=($\\w])\\{(?:${HOLDERS})\\.(?:${FIELDS})\\}`, "g");
 
-const FILES = ["app/page.tsx", "app/PlannerPanel.tsx", "app/RecipeWorkspace.tsx"];
+const FILES = ["app/HomeApp.tsx", "app/PlannerPanel.tsx", "app/RecipeWorkspace.tsx"];
 
 test("stored Chinese values always go through tv() before display", () => {
   const offenders = [];

@@ -4,6 +4,8 @@ import {
   buildFlyerPurchasePlan,
   daysToExpiry,
   estimateDaysLeft,
+  isOverviewNearbyPick,
+  overviewNearbyInterest,
   packagePrice,
   recommendFlyerDeals,
 } from "../app/flyerRecommendations.ts";
@@ -315,4 +317,30 @@ test("到期天数按传入的那一天算，不看设备时钟", () => {
   assert.equal(daysToExpiry(item, "2026-08-18"), 0, "当天到期是 0 不是 1");
   assert.equal(daysToExpiry(item, "2026-08-20"), -2, "过期了要给负数");
   assert.equal(daysToExpiry({ ...item, expiryDate: null }, "2026-08-15"), undefined);
+});
+
+test("总览附近模块只收历史低价或接近低价，并且是家里正缺的东西", () => {
+  assert.equal(
+    isOverviewNearbyPick({ priceSignal: "historical-low", kind: "targeted", tier: "must" }),
+    true,
+  );
+  assert.equal(
+    isOverviewNearbyPick({ priceSignal: "below-average", kind: "substitute", tier: "recommended" }),
+    true,
+  );
+  assert.equal(
+    isOverviewNearbyPick({ priceSignal: "historical-low", kind: "category", tier: "opportunity" }),
+    false,
+    "纯大类机会不应出现在总览附近卡片上",
+  );
+  assert.equal(
+    isOverviewNearbyPick({ priceSignal: "normal", kind: "targeted", tier: "must" }),
+    false,
+    "不是低价就不要占总览",
+  );
+  assert.equal(overviewNearbyInterest({ kind: "targeted", matchedLevel: "偏少" }), "偏少");
+  assert.equal(
+    overviewNearbyInterest({ kind: "substitute", matchedItemName: "洗碗球" }),
+    "可替代家里的洗碗球",
+  );
 });

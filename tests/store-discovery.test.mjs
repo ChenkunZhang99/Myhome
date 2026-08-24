@@ -56,6 +56,13 @@ test("入库一律 OR IGNORE / DO NOTHING，重复搜不会写坏已有的行", 
   assert.ok(fn.includes("ON CONFLICT(area, source_key) DO NOTHING"), "片区索引没有做成幂等");
 });
 
+test("搜索范围限制在 5 公里以内", () => {
+  const fn = functionBody(discovery, "function prompt");
+  assert.ok(fn.includes("5 公里"), "提示词没有把范围收在 5 公里内");
+  const check = functionBody(discovery, "function validate");
+  assert.ok(check.includes("distanceKm > 5"), "超过 5 公里的店没有被丢掉");
+});
+
 test("每一条搜索结果都要过 validate", () => {
   const fn = functionBody(discovery, "export async function discoverStores");
   assert.ok(fn.includes("validate(raw)"), "模型返回的结果被直接入库了");

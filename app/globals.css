@@ -82,6 +82,7 @@ button {
   font-weight: 750;
   padding: 0 8px 34px;
   cursor: pointer;
+  text-decoration: none;
 }
 .brand-mark {
   width: 34px;
@@ -112,6 +113,7 @@ button {
   text-align: left;
   cursor: pointer;
   transition: 0.2s ease;
+  text-decoration: none;
 }
 .nav-item:hover,
 .nav-item.active {
@@ -323,6 +325,10 @@ button {
   border: 1px solid #c9d8cf;
   background: white;
   color: var(--green);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .secondary-button:hover {
   background: #f4faf6;
@@ -484,6 +490,9 @@ h3 {
   grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr);
   gap: 18px;
 }
+.main-grid.single {
+  grid-template-columns: 1fr;
+}
 .left-column,
 .right-column {
   display: grid;
@@ -541,6 +550,9 @@ h3 {
   font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 .text-button span {
   margin-left: 4px;
@@ -1232,6 +1244,77 @@ h3 {
   color: var(--muted);
   font-size: var(--text-2xs);
   line-height: 1.4;
+}
+.nearby-picks-lead {
+  margin: 0 0 10px;
+}
+.nearby-picks {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.nearby-pick {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #dce5de;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #fbfdfb, #f4f8f5);
+}
+.nearby-pick.demo {
+  background: linear-gradient(135deg, #fffdf8, #faf6ea);
+  border-color: #eadfca;
+}
+.nearby-pick-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.nearby-pick-top span {
+  color: var(--green);
+  font-size: var(--text-2xs);
+  font-weight: 850;
+  letter-spacing: 0.04em;
+}
+.nearby-pick > strong {
+  font-size: var(--text-sm);
+}
+.nearby-pick > small {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}
+.nearby-pick-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.nearby-pick-price b {
+  font-size: var(--text-md);
+}
+.nearby-pick-price s {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}
+.nearby-pick-price em {
+  color: var(--green);
+  font-size: var(--text-2xs);
+  font-style: normal;
+  font-weight: 750;
+}
+.nearby-pick-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--ink);
+  font-size: var(--text-2xs);
+  font-weight: 750;
+}
+.nearby-pick-meta span:last-child {
+  color: var(--muted);
+  font-weight: 650;
 }
 /*
  * 按邮编找超市。原来这一块是写死的三家 Lougheed 门店，
@@ -2564,7 +2647,8 @@ h3 {
     grid-template-columns: repeat(5, 1fr);
     padding: 7px 10px env(safe-area-inset-bottom);
   }
-  .mobile-nav button {
+  .mobile-nav button,
+  .mobile-nav a {
     border: 0;
     background: transparent;
     display: grid;
@@ -2573,6 +2657,10 @@ h3 {
     gap: 2px;
     color: var(--muted);
     font-size: var(--text-xs);
+    text-decoration: none;
+  }
+  .mobile-nav a.active {
+    color: var(--green);
   }
   .mobile-nav button span {
     font-size: var(--text-lg);
@@ -3201,7 +3289,8 @@ h3 {
   .shopping-panel {
     grid-column: span 6;
   }
-  .flyer-sources {
+  .flyer-sources,
+  .nearby-picks {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -3224,6 +3313,7 @@ h3 {
     font-size: var(--text-3xl);
   }
   .flyer-sources,
+  .nearby-picks,
   .recommendation-list,
   .deal-list,
   .smart-recipe-list {
@@ -5691,6 +5781,85 @@ button.item-main:focus-visible {
  * 做成一整条可点的横幅而不是一个小链接：一件件手填是这个应用最劝退的地方，
  * 而这条捷径只有被看见才有用。
  */
+.scan-hints {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.scan-hints .scan-hint {
+  margin-bottom: 0;
+}
+.scan-quality {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+}
+.scan-quality strong {
+  font-size: var(--text-md);
+}
+.scan-quality span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.scan-choice-list,
+.scan-confirm-list {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.scan-choice,
+.scan-confirm {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fbfaf6;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.scan-choice.skipped {
+  opacity: 0.55;
+}
+.scan-keep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.scan-reason {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+.scan-options {
+  display: grid;
+  gap: 8px;
+}
+.scan-option {
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  text-align: left;
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+}
+.scan-option.active {
+  border-color: var(--green);
+  background: #eaf3ee;
+  box-shadow: inset 3px 0 var(--green);
+}
+.scan-option small {
+  color: var(--muted);
+}
+.scan-date-guesses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 .scan-hint {
   width: 100%;
   display: flex;
@@ -5752,5 +5921,203 @@ button.item-main:focus-visible {
 @media (pointer: coarse) {
   .receipt-capture {
     display: inline-flex;
+  }
+}
+
+/* Clickable summary cards */
+a.summary-card.clickable {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+a.summary-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgb(35 53 44 / 10%);
+}
+
+/* Sub-pages */
+.subpage {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+}
+.subpage-header {
+  margin-bottom: 28px;
+}
+.subpage-header h1 {
+  font-size: var(--text-2xl);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 8px;
+}
+.subpage-header h1 svg {
+  width: 28px;
+  height: 28px;
+}
+.subpage-desc {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.back-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  transition: color 0.15s;
+}
+.back-link:hover {
+  color: var(--fg);
+}
+.subpage-loading {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--muted);
+}
+.subpage-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.subpage-empty span {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 12px;
+}
+.subpage-empty h3 {
+  margin: 0 0 6px;
+  color: var(--fg);
+}
+.subpage-list {
+  display: grid;
+  gap: 10px;
+}
+.subpage-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.subpage-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.subpage-card-body strong {
+  display: block;
+  font-size: var(--text-base);
+  margin-bottom: 4px;
+}
+.subpage-card-meta {
+  display: flex;
+  gap: 12px;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.subpage-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.subpage-card-tags .expiry-tag,
+.subpage-card-tags .stock-tag,
+.subpage-card-tags .opened-tag,
+.subpage-card-tags .date-tag,
+.subpage-card-tags .source-tag {
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+}
+.subpage-card-tags .expiry-tag.danger {
+  background: #fde2e2;
+  color: #b91c1c;
+}
+.subpage-card-tags .expiry-tag.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+.subpage-card-tags .stock-tag.low {
+  background: #fef3c7;
+  color: #92400e;
+}
+.subpage-card-tags .stock-tag.empty {
+  background: #fde2e2;
+  color: #b91c1c;
+}
+
+/* Shopping sub-page */
+.subpage-budget {
+  margin-bottom: 28px;
+}
+.subpage-budget h2 {
+  font-size: var(--text-lg);
+  margin: 0 0 14px;
+}
+.budget-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.budget-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  display: grid;
+  gap: 4px;
+}
+.budget-card span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.budget-card strong {
+  font-size: var(--text-xl);
+  font-family: Georgia, serif;
+}
+.budget-card small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.budget-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg);
+  margin-top: 4px;
+  overflow: hidden;
+}
+.budget-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--green);
+  transition: width 0.3s;
+}
+.subpage-shopping h2 {
+  font-size: var(--text-lg);
+  margin: 0 0 14px;
+}
+.shopping-card {
+  gap: 12px;
+}
+.shopping-card .gauge-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.shopping-card.done {
+  opacity: 0.5;
+}
+.checked-heading {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin: 20px 0 10px;
+}
+
+@media (max-width: 500px) {
+  .budget-cards {
+    grid-template-columns: 1fr;
   }
 }

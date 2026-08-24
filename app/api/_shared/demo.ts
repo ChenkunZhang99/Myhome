@@ -85,6 +85,35 @@ export function demoReceipt(timeZone: string) {
 }
 
 /**
+ * 演示用的包装扫描结果。故意带一点不确定：照片略糊，鲜牛奶和酸奶都说得通，
+ * 让界面走出「先让人挑是哪一种」那一步，而不是假装一次就认准了。
+ */
+export function demoItemScan(timeZone: string) {
+  return {
+    imageQuality: "blurry" as const,
+    needsChoice: true,
+    items: [
+      {
+        name: "鲜牛奶",
+        category: "乳品蛋类",
+        quantity: 1,
+        unit: "盒",
+        identityConfidence: 0.62,
+        expiryDate: daysFromToday(6, timeZone),
+        expiryConfidence: 0.58,
+        expiryUncertain: true,
+        expiryGuesses: [daysFromToday(5, timeZone), daysFromToday(6, timeZone), daysFromToday(8, timeZone)],
+        reason: "包装上隐约能看到 milk / 鲜牛奶字样，日期数字有点糊",
+        alternatives: [
+          { name: "酸奶", category: "乳品蛋类", identityConfidence: 0.41 },
+          { name: "豆奶", category: "乳品蛋类", identityConfidence: 0.27 },
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * 演示用的 flyer 优惠，覆盖精准匹配、替代补货和大类机会三种情况。
  * 包装规格写在商品名里（「鸡腿 2kg」），和真实 flyer 一样靠名称解析单位价格。
  */

@@ -562,3 +562,20 @@ export function buildFlyerPurchasePlan(
     overlapTo: overlapFrom && overlapTo && overlapFrom <= overlapTo ? overlapTo : undefined,
   };
 }
+
+/** 总览「附近超市」只收历史低价 / 接近低价，并且是家里正缺或常买的东西。 */
+export function isOverviewNearbyPick(rec: Pick<FlyerRecommendation, "priceSignal" | "kind" | "tier">) {
+  const cheap = rec.priceSignal === "historical-low" || rec.priceSignal === "below-average";
+  const care =
+    rec.kind === "targeted" || rec.kind === "substitute" || rec.tier === "must" || rec.tier === "recommended";
+  return cheap && care;
+}
+
+export function overviewNearbyInterest(
+  rec: Pick<FlyerRecommendation, "kind" | "matchedItemName" | "matchedLevel">,
+) {
+  if (rec.kind === "substitute") {
+    return rec.matchedItemName ? `可替代家里的${rec.matchedItemName}` : "可替代家里现有食材";
+  }
+  return rec.matchedLevel || "感兴趣的食材";
+}

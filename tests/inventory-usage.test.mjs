@@ -270,7 +270,7 @@ test("a future date reports nothing rather than a negative age", () => {
  * 所以闸门必须在函数最前面，早于算日期。
  */
 test("已用完的物品不产生到期信息", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/HomeApp.tsx", import.meta.url), "utf8");
   const body = page.slice(page.indexOf("function getExpiryInfo"));
   const guard = body.indexOf("if (emptied) return null;");
   const compute = body.indexOf("effectiveExpiry(item)");

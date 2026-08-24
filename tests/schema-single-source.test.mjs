@@ -89,3 +89,19 @@ test("所有路由用同一个 ensureSchema，不再各自维护子集", async (
 
   assert.deepEqual(stale, [], `这些路由还在用已废弃的分散 ensure 函数：\n${stale}`);
 });
+
+test("依赖后加列的索引不能和建表放在同一个 batch", async () => {
+  const schema = await readFile(new URL("../app/api/_shared/schema.ts", import.meta.url), "utf8");
+  const start = schema.indexOf("const INDEXES =");
+  const delayed = schema.indexOf("const INDEXES_ON_ADDED_COLUMNS");
+  assert.ok(start !== -1 && delayed !== -1, "找不到 INDEXES / INDEXES_ON_ADDED_COLUMNS");
+  const indexes = schema.slice(start, delayed);
+  assert.doesNotMatch(
+    indexes,
+    /source_key/,
+    "source_key 是后加列。索引如果和 CREATE TABLE 放进同一个 batch，老库上整段建表都会被 no such column 打断，登录也就跟着 500",
+  );
+  const afterAlter = schema.slice(delayed);
+  assert.match(afterAlter, /idx_flyer_price_history_source/, "价格历史的 source_key 索引要排在补列之后");
+  assert.match(afterAlter, /idx_household_stores_subscription/, "收藏门店的 source_key 索引要排在补列之后");
+});

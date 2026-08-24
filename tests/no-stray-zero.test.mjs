@@ -12,7 +12,7 @@ const NUMERIC_FLAGS =
 
 test("numeric flags are never short-circuited straight into JSX", () => {
   const offenders = [];
-  for (const file of ["app/page.tsx", "app/PlannerPanel.tsx", "app/RecipeWorkspace.tsx"]) {
+  for (const file of ["app/HomeApp.tsx", "app/PlannerPanel.tsx", "app/RecipeWorkspace.tsx"]) {
     const source = readFileSync(file, "utf8");
     for (const match of source.matchAll(NUMERIC_FLAGS)) {
       if (match[0].includes("Boolean(")) continue;

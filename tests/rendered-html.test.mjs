@@ -38,7 +38,7 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
     skill,
     schema,
   ] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/HomeApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/_shared/openai.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/receipts/analyze/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/PlannerPanel.tsx", import.meta.url), "utf8"),
@@ -50,7 +50,8 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
     readFile(new URL("../docs/flyer-recommendation-rules.md", import.meta.url), "utf8"),
     readFile(new URL("../app/api/_shared/schema.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /编辑全部资料/);
+  assert.match(page, /拍包装扫保质期/);
+  assert.match(page, /购买日期/);
   assert.match(page, /const unitGroups/);
   assert.match(page, /getUnitStep/);
   assert.match(page, /inventoryGroups/);
@@ -77,6 +78,10 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
   assert.match(planner, /用它做菜/);
   assert.match(planner, /以后不推荐/);
   assert.match(planner, /本周采购方案/);
+  assert.match(planner, /历史低价与感兴趣好物/);
+  assert.match(planner, /demoNearbyPicks/);
+  assert.match(planner, /nearby-picks/);
+  assert.doesNotMatch(planner, /id="nearby-flyers"/);
   assert.match(planner, /RecipeWorkspace/);
   assert.match(workspace, /本周菜谱/);
   assert.match(workspace, /自定义菜谱/);

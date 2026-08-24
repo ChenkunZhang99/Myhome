@@ -111,8 +111,10 @@ function validate(raw: unknown): DiscoveredStore | null {
   const address = String(item.address ?? "").trim();
   const chain = String(item.chain ?? "").trim();
   const flyerUrl = String(item.flyerUrl ?? "").trim();
+  const distanceKm = Number(item.distanceKm);
   if (!name || !address || !flyerUrl) return null;
   if (name.length > 80 || address.length > 200) return null;
+  if (Number.isFinite(distanceKm) && distanceKm > 5) return null;
 
   let url: URL;
   try {
@@ -155,8 +157,9 @@ const STORE_SCHEMA = {
           address: { type: "string" },
           chain: { type: "string" },
           flyerUrl: { type: "string" },
+          distanceKm: { type: "number" },
         },
-        required: ["name", "address", "chain", "flyerUrl"],
+        required: ["name", "address", "chain", "flyerUrl", "distanceKm"],
       },
     },
   },
@@ -165,11 +168,13 @@ const STORE_SCHEMA = {
 
 function prompt(postalCode: string) {
   return [
-    `邮编 ${postalCode} 附近（步行或十分钟车程内）有哪些做食品杂货的超市？`,
+    `邮编 ${postalCode} 附近 5 公里以内有哪些做食品杂货的超市？`,
     "",
     "要求：",
     "- 列 5 到 10 家。大型连锁和本地华人/南亚超市都要，不要只列一个品牌",
     "- 只列真实存在、现在还在营业、并且会发每周 flyer / weekly specials 的超市",
+    "- 只列距离该邮编大约 5 公里以内的店，更远的不要列",
+    "- distanceKm 填大约距离（公里）",
     "- 便利店、药房、餐厅不算",
     "- address 用官方写法的完整街道地址，要带门牌号和城市",
     "- chain 填连锁品牌名（如 Walmart、T&T、Save-On-Foods）；独立超市就填店名",

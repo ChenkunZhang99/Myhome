@@ -2,8 +2,12 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./Icon";
-import { dayIn, detectTimeZone, resolveTimeZone, timeZoneChoices } from "./dateTime";
-import { buildFlyerPurchasePlan, recommendFlyerDeals } from "./flyerRecommendations";
+import { dayIn, detectTimeZone, resolveTimeZone, shiftDay, timeZoneChoices } from "./dateTime";
+import {
+  buildFlyerPurchasePlan,
+  isOverviewNearbyPick,
+  recommendFlyerDeals,
+} from "./flyerRecommendations";
 import { findInventoryMatch, rankInventoryMatches } from "./inventoryUsage";
 import { withAiHeaders } from "./aiSettings";
 import { useAppSettings } from "./AppSettings";
@@ -160,6 +164,75 @@ const confidenceLabels: Record<string, string> = {
 function money(value: number) {
   return `$${value.toFixed(2)}`;
 }
+
+function nearbyPickInterest(
+  recommendation: { kind: string; matchedItemName?: string; matchedLevel?: string },
+  t: (text: string, vars?: Record<string, string | number>) => string,
+  tv: (value: string | null | undefined) => string,
+) {
+  if (recommendation.kind === "substitute") {
+    if (recommendation.matchedItemName) {
+      return t("可替代家里的{name}", { name: tv(recommendation.matchedItemName) });
+    }
+    return t("可替代家里现有食材");
+  }
+  return tv(recommendation.matchedLevel || "感兴趣的食材");
+}
+
+type NearbyPick = {
+  id: string;
+  demo?: boolean;
+  itemName: string;
+  category: string;
+  storeName: string;
+  price: number;
+  regularPrice?: number | null;
+  priceSignal: "historical-low" | "below-average";
+  validTo: string;
+  interest: string;
+};
+
+/** 总览上附近优惠的默认范本。没有真实 Flyer 数据时先让人看懂这一块在干什么。 */
+function demoNearbyPicks(timeZone: string): NearbyPick[] {
+  return [
+    {
+      id: "demo-nearby-spinach",
+      demo: true,
+      itemName: "菠菜",
+      category: "蔬菜水果",
+      storeName: "PriceSmart Foods",
+      price: 1.49,
+      regularPrice: 2.99,
+      priceSignal: "historical-low",
+      validTo: shiftDay(timeZone, 3),
+      interest: "家里偏少",
+    },
+    {
+      id: "demo-nearby-eggs",
+      demo: true,
+      itemName: "鸡蛋",
+      category: "乳品蛋类",
+      storeName: "T&T 大统华",
+      price: 4.99,
+      regularPrice: 6.49,
+      priceSignal: "below-average",
+      validTo: shiftDay(timeZone, 4),
+      interest: "常买的食材",
+    },
+    {
+      id: "demo-nearby-chicken",
+      demo: true,
+      itemName: "鸡腿",
+      category: "肉类海鲜",
+      storeName: "Save-On-Foods",
+      price: 8.05,
+      regularPrice: 12.9,
+      priceSignal: "historical-low",
+      validTo: shiftDay(timeZone, 2),
+      interest: "即将用完",
+    },
+  ];
+}
 /**
  * 同步状态的说明文字。
  * 服务端存的 last_message 是中文句子，它不知道访问者的语言，
@@ -261,10 +334,12 @@ export function PlannerPanel({
   inventory,
   notify,
   onInventoryChange,
+  variant = "overview",
 }: {
   inventory: InventoryLite[];
   notify: (message: string) => void;
   onInventoryChange: () => void;
+  variant?: "overview" | "flyers";
 }) {
   const { t, tv, tu, locale } = useAppSettings();
   const [data, setData] = useState<PlannerData>({
@@ -546,6 +621,22 @@ export function PlannerPanel({
       return deal ? [{ ...recommendation, deal }] : [];
     });
   }, [inventory, data.deals, data.matchRules]);
+  const nearbyPicks = useMemo(() => {
+    const real = flyerRecommendations.filter(isOverviewNearbyPick).slice(0, 5).map((recommendation) => ({
+      id: recommendation.deal.id,
+      itemName: recommendation.deal.itemName,
+      category: recommendation.deal.category,
+      storeName: storeNames.get(recommendation.deal.storeId) ?? t("附近超市"),
+      price: Number(recommendation.deal.price),
+      regularPrice: recommendation.deal.regularPrice,
+      priceSignal: recommendation.priceSignal as "historical-low" | "below-average",
+      validTo: recommendation.deal.validTo,
+      interest: nearbyPickInterest(recommendation, t, tv),
+    }));
+    return real.length
+      ? real
+      : demoNearbyPicks(timeZone).map((pick) => ({ ...pick, interest: t(pick.interest) }));
+  }, [flyerRecommendations, storeNames, t, timeZone, tv]);
   const purchasePlan = useMemo(
     () => buildFlyerPurchasePlan(flyerRecommendations, data.deals, data.settings),
     [flyerRecommendations, data.deals, data.settings],
@@ -671,6 +762,7 @@ export function PlannerPanel({
 
   return (
     <>
+      {variant === "overview" && (
       <section className="panel budget-panel" id="budget">
         <div className="section-head">
           <div>
@@ -746,7 +838,53 @@ export function PlannerPanel({
           <p className="micro-empty">{t("添加你常去的超市，系统只关注这些门店。")}</p>
         )}
       </section>
+      )}
 
+      {variant === "overview" && (
+        <section className="panel flyer-panel nearby-picks-panel" id="nearby-picks">
+          <div className="section-head">
+            <div>
+              <p className="eyebrow">{t("附近超市")}</p>
+              <h2>{t("历史低价与感兴趣好物")}</h2>
+            </div>
+            <a className="text-button" href="/flyers">
+              {t("查看全部优惠")} <span>→</span>
+            </a>
+          </div>
+          <p className="settings-note nearby-picks-lead">
+            {nearbyPicks.some((pick) => pick.demo)
+              ? t("当前为示例。同步 Flyer 后，这里会换成你家附近的历史低价和常买的食材。")
+              : t("只列出附近超市里接近历史低价、而且家里正缺或常买的商品。")}
+          </p>
+          <div className="nearby-picks" aria-label={t("附近低价好物")}>
+            {nearbyPicks.map((pick) => (
+              <article key={pick.id} className={pick.demo ? "nearby-pick demo" : "nearby-pick"}>
+                <div className="nearby-pick-top">
+                  <span>{pick.interest}</span>
+                  {pick.demo && <span className="demo-tag">{t("示例")}</span>}
+                </div>
+                <strong>{tv(pick.itemName)}</strong>
+                <small>{tv(pick.category)}</small>
+                <div className="nearby-pick-price">
+                  <b>{money(pick.price)}</b>
+                  {pick.regularPrice != null && pick.regularPrice > pick.price && (
+                    <s>{money(pick.regularPrice)}</s>
+                  )}
+                  <em>
+                    {pick.priceSignal === "historical-low" ? t("当前为已记录最低价") : t("低于近期平均价")}
+                  </em>
+                </div>
+                <div className="nearby-pick-meta">
+                  <span>{pick.storeName}</span>
+                  <span>{t("优惠截止 {date}", { date: shortDate(pick.validTo, locale) })}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {variant === "flyers" && (
       <section className="panel flyer-panel" id="flyers">
         <div className="section-head">
           <div>
@@ -1183,7 +1321,9 @@ export function PlannerPanel({
           </div>
         )}
       </section>
+      )}
 
+      {variant === "overview" && (
       <section className="panel shopping-panel" id="shopping">
         <div className="section-head">
           <div>
@@ -1256,13 +1396,16 @@ export function PlannerPanel({
           })}
         </small>
       </section>
+      )}
 
+      {variant === "overview" && (
       <RecipeWorkspace
         inventory={inventory}
         notify={notify}
         onPlannerChange={load}
         onInventoryChange={onInventoryChange}
       />
+      )}
 
       {modal && (
         <Modal

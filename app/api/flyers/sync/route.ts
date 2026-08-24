@@ -173,6 +173,16 @@ function nextSyncIso(intervalHours: number) {
   return new Date(Date.now() + intervalHours * 60 * 60 * 1000).toISOString();
 }
 
+/** 这一户收藏了哪几家店。用来把全局同步的结果裁成他自己看得见的那部分。 */
+async function subscribedKeys(householdId: string) {
+  const { results } = await env.DB.prepare(
+    "SELECT source_key AS sourceKey FROM household_stores WHERE household_id = ?",
+  )
+    .bind(householdId)
+    .all<{ sourceKey: string }>();
+  return new Set((results ?? []).map((row) => row.sourceKey));
+}
+
 async function markFailure(message: string) {
   await env.DB.prepare(
     `INSERT INTO flyer_sync_settings (id, last_completed_at, last_status, last_message, updated_at)
@@ -471,7 +481,13 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
 
     await env.DB.prepare("DELETE FROM flyer_deals WHERE source = 'auto' AND valid_to < ?").bind(today).run();
     let imported = 0;
-    const summaries: Array<{ store: string; status: string; imported: number; message: string }> = [];
+    const summaries: Array<{
+      sourceKey: string;
+      store: string;
+      status: string;
+      imported: number;
+      message: string;
+    }> = [];
     // 这一批门店的官网域名，算一次。它决定 sourceUrl 能不能被采信。
     const hosts = hostsOf(stores.results);
 
@@ -562,6 +578,7 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
       imported += unique.length;
       const preserved = !unique.length ? "；未覆盖上次仍有效的数据" : "";
       summaries.push({
+        sourceKey: store.sourceKey,
         store: store.name,
         status: found?.status ?? "unavailable",
         imported: unique.length,
@@ -583,6 +600,26 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
       imported > 0
         ? `已从 ${successfulStores} 家门店自动录入 ${imported} 项当前优惠`
         : "本次仍未读取到可确认的当前优惠，系统已保留上次仍有效的数据";
+
+    /*
+     * 上面那几个数字是这次全局任务的账：同步是全局的，一份 flyer 解析一次
+     * 供所有住户共用，所以它读的是「所有被任何人收藏过的门店」。
+     * flyer_sync_settings 记的就该是这本账，cron 跑的时候也没有住户可言。
+     *
+     * 但回给调用方的必须是他自己那几家店。只订了两家的人看到
+     * 「已录入 549 项」——那 549 里绝大部分来自别人订阅的门店，
+     * 他打开列表却只有几十条，对不上。
+     */
+    const mine = household ? await subscribedKeys(household) : null;
+    const visible = mine ? summaries.filter((summary) => mine.has(summary.sourceKey)) : summaries;
+    const visibleImported = visible.reduce((sum, summary) => sum + summary.imported, 0);
+    const visibleOk = visible.filter((summary) => summary.imported > 0).length;
+    const visibleStatus =
+      visibleImported > 0 ? (visibleOk === visible.length ? "success" : "partial") : "empty";
+    const visibleMessage =
+      visibleImported > 0
+        ? `已从 ${visibleOk} 家门店自动录入 ${visibleImported} 项当前优惠`
+        : "本次仍未读取到可确认的当前优惠，系统已保留上次仍有效的数据";
     await env.DB.prepare(
       `INSERT INTO flyer_sync_settings
       (id, enabled, interval_hours, next_sync_at, last_completed_at, last_status, last_message, deals_imported, updated_at)
@@ -593,7 +630,13 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
     )
       .bind(intervalHours, nextSyncIso(intervalHours), status, message, imported)
       .run();
-    return Response.json({ ok: true, imported, status, message, stores: summaries });
+    return Response.json({
+      ok: true,
+      imported: visibleImported,
+      status: visibleStatus,
+      message: visibleMessage,
+      stores: visible,
+    });
   } catch (error) {
     const message = safeMessage("flyers.sync", error, "Flyer 自动同步失败");
     try {

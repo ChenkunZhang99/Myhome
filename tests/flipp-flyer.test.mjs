@@ -206,12 +206,37 @@ test("认得出品类的排在「其他」前面，哪怕折扣小一些", () =>
 
 test("同步不对 Flipp 的结果二次排序", () => {
   const at = route.indexOf("await fetchFlyerDeals(mine.id");
-  const around = route.slice(at, at + 500);
+  const around = route.slice(at, at + 900);
   assert.ok(
     !around.includes("selectDeals("),
     "selectDeals 只按折扣排，会把 parseFlippItems 排好的「食品优先」再打乱一遍",
   );
-  assert.ok(around.includes("flippDeals.slice(0, 18)"), "没有取前若干条");
+  assert.ok(around.includes("MAX_DEALS_PER_STORE"), "没有取前若干条");
+});
+
+/**
+ * 写入端的上限一度是 18，而一份 flyer 有两三百条。
+ *
+ * 致命的不是扔，是扔的时机：截断发生在拿库存去匹配之前（匹配在浏览器里），
+ * 也就是在还不知道这家人缺什么的时候，就先按折扣率砍掉了绝大部分。
+ * 而这个产品的全部价值恰恰是「你快用完的东西打折了」。
+ */
+test("一家店的写入上限要放得下一整份 flyer", () => {
+  const at = route.indexOf("const MAX_DEALS_PER_STORE");
+  assert.notEqual(at, -1, "找不到上限常量");
+  // 不写正则：这一行里的反斜杠在过往几次改动里被 shell 吃掉过好几回。
+  const declaration = route.slice(at, route.indexOf(";", at));
+  const value = Number([...declaration].filter((character) => character >= "0" && character <= "9").join(""));
+  assert.ok(
+    value >= 200,
+    `上限是 ${value}，装不下一份 flyer（实测 Walmart 有 256 条可用）——` +
+      "在匹配库存之前就砍掉大部分，等于让这个功能失去意义",
+  );
+});
+
+test("三条路共用同一个上限，不各写各的", () => {
+  const literals = route.split(".slice(0, 18)").length - 1;
+  assert.equal(literals, 0, "还有写死的 18，改一次要改三处，迟早漏改");
 });
 
 test("fruit snacks 是零食，不是水果", () => {

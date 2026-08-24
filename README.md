@@ -8,6 +8,8 @@ Home Stock Planner is a bilingual household inventory application for Chinese-sp
 
 It serves several households from one deployment, each seeing only its own data, and runs on Cloudflare Workers with D1 for structured data and R2 for item and recipe photos.
 
+> Working on this with a coding agent? [`docs/orientation.md`](docs/orientation.md) is written for that — current state, where things live, and the environment traps worth knowing before the first edit.
+
 ## Running locally
 
 The local setup starts in demo mode and requires no API key or Cloudflare account. The demo data includes one household's inventory, its usual supermarkets and the current week's deals; features that would call a model return prepared results instead.

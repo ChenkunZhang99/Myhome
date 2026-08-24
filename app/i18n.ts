@@ -101,6 +101,9 @@ const values: Record<string, string> = {
   // 核验来源
   官方结构化核验: "Verified from structured feed",
   官方来源核验: "Verified from official page",
+  上次同步的逐店结果: "How each store read last time",
+  "{count} 项": "{count} deals",
+  没读到: "nothing read",
   网页搜索核验: "Verified via web search",
   "图片识别，到店核对": "Read from a picture — check in store",
   需要确认: "Needs confirmation",

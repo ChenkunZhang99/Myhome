@@ -5754,3 +5754,55 @@ button.item-main:focus-visible {
     display: inline-flex;
   }
 }
+
+/*
+ * 上次同步的逐店结果。
+ *
+ * 服务端一直在返回这份诊断，前端从来没渲染过——收藏五家店、四家读不出来，
+ * 用户只看到一条「已录入 18 项优惠」，不知道是哪四家、为什么。
+ * 这块直接影响用户判断「要不要换一家店收藏」，所以放在同步状态条下面，
+ * 而不是折叠进某个详情里。
+ */
+.sync-report {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.sync-report li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: #fbfaf6;
+}
+.sync-report li.ok {
+  border-left-color: #4e8f6d;
+}
+.sync-report li.failed {
+  border-left-color: #c88a4a;
+}
+.sync-report-store {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.sync-report-store b {
+  font-size: var(--text-sm);
+}
+.sync-report-store small {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  line-height: 1.45;
+}
+.sync-report-count {
+  flex: none;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}

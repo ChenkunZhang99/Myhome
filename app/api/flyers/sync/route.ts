@@ -136,7 +136,25 @@ function cleanDeal(deal: ExtractedDeal, today: string, flyerUrl: string, hosts: 
   };
 }
 
-function selectDeals(deals: ExtractedDeal[], limit = 18) {
+/**
+ * 一家店一次最多存这么多条。
+ *
+ * 原来是 18，而一份 flyer 有两三百条——线上实测 Walmart 读到 256 条只存了 18 条，
+ * 四家店合计读回约 550 条、扔掉 87%。
+ *
+ * 扔掉本身还不是最糟的，糟的是扔的时机：截断发生在「拿库存去匹配」之前
+ * （匹配在浏览器里，见 PlannerPanel 调 recommendFlyerDeals）。也就是说，
+ * 在还不知道这家人缺什么的时候，就先按折扣率砍掉了 87%。
+ * 而这个产品的全部价值恰恰是「你快用完的东西打折了」——你家酱油打 15% 排在
+ * 第 40 位，就永远不会被看见。
+ *
+ * 顺带还连累了价格历史：它只能记录活下来的那些，「上次多少钱」也跟着瘸。
+ *
+ * 300 不是精挑的数字，只是一个防止异常响应撑爆库的上限。正常 flyer 到不了。
+ */
+const MAX_DEALS_PER_STORE = 300;
+
+function selectDeals(deals: ExtractedDeal[], limit = MAX_DEALS_PER_STORE) {
   return [...deals]
     .sort((left, right) => {
       const score = (deal: ExtractedDeal) => {
@@ -193,7 +211,7 @@ async function searchFallback(stores: StoreRow[], today: string, openAI: OpenAIC
     officialFlyer: store.flyerUrl,
   }));
   const prompt = `今天是 ${today}（加拿大温哥华时间）。读取下列门店当前生效的 Flyer/Weekly Specials：\n${JSON.stringify(storeBrief)}\n
-只能返回能从官方页面确认商品、优惠价、具体门店和有效期的优惠。每家最多 18 项，优先折扣力度大的日常食品与家用品。只返回 validFrom <= ${today} <= validTo 的数据；日期使用 YYYY-MM-DD。category 从给定中文枚举选择；itemName 用简洁中文；unit 保留官方计价单位。无法确认时 status=unavailable 且 deals 为空。`;
+只能返回能从官方页面确认商品、优惠价、具体门店和有效期的优惠。每家最多 40 项，优先折扣力度大的日常食品与家用品。只返回 validFrom <= ${today} <= validTo 的数据；日期使用 YYYY-MM-DD。category 从给定中文枚举选择；itemName 用简洁中文；unit 保留官方计价单位。无法确认时 status=unavailable 且 deals 为空。`;
   const dealSchema = {
     type: "object",
     additionalProperties: false,
@@ -400,7 +418,9 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
             message: `已从 Flipp 读取 ${mine?.merchant ?? ""} 本周 flyer 的 ${flippDeals.length} 项优惠`,
             // 这里不走 selectDeals：它只按折扣排，会把 parseFlippItems 已经
             // 排好的「食品优先」再打乱一遍。那边排完直接取前若干条即可。
-            deals: flippDeals.slice(0, 18).map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
+            deals: flippDeals
+              .slice(0, MAX_DEALS_PER_STORE)
+              .map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
           });
           continue;
         }
@@ -413,7 +433,9 @@ export const POST = withRoute("flyers.sync", async (request: Request) => {
             status: "ok",
             source: "vision",
             message: vision.message,
-            deals: vision.deals.slice(0, 18).map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
+            deals: vision.deals
+              .slice(0, MAX_DEALS_PER_STORE)
+              .map((deal) => ({ ...deal, sourceUrl: store.flyerUrl })),
           });
           continue;
         }

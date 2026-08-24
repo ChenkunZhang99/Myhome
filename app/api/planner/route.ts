@@ -77,10 +77,11 @@ export const GET = withRoute("planner", async (request: Request) => {
       LEFT JOIN flyer_deal_metadata metadata ON metadata.deal_id = flyer_deals.id
       LEFT JOIN flyer_price_history history ON history.item_key = metadata.item_key
         AND history.source_key = flyer_deals.source_key
+      WHERE flyer_deals.valid_to >= ?2
       GROUP BY flyer_deals.id
       ORDER BY flyer_deals.valid_to ASC, flyer_deals.created_at DESC`,
     )
-      .bind(household)
+      .bind(household, await todayDate(household))
       .all();
     const syncSettings = await env.DB.prepare(
       `SELECT enabled, interval_hours AS intervalHours,

@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { Icon } from "./Icon";
 import { PlannerPanel } from "./PlannerPanel";
 import {
+  adjustQuantity,
   adjustRemaining,
   clampPercent,
   daysInUse,
@@ -582,10 +583,13 @@ export default function Home() {
       setToast(t("这是示例物品，添加真实库存后即可调整"));
       return;
     }
+    // 数量和百分比是同一条规则的两面，换算收在 inventoryUsage 里，
+    // 和 ±25%、补货、做菜扣减共用一个满量口径。
     const step = getUnitStep(item);
-    const next = Math.max(0, Number((item.quantity + direction * step).toFixed(2)));
-    const nextPercent = next === 0 ? 0 : item.quantity === 0 ? 100 : item.remainingPercent;
-    const nextLevel = next === 0 ? t("已用完") : item.quantity === 0 ? t("充足") : item.level;
+    const change = adjustQuantity(item, direction * step);
+    const next = change.quantity;
+    const nextPercent = change.remainingPercent;
+    const nextLevel = change.level;
     setItems((current) =>
       current.map((entry) =>
         entry.id === item.id

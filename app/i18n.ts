@@ -814,6 +814,34 @@ const ui: Record<string, string> = {
   收起侧边栏: "Collapse sidebar",
   展开侧边栏: "Expand sidebar",
   返回首页: "Back to overview",
+  反馈与建议: "Feedback",
+  报告问题: "Report a problem",
+  提出建议: "Suggest an improvement",
+  "遇到问题或想到更顺手的做法，可以直接在项目的公开问题区告诉我们。":
+    "If something goes wrong or you have an idea, tell us in the project's public issue tracker.",
+  "反馈是公开的。请先遮住姓名、邮箱、小票、照片和其他家庭隐私。":
+    "Feedback is public. Remove names, email addresses, receipts, photos, and other household details first.",
+  第一次使用: "Getting started",
+  三步把这个家建起来: "Set up this household in three steps",
+  "不用一次录完整个家。先加入最常用、最容易忘买或最容易过期的东西，之后边用边补。":
+    "You do not need to catalog everything at once. Start with frequently used, easy-to-forget, or perishable items and add more as you go.",
+  先录一批真实库存: "Add your first real stock",
+  "东西少就手动添加；刚买完一大袋时，直接拍小票更快。":
+    "Add a few items by hand, or scan a receipt after a larger shop.",
+  收藏真正会去的门店: "Save the stores you actually visit",
+  "填好地区并收藏常去门店后，Flyer 推荐才会只看与你有关的优惠。":
+    "Set your area and save regular stores so flyer suggestions only use relevant deals.",
+  去设置门店: "Set up stores",
+  按需补全家庭设置: "Finish household settings when needed",
+  "可以邀请家人、设置语言和 AI；这些都不是开始记录库存的前置条件。":
+    "You can invite family, change language, and configure AI later. None of that blocks inventory tracking.",
+  打开家庭设置: "Open household settings",
+  "遇到不清楚或不好用的地方？": "Something unclear or awkward?",
+  告诉我们: "Tell us",
+  这是一个新家庭: "This is a new household",
+  "先看看示例；加入第一件真实物品后，它们就会消失。":
+    "Explore the samples first. They disappear after you add the first real item.",
+  查看新手指南: "View setup guide",
   家里有数: "Home Stock",
   "搜索家里的物品…": "Search your items…",
   预算记录: "Budget",

@@ -10,6 +10,7 @@ import { useAppSettings } from "./AppSettings";
 import { Modal } from "./Modal";
 import { clearAiSettings, isUsableKey, maskKey, readAiSettings, writeAiSettings } from "./aiSettings";
 import { localeLabels, locales } from "./i18n";
+import { BUG_REPORT_URL, FEATURE_REQUEST_URL } from "./feedback";
 
 /**
  * 账号、语言切换与自带密钥设置。
@@ -62,6 +63,24 @@ export function SettingsPanel({
       <HouseholdSection notify={notify} />
       <DataSection notify={notify} />
       <PolicySection />
+
+      <div className="settings-section">
+        <strong>{t("反馈与建议")}</strong>
+        <p className="settings-note">
+          {t("遇到问题或想到更顺手的做法，可以直接在项目的公开问题区告诉我们。")}
+        </p>
+        <div className="feedback-links">
+          <a href={BUG_REPORT_URL} target="_blank" rel="noreferrer">
+            {t("报告问题")} ↗
+          </a>
+          <a href={FEATURE_REQUEST_URL} target="_blank" rel="noreferrer">
+            {t("提出建议")} ↗
+          </a>
+        </div>
+        <p className="settings-note warn">
+          {t("反馈是公开的。请先遮住姓名、邮箱、小票、照片和其他家庭隐私。")}
+        </p>
+      </div>
 
       <div className="settings-section">
         <strong>{t("语言")}</strong>

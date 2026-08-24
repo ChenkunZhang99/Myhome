@@ -232,6 +232,7 @@ pnpm run release            # build + wrangler deploy
 - **安全响应头** —— Worker 统一出口已加 CSP、HSTS、X-Frame-Options 等策略；见 [`audits/002-security-headers.md`](audits/002-security-headers.md)。
 - **会话管理** —— 改密码会原子轮换会话，用户可以查看设备并逐个、批量退出；见 [`audits/003-session-management.md`](audits/003-session-management.md)。
 - **PWA 安装基础** —— 加入品牌化 manifest、完整尺寸图标和移动端主题元数据；不缓存登录后的家庭数据；见 [`audits/004-pwa-installability.md`](audits/004-pwa-installability.md)。
+- **首次使用与反馈入口** —— 空家庭会得到可关闭、可重开的三步引导；侧边栏和设置都能进入带隐私提醒的公开反馈表；见 [`audits/005-onboarding-feedback.md`](audits/005-onboarding-feedback.md)。
 
 ---
 

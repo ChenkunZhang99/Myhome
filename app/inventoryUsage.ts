@@ -201,8 +201,17 @@ export function findInventoryMatch<T extends InventoryMatchCandidate>(
   return best && best.score >= inventoryMatchThreshold ? best : null;
 }
 
+/**
+ * 数量一律留两位小数，且必须是一个有限的非负数。
+ *
+ * 非有限值要挡在这里而不是靠调用方：Infinity 和 NaN 一旦漏进去，会一路
+ * 渗进百分比换算、界面显示和乐观更新——卡片上会先闪出「Infinity 个」，
+ * 要等服务端回包才纠正回来。
+ */
 function roundQuantity(value: number) {
-  return Number(Math.max(0, value).toFixed(2));
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Number(Math.max(0, number).toFixed(2));
 }
 
 /**

@@ -262,7 +262,9 @@ export function packagePrice(deal: FlyerDealSignal) {
     .trim()
     .toLowerCase();
   if (!(quantity > 0)) {
-    const match = deal.itemName.match(/(\d+(?:\.\d+)?)\s*(kg|g|lb|lbs|ml|l|oz|ct|pk|pack|个|包|卷|颗)/i);
+    const match = String(deal.itemName ?? "").match(
+      /(\d+(?:\.\d+)?)\s*(kg|g|lb|lbs|ml|l|oz|ct|pk|pack|个|包|卷|颗)/i,
+    );
     if (match) {
       quantity = Number(match[1]);
       unit = match[2].toLowerCase();

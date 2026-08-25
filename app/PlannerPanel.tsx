@@ -2,7 +2,12 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./Icon";
-import { dayIn, detectTimeZone, resolveTimeZone, shiftDay, timeZoneChoices } from "./dateTime";
+import {
+  DEFAULT_TIME_ZONE,
+  dayIn,
+  resolveTimeZone,
+  timeZoneChoices,
+} from "./dateTime";
 import {
   buildFlyerPurchasePlan,
   isOverviewNearbyPick,
@@ -202,7 +207,7 @@ type NearbyPick = {
 };
 
 /** 总览上附近优惠的默认范本。没有真实 Flyer 数据时先让人看懂这一块在干什么。 */
-function demoNearbyPicks(timeZone: string): NearbyPick[] {
+function demoNearbyPicks(): NearbyPick[] {
   return [
     {
       id: "demo-nearby-spinach",
@@ -213,7 +218,7 @@ function demoNearbyPicks(timeZone: string): NearbyPick[] {
       price: 1.49,
       regularPrice: 2.99,
       priceSignal: "historical-low",
-      validTo: shiftDay(timeZone, 3),
+      validTo: "2026-08-27",
       interest: "家里偏少",
     },
     {
@@ -225,7 +230,7 @@ function demoNearbyPicks(timeZone: string): NearbyPick[] {
       price: 4.99,
       regularPrice: 6.49,
       priceSignal: "below-average",
-      validTo: shiftDay(timeZone, 4),
+      validTo: "2026-08-28",
       interest: "常买的食材",
     },
     {
@@ -237,7 +242,7 @@ function demoNearbyPicks(timeZone: string): NearbyPick[] {
       price: 8.05,
       regularPrice: 12.9,
       priceSignal: "historical-low",
-      validTo: shiftDay(timeZone, 2),
+      validTo: "2026-08-26",
       interest: "即将用完",
     },
   ];
@@ -281,7 +286,9 @@ function todayString(timeZone: string) {
   return dayIn(timeZone);
 }
 function shortDate(value: string, locale: Locale) {
+  if (!value) return "";
   const [, month, day] = value.split("-");
+  if (!month || !day) return value;
   if (locale === "zh") return `${month}月${day}日`;
   const parsed = new Date(`${value}T00:00:00`);
   return Number.isNaN(parsed.getTime())
@@ -366,7 +373,7 @@ export function PlannerPanel({
       foodBudget: 0,
       householdBudget: 0,
       maxStores: 2,
-      timezone: detectTimeZone(),
+      timezone: DEFAULT_TIME_ZONE,
     },
     stores: [],
     deals: [],
@@ -383,7 +390,7 @@ export function PlannerPanel({
     area: "",
     nearby: [],
   });
-  const timeZone = data.settings.timezone || detectTimeZone();
+  const timeZone = data.settings.timezone || DEFAULT_TIME_ZONE;
   // 界面一打开就有得选：GET 已经按这户填的邮编把片区里已知的店带回来了。
   const nearby = data.nearby ?? [];
   const [modal, setModal] = useState<"settings" | "store" | "deal" | "shopping" | "match" | null>(null);
@@ -404,7 +411,18 @@ export function PlannerPanel({
       const response = await fetch("/api/planner", { cache: "no-store" });
       const result = await readJson<PlannerData>(response);
       if (!response.ok) throw new Error(result.error || t("读取失败"));
-      setData(result);
+      setData({
+        ...result,
+        stores: result.stores ?? [],
+        deals: result.deals ?? [],
+        shopping: result.shopping ?? [],
+        matchRules: result.matchRules ?? [],
+        nearby: result.nearby ?? [],
+        settings: {
+          ...result.settings,
+          timezone: result.settings?.timezone || DEFAULT_TIME_ZONE,
+        },
+      });
       const due =
         Boolean(result.syncSettings?.enabled) &&
         (!result.syncSettings?.nextSyncAt ||
@@ -659,8 +677,8 @@ export function PlannerPanel({
     }));
     return real.length
       ? real
-      : demoNearbyPicks(timeZone).map((pick) => ({ ...pick, interest: t(pick.interest) }));
-  }, [flyerRecommendations, storeNames, t, timeZone, tv]);
+      : demoNearbyPicks().map((pick) => ({ ...pick, interest: t(pick.interest) }));
+  }, [flyerRecommendations, storeNames, t, tv]);
   const purchasePlan = useMemo(
     () => buildFlyerPurchasePlan(flyerRecommendations, data.deals, data.settings),
     [flyerRecommendations, data.deals, data.settings],
@@ -1141,7 +1159,11 @@ export function PlannerPanel({
               {flyerRecommendations.map((recommendation) => {
                 const { deal } = recommendation;
                 const alreadyAdded = data.shopping.some(
-                  (item) => !item.checked && item.name.toLowerCase() === deal.itemName.toLowerCase(),
+                  (item) =>
+                    !item.checked &&
+                    item.name &&
+                    deal.itemName &&
+                    item.name.toLowerCase() === deal.itemName.toLowerCase(),
                 );
                 const matchedName = tv(recommendation.matchedItemName ?? "");
                 const matchedLevel = tv(recommendation.matchedLevel ?? "");

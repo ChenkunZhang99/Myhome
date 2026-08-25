@@ -36,7 +36,7 @@ export function withSecurityHeaders(response: Response, request: Request) {
   secured.headers.set("X-Content-Type-Options", "nosniff");
   secured.headers.set("X-Frame-Options", "DENY");
   secured.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  secured.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  secured.headers.set("Permissions-Policy", "camera=(self), microphone=(), geolocation=()");
   secured.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   return secured;
 }

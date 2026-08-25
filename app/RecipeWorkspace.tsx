@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { Icon } from "./Icon";
-import { dayIn, detectTimeZone } from "./dateTime";
+import { DEFAULT_TIME_ZONE, dayIn } from "./dateTime";
 import {
   applyConsumption,
   coarsePortions,
@@ -106,7 +106,7 @@ type ConsumptionRow = {
 };
 
 const emptyData: WorkspaceData = {
-  timeZone: detectTimeZone(),
+  timeZone: DEFAULT_TIME_ZONE,
   recipes: [],
   members: [],
   requests: [],
@@ -186,7 +186,7 @@ export function RecipeWorkspace({
 }) {
   const { t, tv, tu, locale } = useAppSettings();
   const [data, setData] = useState<WorkspaceData>(emptyData);
-  const timeZone = data.timeZone || detectTimeZone();
+  const timeZone = data.timeZone || DEFAULT_TIME_ZONE;
   const [activeTab, setActiveTab] = useState<"library" | "requests" | "plan" | "history">("library");
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -204,8 +204,8 @@ export function RecipeWorkspace({
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [memberDraft, setMemberDraft] = useState<Partial<Member> | null>(null);
   const [planRange, setPlanRange] = useState<"3" | "7" | "custom">("7");
-  const [planFrom, setPlanFrom] = useState(dateString(detectTimeZone()));
-  const [planTo, setPlanTo] = useState(addDays(detectTimeZone(), dateString(detectTimeZone()), 6));
+  const [planFrom, setPlanFrom] = useState(dateString(DEFAULT_TIME_ZONE));
+  const [planTo, setPlanTo] = useState(addDays(DEFAULT_TIME_ZONE, dateString(DEFAULT_TIME_ZONE), 6));
   // 只存用户手动改过的项；默认值渲染时算，这样库存刷新不会冲掉已做的选择。
   const [consumptionOverrides, setConsumptionOverrides] = useState<Record<string, StockPortion>>({});
 

@@ -146,8 +146,8 @@ export const GET = withRoute("planner", async (request: Request) => {
         householdBudget: 0,
         maxStores: 2,
       },
-      stores: stores.results,
-      deals: deals.results,
+      stores: stores.results ?? [],
+      deals: deals.results ?? [],
       syncSettings: syncSettings ?? {
         enabled: 1,
         intervalHours: 24,
@@ -158,8 +158,8 @@ export const GET = withRoute("planner", async (request: Request) => {
         lastMessage: "尚未自动同步",
         dealsImported: 0,
       },
-      shopping: shopping.results,
-      matchRules: matchRules.results,
+      shopping: shopping.results ?? [],
+      matchRules: matchRules.results ?? [],
       spending: {
         since,
         food: Math.round(foodSpent * 100) / 100,

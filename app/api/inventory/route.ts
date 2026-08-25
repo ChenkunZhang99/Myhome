@@ -87,14 +87,14 @@ export const GET = withRoute("inventory", async (request: Request) => {
       .bind(household, limit + 1)
       .all();
     // 多取一条用来判断还有没有更多，返回时去掉。
-    const items = result.results.slice(0, limit);
+    const items = (result.results ?? []).slice(0, limit);
     const total = await env.DB.prepare("SELECT COUNT(*) AS count FROM inventory_items WHERE household_id = ?")
       .bind(household)
       .first<{ count: number }>();
     return Response.json({
       items,
       total: Number(total?.count ?? items.length),
-      hasMore: result.results.length > limit,
+      hasMore: (result.results ?? []).length > limit,
     });
   } catch (error) {
     return failure("inventory", error, "库存暂时无法读取", 500);

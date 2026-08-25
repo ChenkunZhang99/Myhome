@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { Icon } from "./Icon";
 import { PlannerPanel } from "./PlannerPanel";
 import {
+  adjustQuantity,
   adjustRemaining,
   clampPercent,
   daysInUse,
@@ -199,7 +200,9 @@ const itemIconRules: { keywords: string[]; icon: string }[] = [
 ];
 
 function getItemIcon(item: Pick<InventoryItem, "name" | "category">) {
-  const normalizedName = item.name.trim().toLowerCase();
+  const normalizedName = String(item.name ?? "")
+    .trim()
+    .toLowerCase();
   const matched = itemIconRules.find((rule) =>
     rule.keywords.some((keyword) => normalizedName.includes(keyword.toLowerCase())),
   );
@@ -540,7 +543,9 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
   const filteredItems = useMemo(
     () =>
       displayItems.filter((item) => {
-        const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase());
+        const matchesSearch = String(item.name ?? "")
+          .toLowerCase()
+          .includes(search.toLowerCase());
         const matchesCategory = category === "全部" || item.category === category;
         return matchesSearch && matchesCategory;
       }),
@@ -627,9 +632,10 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
       return;
     }
     const step = getUnitStep(item);
-    const next = Math.max(0, Number((item.quantity + direction * step).toFixed(2)));
-    const nextPercent = next === 0 ? 0 : item.quantity === 0 ? 100 : item.remainingPercent;
-    const nextLevel = next === 0 ? t("已用完") : item.quantity === 0 ? t("充足") : item.level;
+    const change = adjustQuantity(item, direction * step);
+    const next = change.quantity;
+    const nextPercent = change.remainingPercent;
+    const nextLevel = change.level;
     setItems((current) =>
       current.map((entry) =>
         entry.id === item.id

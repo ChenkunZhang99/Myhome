@@ -102,7 +102,15 @@ export default function ShoppingPage() {
                       <strong>{money(settings.foodBudget)}</strong>
                       <small>{t("已花费 {amount}", { amount: money(spending.food) })}</small>
                       <div className="budget-bar">
-                        <i style={{ width: `${Math.min(100, (spending.food / settings.foodBudget) * 100)}%` }} />
+                        <i
+                          style={{
+                            width: `${
+                              settings.foodBudget > 0
+                                ? Math.min(100, (spending.food / settings.foodBudget) * 100)
+                                : 0
+                            }%`,
+                          }}
+                        />
                       </div>
                     </div>
                     <div className="budget-card">
@@ -110,7 +118,15 @@ export default function ShoppingPage() {
                       <strong>{money(settings.householdBudget)}</strong>
                       <small>{t("已花费 {amount}", { amount: money(spending.household) })}</small>
                       <div className="budget-bar">
-                        <i style={{ width: `${Math.min(100, (spending.household / settings.householdBudget) * 100)}%` }} />
+                        <i
+                          style={{
+                            width: `${
+                              settings.householdBudget > 0
+                                ? Math.min(100, (spending.household / settings.householdBudget) * 100)
+                                : 0
+                            }%`,
+                          }}
+                        />
                       </div>
                     </div>
                   </div>

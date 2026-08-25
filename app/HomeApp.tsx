@@ -26,6 +26,7 @@ import { Modal } from "./Modal";
 import { readJson } from "./apiClient";
 import { compressImage, formatBytes } from "./imageCompression";
 import { fetchHouseholdAccounts } from "./householdAccounts";
+import { CaptureFab } from "./CaptureFab";
 
 type Precision = "simple" | "quantity" | "exact";
 type InventoryItem = {
@@ -1134,8 +1135,18 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
                 </section>
               )}
 
+              {view === "recipes" && (
+                <section className="hero-row">
+                  <div>
+                    <p className="eyebrow">{t("家庭口味")}</p>
+                    <h1>{t("本周菜谱")}</h1>
+                    <p className="hero-copy">{t("安排菜单、记录做过的菜，并据此了解家人爱吃什么。")}</p>
+                  </div>
+                </section>
+              )}
+
               <section className={view === "overview" ? "main-grid" : "main-grid single"}>
-                {view !== "flyers" && (
+                {view !== "flyers" && view !== "recipes" && (
                   <div className="left-column">
                     <section className="panel inventory-panel" id="inventory">
                       <div className="section-head">
@@ -1222,58 +1233,13 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
                         )}
                       </div>
                     </section>
-
-                    {view === "overview" && (
-                      <section className="panel quick-panel">
-                        <div className="section-head">
-                          <div>
-                            <p className="eyebrow">{t("快速录入")}</p>
-                            <h2>{t("怎么更新最方便？")}</h2>
-                          </div>
-                        </div>
-                        <div className="quick-grid">
-                          <button className="quick-action ready" onClick={() => setShowAdd(true)}>
-                            <span>＋</span>
-                            <strong>{t("手动添加")}</strong>
-                            <small>{t("现在可用")}</small>
-                          </button>
-                          <button
-                            className="quick-action"
-                            onClick={() => setToast(t("照片识别将在下一阶段接入"))}
-                          >
-                            <Icon name="camera" />
-                            <strong>{t("拍照识别")}</strong>
-                            <small>{t("下一阶段")}</small>
-                          </button>
-                          <button
-                            className="quick-action ready"
-                            onClick={() => {
-                              setReceiptDraft(null);
-                              setReceiptOpen(true);
-                            }}
-                          >
-                            <Icon name="receipt" />
-                            <strong>{t("上传小票")}</strong>
-                            <small>{t("AI 自动识别")}</small>
-                          </button>
-                          <button
-                            className="quick-action"
-                            onClick={() => setToast(t("条码扫描将在下一阶段接入"))}
-                          >
-                            <Icon name="barcode" />
-                            <strong>{t("扫描条码")}</strong>
-                            <small>{t("下一阶段")}</small>
-                          </button>
-                        </div>
-                      </section>
-                    )}
                   </div>
                 )}
 
                 {view !== "inventory" && (
                   <div className="right-column">
                     <PlannerPanel
-                      variant={view === "flyers" ? "flyers" : "overview"}
+                      variant={view === "flyers" ? "flyers" : view === "recipes" ? "recipes" : "overview"}
                       inventory={items}
                       notify={setToast}
                       onInventoryChange={loadItems}
@@ -1284,12 +1250,21 @@ export function HomeApp({ view = "overview" }: { view?: AppView }) {
             </div>
           </section>
 
+          {!showAdd && !itemScanOpen && !receiptOpen && !settingsOpen && !guideOpen && (
+            <CaptureFab
+              onScan={() => setItemScanOpen(true)}
+              onReceipt={() => {
+                setReceiptDraft(null);
+                setReceiptOpen(true);
+              }}
+            />
+          )}
+
           {showAdd && (
             <Modal eyebrow={t("真实库存")} title={t("添加一件物品")} onClose={() => setShowAdd(false)}>
               {/*
                 一次买回来十几样东西，一件件填这张表是这个应用最劝退的地方。
-                小票识别本来就有，只是入口藏在总览页的「快速录入」里——而人想加东西时
-                打开的是这个弹窗，不是那一屏。把入口放在他手已经伸过来的地方。
+                把小票和包装扫描的入口放在这个弹窗里，人想加东西时手已经伸过来了。
               */}
               <div className="scan-hints">
               <button

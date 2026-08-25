@@ -12,7 +12,7 @@ const links: { href: string; view: AppView; icon: "home" | "inventory" | "deals"
     { href: "/", view: "overview", icon: "home", label: "总览" },
     { href: "/inventory", view: "inventory", icon: "inventory", label: "家庭库存" },
     { href: "/flyers", view: "flyers", icon: "deals", label: "Flyer 优惠" },
-    { href: "/#recipes", view: "recipes", icon: "recipes", label: "本周菜谱" },
+    { href: "/recipes", view: "recipes", icon: "recipes", label: "本周菜谱" },
     { href: "/#budget", view: "budget", icon: "budget", label: "预算记录" },
   ];
 
@@ -96,7 +96,7 @@ export function AppNav({
           <Icon name="deals" />
           {t("优惠")}
         </a>
-        <a href="/#recipes">
+        <a href="/recipes" className={active === "recipes" ? "active" : undefined}>
           <Icon name="recipes" />
           {t("菜谱")}
         </a>

@@ -1310,6 +1310,11 @@ h3 {
   color: var(--muted);
   font-size: var(--text-2xs);
 }
+.nearby-pick-price > span {
+  color: var(--ink);
+  font-size: var(--text-2xs);
+  font-weight: 750;
+}
 .nearby-pick-price em {
   color: var(--green);
   font-size: var(--text-2xs);
@@ -1328,6 +1333,77 @@ h3 {
 .nearby-pick-meta span:last-child {
   color: var(--muted);
   font-weight: 650;
+}
+.favorite-ingredients-lead {
+  margin: -6px 0 14px;
+}
+.favorite-ingredient-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.favorite-ingredient-row {
+  display: grid;
+  grid-template-columns: 1.75rem auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.favorite-ingredient-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.favorite-ingredient-row:first-child {
+  padding-top: 0;
+}
+.favorite-ingredient-rank {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.favorite-ingredient-icon {
+  width: 1.5rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  text-align: center;
+}
+.favorite-ingredient-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.favorite-ingredient-copy strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: 1.3;
+}
+.favorite-ingredient-copy strong .demo-tag {
+  flex: none;
+}
+.favorite-ingredient-copy small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.favorite-ingredient-row > em {
+  justify-self: end;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
 }
 /*
  * 按邮编找超市。原来这一块是写死的三家 Lougheed 门店，
@@ -2128,6 +2204,75 @@ h3 {
   margin-top: 5px;
   border-top: 1px solid var(--line);
 }
+.capture-fab {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 45;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+.capture-fab-menu {
+  display: grid;
+  gap: 6px;
+  min-width: 168px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgb(255 254 250 / 97%);
+  box-shadow: 0 14px 36px rgb(35 53 44 / 16%);
+}
+.capture-fab-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  padding: 11px 12px;
+  font-size: var(--text-sm);
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+.capture-fab-menu button:hover {
+  background: #edf5ef;
+  color: var(--green);
+}
+.capture-fab-menu svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+.capture-fab-trigger {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--green);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgb(46 106 82 / 32%);
+}
+.capture-fab-trigger:hover {
+  background: #245a45;
+}
+.capture-fab-trigger svg {
+  width: 1.35em;
+  height: 1.35em;
+}
+.capture-fab.open .capture-fab-trigger {
+  background: #183c31;
+}
+@media (max-width: 760px) {
+  .capture-fab {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+}
 .toast {
   position: fixed;
   left: 50%;
@@ -2858,18 +3003,16 @@ h3 {
   order: 2;
   grid-column: 1 / -1;
 }
+.favorite-ingredients-panel,
 .recipe-panel {
   order: 3;
   grid-column: 1 / -1;
 }
-.quick-panel {
+.budget-panel {
   order: 4;
 }
-.budget-panel {
-  order: 5;
-}
 .shopping-panel {
-  order: 6;
+  order: 5;
 }
 
 .flyer-panel,
@@ -3299,17 +3442,16 @@ h3 {
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 20px;
   }
-  .quick-panel,
   .budget-panel,
   .shopping-panel {
     grid-column: span 4;
   }
+  .favorite-ingredients-panel {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (min-width: 761px) and (max-width: 1100px) {
-  .quick-panel {
-    grid-column: 1 / -1;
-  }
   .budget-panel,
   .shopping-panel {
     grid-column: span 6;
@@ -3323,8 +3465,8 @@ h3 {
 @media (max-width: 760px) {
   .inventory-panel,
   .flyer-panel,
+  .favorite-ingredients-panel,
   .recipe-panel,
-  .quick-panel,
   .budget-panel,
   .shopping-panel {
     grid-column: 1 / -1;
@@ -5469,7 +5611,8 @@ button.item-main:focus-visible {
 .icon-button svg,
 .summary-icon svg,
 .global-search svg,
-.quick-action svg {
+.capture-fab-trigger svg,
+.capture-fab-menu svg {
   flex-shrink: 0;
   vertical-align: -0.14em;
 }
@@ -5497,8 +5640,8 @@ button.item-main:focus-visible {
   }
   .inventory-panel,
   .flyer-panel,
+  .favorite-ingredients-panel,
   .recipe-panel,
-  .quick-panel,
   .budget-panel,
   .shopping-panel {
     min-width: 0;

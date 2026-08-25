@@ -81,7 +81,11 @@ test("keeps inventory editing, unit steps, recommendations, and OpenAI configura
   assert.match(planner, /历史低价与感兴趣好物/);
   assert.match(planner, /demoNearbyPicks/);
   assert.match(planner, /nearby-picks/);
+  assert.match(planner, /flyerUnit/);
+  assert.match(planner, /packageQuantity/);
   assert.doesNotMatch(planner, /id="nearby-flyers"/);
+  assert.match(planner, /FavoriteIngredientsPanel/);
+  assert.match(planner, /variant === "recipes"/);
   assert.match(planner, /RecipeWorkspace/);
   assert.match(workspace, /本周菜谱/);
   assert.match(workspace, /自定义菜谱/);

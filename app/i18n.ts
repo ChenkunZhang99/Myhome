@@ -421,6 +421,8 @@ const ui: Record<string, string> = {
   保质期日期: "Expiry day",
   "已加入 {count} 件物品，购买日期记为今天": "Added {count} item(s). Purchase date saved as today.",
   上传小票: "Upload a receipt",
+  拍照或上传小票: "Scan or upload a receipt",
+  关闭录入选项: "Close capture options",
   下一阶段: "Coming later",
   "下面的物品都带有“示例”标记，不会写入你的真实库存。":
     "Everything below is marked as demo and never touches your real inventory.",
@@ -576,6 +578,22 @@ const ui: Record<string, string> = {
   临期与低库存: "Expiring and low stock",
   返回总览: "Back to overview",
   "收藏常去的超市，系统会同步它们的每周优惠。": "Save the stores you shop at and we will sync their weekly flyers.",
+  "安排菜单、记录做过的菜，并据此了解家人爱吃什么。":
+    "Plan meals, log what you cooked, and learn what this household likes.",
+  家庭口味: "Family tastes",
+  喜爱食材: "Favourite ingredients",
+  查看本周菜谱: "See this week's meals",
+  "当前为示例。收藏或做过几道菜之后，这里会换成家人真正爱吃的食材。":
+    "These are samples. After you favourite or cook a few dishes, real household staples show up here.",
+  "根据收藏、评分和做过的菜，列出家里常出现的食材。":
+    "Ingredients that keep showing up in favourites, highly rated dishes, and meals you have cooked.",
+  早餐常做: "A breakfast regular",
+  家常菜几乎都会用: "Shows up in almost every home dish",
+  正餐首选: "A dinner favourite",
+  常做的菜会用到: "Used in dishes you cook often",
+  "出自「{title}」": "From “{title}”",
+  "{count} 道菜用到": "In {count} recipes",
+  "{count} 道菜": "{count} dishes",
   附近超市: "Nearby stores",
   历史低价与感兴趣好物: "Low prices on items you care about",
   附近低价好物: "Nearby low-price picks",
@@ -589,6 +607,7 @@ const ui: Record<string, string> = {
   "可替代家里的{name}": "Can stand in for {name} at home",
   可替代家里现有食材: "Can stand in for something at home",
   "优惠截止 {date}": "Deal ends {date}",
+  "{quantity} {unit}": "{quantity} {unit}",
   "5 公里内 Flyer": "Flyers within 5 km",
   "附近 5 公里内的超市 Flyer": "Supermarket flyers within 5 km",
   "这个片区还没有附近超市。打开 Flyer 页按邮编搜索 5 公里内的门店。":

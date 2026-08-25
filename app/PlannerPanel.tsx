@@ -19,6 +19,7 @@ import { useAppSettings } from "./AppSettings";
 import { readJson } from "./apiClient";
 import { Modal } from "./Modal";
 import type { Locale } from "./i18n";
+import { FavoriteIngredientsPanel } from "./FavoriteIngredientsPanel";
 import { RecipeWorkspace } from "./RecipeWorkspace";
 
 type Settings = {
@@ -201,10 +202,21 @@ type NearbyPick = {
   storeName: string;
   price: number;
   regularPrice?: number | null;
+  /** Flyer 计价单位，例如 lb、kg、盒。 */
+  unit: string;
+  /** 包装规格，有的话会显示成「2 lb」。 */
+  packageQuantity?: number | null;
+  packageUnit?: string | null;
   priceSignal: "historical-low" | "below-average";
   validTo: string;
   interest: string;
 };
+
+function flyerUnit(value: string | null | undefined) {
+  return String(value ?? "")
+    .replace(/^\//, "")
+    .trim() || "件";
+}
 
 /** 总览上附近优惠的默认范本。没有真实 Flyer 数据时先让人看懂这一块在干什么。 */
 function demoNearbyPicks(): NearbyPick[] {
@@ -217,6 +229,9 @@ function demoNearbyPicks(): NearbyPick[] {
       storeName: "PriceSmart Foods",
       price: 1.49,
       regularPrice: 2.99,
+      unit: "把",
+      packageQuantity: 1,
+      packageUnit: "把",
       priceSignal: "historical-low",
       validTo: "2026-08-27",
       interest: "家里偏少",
@@ -229,6 +244,9 @@ function demoNearbyPicks(): NearbyPick[] {
       storeName: "T&T 大统华",
       price: 4.99,
       regularPrice: 6.49,
+      unit: "盒",
+      packageQuantity: 12,
+      packageUnit: "个",
       priceSignal: "below-average",
       validTo: "2026-08-28",
       interest: "常买的食材",
@@ -241,6 +259,9 @@ function demoNearbyPicks(): NearbyPick[] {
       storeName: "Save-On-Foods",
       price: 8.05,
       regularPrice: 12.9,
+      unit: "lb",
+      packageQuantity: 1,
+      packageUnit: "lb",
       priceSignal: "historical-low",
       validTo: "2026-08-26",
       interest: "即将用完",
@@ -363,7 +384,7 @@ export function PlannerPanel({
   inventory: InventoryLite[];
   notify: (message: string) => void;
   onInventoryChange: () => void;
-  variant?: "overview" | "flyers";
+  variant?: "overview" | "flyers" | "recipes";
 }) {
   const { t, tv, tu, locale } = useAppSettings();
   const [data, setData] = useState<PlannerData>({
@@ -671,6 +692,11 @@ export function PlannerPanel({
       storeName: storeNames.get(recommendation.deal.storeId) ?? t("附近超市"),
       price: Number(recommendation.deal.price),
       regularPrice: recommendation.deal.regularPrice,
+      unit: flyerUnit(recommendation.deal.unit),
+      packageQuantity: recommendation.deal.packageQuantity,
+      packageUnit: recommendation.deal.packageUnit
+        ? flyerUnit(recommendation.deal.packageUnit)
+        : null,
       priceSignal: recommendation.priceSignal as "historical-low" | "below-average",
       validTo: recommendation.deal.validTo,
       interest: nearbyPickInterest(recommendation, t, tv),
@@ -908,10 +934,25 @@ export function PlannerPanel({
                 <strong>{tv(pick.itemName)}</strong>
                 <small>{tv(pick.category)}</small>
                 <div className="nearby-pick-price">
-                  <b>{money(pick.price)}</b>
+                  <b>
+                    {money(pick.price)}/{tu(pick.unit)}
+                  </b>
                   {pick.regularPrice != null && pick.regularPrice > pick.price && (
-                    <s>{money(pick.regularPrice)}</s>
+                    <s>
+                      {money(pick.regularPrice)}/{tu(pick.unit)}
+                    </s>
                   )}
+                  {Number(pick.packageQuantity) > 0 &&
+                  pick.packageUnit &&
+                  (Number(pick.packageQuantity) !== 1 ||
+                    flyerUnit(pick.packageUnit) !== flyerUnit(pick.unit)) ? (
+                    <span>
+                      {t("{quantity} {unit}", {
+                        quantity: Number(pick.packageQuantity),
+                        unit: tu(pick.packageUnit, Number(pick.packageQuantity)),
+                      })}
+                    </span>
+                  ) : null}
                   <em>
                     {pick.priceSignal === "historical-low" ? t("当前为已记录最低价") : t("低于近期平均价")}
                   </em>
@@ -1459,13 +1500,15 @@ export function PlannerPanel({
       </section>
       )}
 
-      {variant === "overview" && (
-      <RecipeWorkspace
-        inventory={inventory}
-        notify={notify}
-        onPlannerChange={load}
-        onInventoryChange={onInventoryChange}
-      />
+      {variant === "overview" && <FavoriteIngredientsPanel />}
+
+      {variant === "recipes" && (
+        <RecipeWorkspace
+          inventory={inventory}
+          notify={notify}
+          onPlannerChange={load}
+          onInventoryChange={onInventoryChange}
+        />
       )}
 
       {modal && (
